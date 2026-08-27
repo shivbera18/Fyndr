@@ -381,7 +381,7 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                 try {
                     const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
                         headers: { ...formData.getHeaders() },
-                        maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
+                        maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000
                     });
                     if (response.data.error) throw new Error(response.data.error);
                     if (Array.isArray(response.data.embeddings)) {

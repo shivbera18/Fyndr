@@ -57,7 +57,13 @@ CORS(app)
 app_insight = FaceAnalysis(allowed_modules=['detection', 'recognition']) if HAS_INSIGHT else None
 if HAS_INSIGHT:
     app_insight.prepare(ctx_id=-1, det_size=(640, 640))
-
+    # Warm up ONNX models at startup to avoid cold-start compilation latency on first user request
+    try:
+        dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+        app_insight.get(dummy)
+        logger.info("InsightFace ONNX models warmed up successfully.")
+    except Exception as e:
+        logger.warning(f"InsightFace warm-up notice: {e}")
 # Load and prepare image function (handles EXIF orientation, downsamples ultra-large DSLR photos, converts to BGR)
 def load_image_from_bytes(image_bytes):
     try:
