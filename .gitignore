@@ -1,0 +1,27 @@
+# deps
+node_modules/
+front-end/node_modules/
+node-server-1/node_modules/
+flask-server-2/venv/
+flask-server-2/__pycache__/
+*.pyc
+# logs
+*.log
+flask-server-2/flask.log
+node-server-1/node.log
+front-end/frontend.log
+front-end/build/
+# env
+node-server-1/.env
+front-end/.env
+flask-server-2/.env
+# OS
+.DS_Store
+Thumbs.db
+# secrets
+.ssh/
+*.key
+*.pem
+front-end/public/models/
+front-end/public/person/
+front-end/build/

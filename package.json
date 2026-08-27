@@ -1,0 +1,21 @@
+{
+  "name": "fyndr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fyndr \u2014 Event photo sharing with face recognition (one-command dev)",
+  "scripts": {
+    "dev": "concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api\" \"npm:dev:ml\" \"npm:dev:web\"",
+    "dev:api": "node node-server-1/index.js",
+    "dev:ml": "cd flask-server-2 && venv/Scripts/python app.py || cd flask-server-2 && venv/bin/python app.py",
+    "dev:ml:unix": "cd flask-server-2 && venv/bin/python app.py",
+    "dev:web": "npm start --prefix front-end",
+    "dev:win": "concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api\" \"npm:dev:ml\" \"npm:dev:web\"",
+    "build": "npm run build --prefix front-end",
+    "start": "pm2 start ecosystem.config.js",
+    "setup": "npm install --prefix node-server-1 && npm install --prefix front-end && python -m venv flask-server-2/venv && flask-server-2/venv/Scripts/pip install -r flask-server-2/requirements.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

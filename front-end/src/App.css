@@ -1,0 +1,163 @@
+
+
+
+
+
+
+
+
+
+.start-row{
+  
+  padding: 10ch;
+  
+  padding-left: 20ch;
+  
+}
+.bg1{
+  background-color: #353840;
+  padding: 10ch;
+  
+  padding-left: 33ch;
+}
+
+.bg{
+  height: 600px;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+
+
+  background-image: url('/public/images/img.png');
+
+  
+
+}
+
+.start-row img{
+width: 700px;
+}
+
+
+.home-goal {
+  
+  display:contents;
+  justify-content: center;
+  justify-content: space-between;
+  margin-top: 10ch;
+  padding: 4ch;
+  background-color: #efefef;
+  
+}
+
+.home-video2{
+  
+  display:flex;
+ 
+  justify-content: space-between;
+  align-items: center;
+  
+  padding: 4ch;
+  background-color: #212121fe;
+}
+.home-video2-h, h1, h4{
+  color: white;
+  
+}
+.video-div {
+  width: 300px;  /* Define the container size */
+  height: 300px; /* Define the container size */
+  overflow: hidden; /* Hide the overflow, this is key for cropping */
+  position: relative;
+}
+.video-div video {
+  width: 100%;  /* Make the video fit the width of the container */
+  height: 100%; /* Make the video fit the height of the container */
+  object-fit: cover; /* This ensures the video covers the container while cropping */
+}
+
+.about-bio{
+  height: 600px;
+  justify-content:space-around;
+  background-color: #d6d6d6;
+  padding: 15px;
+}
+.about-bio-img img{
+  height: 350px;
+
+  
+}
+
+
+
+.slider-crop{
+    /* Define the container size */
+  height: 350px; 
+  width: 100%;
+  overflow: hidden; /* Hide the overflow, this is key for cropping */
+  position: relative;
+}
+
+
+
+
+.App {
+  display: flex;
+  text-align: center;
+  flex-direction: column;
+  min-height: 100vh;
+  
+  
+  
+  
+}
+
+
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+.forget-password{
+  
+  
+  flex-direction: column;
+  align-items: center;
+  
+
+  
+}
+
+
+
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

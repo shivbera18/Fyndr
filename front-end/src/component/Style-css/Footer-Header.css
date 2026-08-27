@@ -1,0 +1,103 @@
+.body{
+    text-align: center;
+  display: flex;
+  flex-direction: column;
+
+  min-height: 100vh;
+}
+
+.Footer {
+    
+    padding: 2rem 0;
+    margin-top: 8ch;
+    background-color: #25272b;
+    color: aliceblue;
+    
+    
+  }
+  
+  .ft-1 h3 {
+    font-weight: 700;
+    font-family: cursive;
+    letter-spacing: 2px;
+    padding: auto;
+    
+  }
+  
+  .ft-1 span {
+    color: #f60838;
+  }
+  
+  .ft-1 p {
+    padding: auto;
+    font-weight: 500;
+    
+  }
+  
+  
+  
+  
+  .Footer h5 {
+    color: #f60838;
+    
+    
+  }
+  
+  .ft-2 ul {
+    list-style: none;
+    padding: 1rem 0;
+    
+   
+    
+
+    color: rgb(111, 166, 213);
+  }
+  
+  .ft-2 ul li {
+    
+    font-weight: 500;
+    
+  }
+  
+  .ft-2 ul a {
+    text-decoration: none;
+    color: aliceblue;
+    font-size: 1.06rem;
+    
+    
+    
+  }
+ 
+
+  
+  
+ 
+  
+ 
+  
+  .Last-footer {
+    background: #f60838;
+    text-align: center;
+    padding: 1rem 0;
+  }
+  
+  .Last-footer p {
+    margin-bottom: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+
+
+
+
+
+  .nav{
+    margin: 8px;
+    
+  }
+  .nav a{
+    font-size: 20px;
+    font-weight: 400;
+    color: aliceblue;
+    margin: 5px;
+  }
