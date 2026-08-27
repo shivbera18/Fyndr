@@ -88,13 +88,16 @@ def match_faces():
     # validate event_id (allow any sanitized string, but guard empty)
     if not event_id or len(event_id) < 6 or len(event_id) > 64:
         return jsonify({'error': 'invalid event_id'}), 400
-    threshold = float(request.form.get('threshold', 0.34))
+    try:
+        threshold = float(request.form.get('threshold', 0.34))
+    except:
+        return jsonify({'error': 'invalid threshold'}), 400
     if threshold < 0.1 or threshold > 0.9:
-        threshold = 0.34
+        return jsonify({'error': 'threshold must be between 0.1 and 0.9'}), 400
     image_bytes = file.read()
-    # limit selfie size to 10MB
+    # limit selfie size to 10MB (aligned with upload 15MB: selfie smaller is ok, but not silent)
     if len(image_bytes) > 10 * 1024 * 1024:
-        return jsonify({'error': 'image too large (max 10MB)'}), 400
+        return jsonify({'error': 'image too large (max 10MB for selfie)'}), 400
 
     img = load_image_from_bytes(image_bytes)
     if img is None:
