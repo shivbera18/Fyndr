@@ -323,63 +323,99 @@ app.post('/in-event', async (req, resp) => {
 app.post('/photo', upload.array('name', 100), async (req, res) => {
     const endTimer = uploadDuration.startTimer();
     try {
-        const files = req.files;
+        const files = req.files || [];
         const { event_id, upload_by } = req.body;
-        if(!event_id) return res.status(400).send({error:'event_id required'});
-        const limit = pLimit(6); // P1: 6 concurrent, not 50k all at once
-        const photos = await Promise.all(
+        if (!event_id) return res.status(400).send({ error: 'event_id required' });
+        if (!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({ error: 'invalid event_id' });
+        if (files.length === 0) return res.status(400).send({ error: 'no files uploaded' });
+        const eventExists = await Event.findById(event_id).select('_id');
+        if (!eventExists) return res.status(404).send({ error: 'event not found' });
+
+        const limit = pLimit(6);
+        const queueMod = require('./queue/mongoQueue');
+
+        const results = await Promise.all(
             files.map(file => limit(async () => {
-                // P1: hash for idempotency
-                const buf = fs.readFileSync(file.path);
-                const hash = crypto.createHash('sha256').update(buf).digest('hex');
-                const q = await enqueue(event_id, hash, file.filename);
-                if(q && q.status === 'done'){
-                    // already processed, dedup
-                    fs.unlinkSync(file.path);
-                    const existing = await Photo.findOne({ event_id, name: file.filename });
-                    return existing || q;
+                let hash;
+                try {
+                    const buf = fs.readFileSync(file.path);
+                    hash = crypto.createHash('sha256').update(buf).digest('hex');
+                } catch (e) {
+                    return { file: file.originalname, error: 'hash failed: ' + e.message, status: 'failed' };
                 }
+
+                // Per-event idempotency: check Photo first (fast path)
+                try {
+                    const existingPhoto = await Photo.findOne({ event_id, hash });
+                    if (existingPhoto) {
+                        try { fs.unlinkSync(file.path); } catch(_){}
+                        await queueMod.markDone(event_id, hash).catch(()=>{});
+                        return existingPhoto;
+                    }
+                } catch(_){}
+
+                const q = await enqueue(event_id, hash, file.filename);
+                if (q && q.status === 'done') {
+                    try { fs.unlinkSync(file.path); } catch(_){}
+                    const existing = await Photo.findOne({ event_id, hash });
+                    return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: q.photo_hash };
+                }
+
+                // Pre-generate photoId so we can index FAISS in single ML call
+                const photoId = new mongoose.Types.ObjectId();
                 const formData = new FormData();
                 formData.append('image', fs.createReadStream(file.path));
+                formData.append('event_id', event_id);
+                formData.append('photo_id', photoId.toString());
 
-                const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
-                    headers: { ...formData.getHeaders() },
-                    maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
-                });
-                if (response.data.error) {
-                    fs.unlinkSync(file.path);
-                    throw new Error(response.data.error);
-                }
-                const embedding = response.data.embedding;
-                const photo = new Photo({
-                    name: file.filename,
-                    event_id: event_id,
-                    upload_by: upload_by,
-                    embedding: JSON.stringify(embedding),
-                });
-                await photo.save();
-                // P1: also index in FAISS via second call with photo_id (ensures file-based index)
+                let embedding;
                 try {
-                    const fd2 = new FormData();
-                    fd2.append('image', fs.createReadStream(file.path));
-                    fd2.append('event_id', event_id);
-                    fd2.append('photo_id', photo._id.toString());
-                    // fire and forget, embedding already known, but this ensures FAISS has correct photo_id
-                    // we already added with hash, now add with real id as well
-                    // Instead, directly call faiss via embedding already added with hash, now add with id
-                    // For mock, embedding deterministic from image, so same
-                    await axios.post('http://127.0.0.1:5001/get_embedding', fd2, { headers: {...fd2.getHeaders()}, timeout: 5000 }).catch(()=>{});
-                    // Also directly add to faiss via embedding (if flask didn't)
-                    // The mock embedding is deterministic, so second add with same vector but different id will duplicate; avoid duplicate by not re-adding if hash already indexed
-                } catch(e){}
-                await require('./queue/mongoQueue').markDone(hash).catch(()=>{});
-                return photo;
+                    const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
+                        headers: { ...formData.getHeaders() },
+                        maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
+                    });
+                    if (response.data.error) throw new Error(response.data.error);
+                    embedding = response.data.embedding;
+                    if (!Array.isArray(embedding) || embedding.length !== 512) throw new Error('invalid embedding');
+                } catch (e) {
+                    await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
+                    try { fs.unlinkSync(file.path); } catch(_){}
+                    return { file: file.originalname, hash, error: e.message, status: 'failed' };
+                }
+
+                try {
+                    const photo = new Photo({
+                        _id: photoId,
+                        name: file.filename,
+                        event_id, upload_by,
+                        embedding: JSON.stringify(embedding),
+                        hash, status: 'done'
+                    });
+                    await photo.save();
+                    await queueMod.markDone(event_id, hash).catch(()=>{});
+                    return photo;
+                } catch (e) {
+                    if (e.code === 11000) {
+                        // race: another worker saved same hash
+                        try { fs.unlinkSync(file.path); } catch(_){}
+                        const dup = await Photo.findOne({ event_id, hash });
+                        await queueMod.markDone(event_id, hash).catch(()=>{});
+                        return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
+                    }
+                    await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
+                    return { file: file.originalname, hash, error: e.message, status: 'failed' };
+                }
             }))
         );
+
+        const failed = results.filter(r => r && r.error);
         endTimer();
-        res.status(200).send(photos);
+        // 207 Multi-Status if partial failures, 200 if all ok
+        if (failed.length > 0 && failed.length < results.length) return res.status(207).send(results);
+        if (failed.length === results.length) return res.status(422).send(results);
+        res.status(200).send(results);
     } catch (error) {
-        console.error(error);
+        console.error('[photo] upload error', error);
         endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
     }
