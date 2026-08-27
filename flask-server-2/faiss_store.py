@@ -3,9 +3,16 @@ Fyndr — FAISS per-event store (P1)
 Single file per event: /tmp/fyndr_faiss/{event_id}.npy + .index
 Falls back to numpy brute if faiss-cpu not installed (WindowsOK, aarch64 no wheel).
 """
-import os, hashlib, json
+import os, hashlib, json, threading
+from collections import defaultdict
 import numpy as np
 
+_locks_guard = threading.Lock()
+_event_locks = defaultdict(threading.Lock)
+
+def _get_lock(event_id):
+    with _locks_guard:
+        return _event_locks[str(event_id)]
 try:
     import faiss  # pip install faiss-cpu
     HAS_FAISS = True
@@ -55,137 +62,139 @@ def _load_meta(meta_path):
 def add(event_id, photo_id, embedding):
     """Append 512-d embedding(s) for event. embedding: list/np array (512,) or (N,512), L2 normalized.
     Persists both npy (source of truth) and FAISS index for rebuild safety."""
-    _path(event_id, "index")
-    photo_id = _sanitize_photo_id(photo_id)
-    vecs = np.array(embedding, dtype=np.float32)
-    if vecs.ndim == 1:
-        if vecs.shape != (512,):
-            raise ValueError(f"embedding must be 512-d, got {vecs.shape}")
-        vecs = vecs.reshape(1, -1)
-    elif vecs.ndim == 2:
-        if vecs.shape[0] == 0:
-            return True
-        if vecs.shape[1] != 512:
-            raise ValueError(f"embedding must be (N, 512), got {vecs.shape}")
-    else:
-        raise ValueError(f"invalid embedding shape {vecs.shape}")
-
-    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0
-    vecs = vecs / norms
-
-    npy_path = _path(event_id, "npy")
-    meta_path = _path(event_id, "meta.json")
-    idx_path = _path(event_id, "index")
-
-    meta = _load_meta(meta_path)
-    # If photo_id already indexed, remove old vectors to keep add idempotent
-    if any(m.get("photo_id") == photo_id for m in meta):
-        remove(event_id, photo_id)
-        meta = _load_meta(meta_path)
-
-    if os.path.exists(npy_path):
-        try:
-            arr = np.load(npy_path)
-            arr = np.vstack([arr, vecs])
-        except Exception:
-            arr = vecs
-    else:
-        arr = vecs
-    np.save(npy_path, arr)
-    for _ in range(vecs.shape[0]):
-        meta.append({"photo_id": photo_id, "id": len(meta)})
-    _atomic_write(meta_path, json.dumps(meta))
-
-    if HAS_FAISS:
-        try:
-            if os.path.exists(idx_path):
-                index = faiss.read_index(idx_path)
-            else:
-                index = faiss.IndexFlatIP(512)
-                if len(meta) > vecs.shape[0] and os.path.exists(npy_path):
-                    index.add(arr)
-                    faiss.write_index(index, idx_path)
-                    return True
-            index.add(vecs)
-            faiss.write_index(index, idx_path)
-        except Exception as e:
-            try:
-                index = faiss.IndexFlatIP(512)
-                index.add(arr)
-                faiss.write_index(index, idx_path)
-            except Exception as e2:
-                print(f"[faiss_store] add rebuild failed: {e2} (orig {e})")
-    return True
-
-def remove(event_id, photo_id):
-    """Remove all vectors for single photo from index (rebuild). Returns True if removed."""
-    _path(event_id, "index")
-    photo_id = _sanitize_photo_id(photo_id)
-    meta_path = _path(event_id, "meta.json")
-    npy_path = _path(event_id, "npy")
-    idx_path = _path(event_id, "index")
-    if not os.path.exists(meta_path):
-        return False
-    meta = json.loads(open(meta_path).read())
-    del_indices = [i for i, m in enumerate(meta) if m.get("photo_id") == photo_id]
-    if not del_indices:
-        return False
-    del_set = set(del_indices)
-    meta = [m for i, m in enumerate(meta) if i not in del_set]
-    for i, m in enumerate(meta):
-        m["id"] = i
-
-    if os.path.exists(npy_path):
-        try:
-            arr = np.load(npy_path)
-            arr = np.delete(arr, del_indices, axis=0)
-            if len(meta) == 0:
-                try: os.remove(npy_path)
-                except: pass
-                try: os.remove(idx_path)
-                except: pass
-                _atomic_write(meta_path, json.dumps(meta))
+    with _get_lock(event_id):
+        _path(event_id, "index")
+        photo_id = _sanitize_photo_id(photo_id)
+        vecs = np.array(embedding, dtype=np.float32)
+        if vecs.ndim == 1:
+            if vecs.shape != (512,):
+                raise ValueError(f"embedding must be 512-d, got {vecs.shape}")
+            vecs = vecs.reshape(1, -1)
+        elif vecs.ndim == 2:
+            if vecs.shape[0] == 0:
                 return True
-            np.save(npy_path, arr)
-        except Exception as e:
-            print(f"[faiss_store] npy delete failed: {e}")
-            _atomic_write(meta_path, json.dumps(meta))
-            return True
+            if vecs.shape[1] != 512:
+                raise ValueError(f"embedding must be (N, 512), got {vecs.shape}")
+        else:
+            raise ValueError(f"invalid embedding shape {vecs.shape}")
+
+        norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        vecs = vecs / norms
+
+        npy_path = _path(event_id, "npy")
+        meta_path = _path(event_id, "meta.json")
+        idx_path = _path(event_id, "index")
+
+        meta = _load_meta(meta_path)
+        # If photo_id already indexed, remove old vectors to keep add idempotent
+        if any(m.get("photo_id") == photo_id for m in meta):
+            remove(event_id, photo_id)
+            meta = _load_meta(meta_path)
+
+        if os.path.exists(npy_path):
+            try:
+                arr = np.load(npy_path)
+                arr = np.vstack([arr, vecs])
+            except Exception:
+                arr = vecs
+        else:
+            arr = vecs
+        np.save(npy_path, arr)
+        for _ in range(vecs.shape[0]):
+            meta.append({"photo_id": photo_id, "id": len(meta)})
+        _atomic_write(meta_path, json.dumps(meta))
 
         if HAS_FAISS:
             try:
-                if len(meta) == 0:
-                    try: os.remove(idx_path)
-                    except: pass
+                if os.path.exists(idx_path):
+                    index = faiss.read_index(idx_path)
                 else:
+                    index = faiss.IndexFlatIP(512)
+                    if len(meta) > vecs.shape[0] and os.path.exists(npy_path):
+                        index.add(arr)
+                        faiss.write_index(index, idx_path)
+                        return True
+                index.add(vecs)
+                faiss.write_index(index, idx_path)
+            except Exception as e:
+                try:
                     index = faiss.IndexFlatIP(512)
                     index.add(arr)
                     faiss.write_index(index, idx_path)
+                except Exception as e2:
+                    print(f"[faiss_store] add rebuild failed: {e2} (orig {e})")
+        return True
+
+def remove(event_id, photo_id):
+    """Remove all vectors for single photo from index (rebuild). Returns True if removed."""
+    with _get_lock(event_id):
+        _path(event_id, "index")
+        photo_id = _sanitize_photo_id(photo_id)
+        meta_path = _path(event_id, "meta.json")
+        npy_path = _path(event_id, "npy")
+        idx_path = _path(event_id, "index")
+        if not os.path.exists(meta_path):
+            return False
+        meta = json.loads(open(meta_path).read())
+        del_indices = [i for i, m in enumerate(meta) if m.get("photo_id") == photo_id]
+        if not del_indices:
+            return False
+        del_set = set(del_indices)
+        meta = [m for i, m in enumerate(meta) if i not in del_set]
+        for i, m in enumerate(meta):
+            m["id"] = i
+
+        if os.path.exists(npy_path):
+            try:
+                arr = np.load(npy_path)
+                arr = np.delete(arr, del_indices, axis=0)
+                if len(meta) == 0:
+                    try: os.remove(npy_path)
+                    except: pass
+                    try: os.remove(idx_path)
+                    except: pass
+                    _atomic_write(meta_path, json.dumps(meta))
+                    return True
+                np.save(npy_path, arr)
             except Exception as e:
-                print(f"[faiss_store] rebuild failed: {e}")
+                print(f"[faiss_store] npy delete failed: {e}")
+                _atomic_write(meta_path, json.dumps(meta))
+                return True
+
+            if HAS_FAISS:
+                try:
+                    if len(meta) == 0:
+                        try: os.remove(idx_path)
+                        except: pass
+                    else:
+                        index = faiss.IndexFlatIP(512)
+                        index.add(arr)
+                        faiss.write_index(index, idx_path)
+                except Exception as e:
+                    print(f"[faiss_store] rebuild failed: {e}")
+                    try: os.remove(idx_path)
+                    except: pass
+        else:
+            if HAS_FAISS and os.path.exists(idx_path):
                 try: os.remove(idx_path)
                 except: pass
-    else:
-        if HAS_FAISS and os.path.exists(idx_path):
-            try: os.remove(idx_path)
-            except: pass
-    _atomic_write(meta_path, json.dumps(meta))
-    return True
+        _atomic_write(meta_path, json.dumps(meta))
+        return True
 def delete_event(event_id):
     """Delete all FAISS data for an event."""
-    for ext in ["index", "meta.json", "npy"]:
-        p = _path(event_id, ext)
+    with _get_lock(event_id):
+        for ext in ["index", "meta.json", "npy"]:
+            p = _path(event_id, ext)
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except: pass
         try:
-            if os.path.exists(p):
-                os.remove(p)
+            tmp = _path(event_id, "meta.json.tmp")
+            if os.path.exists(tmp): os.remove(tmp)
         except: pass
-    # also tmp
-    try:
-        tmp = _path(event_id, "meta.json.tmp")
-        if os.path.exists(tmp): os.remove(tmp)
-    except: pass
-    return True
+        return True
 
 def search(event_id, query_emb, k=48, threshold=0.34):
     """Return list of (photo_id, score) sorted desc, filtered by threshold, deduped by photo_id."""
