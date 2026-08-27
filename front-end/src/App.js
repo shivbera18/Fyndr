@@ -4,18 +4,12 @@ import './component/Style-css/Footer-Header.css'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min';
 
-import PrivateRoute from './component/PrivateRoute';
-
-
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import Header from './component/navbar/Header';
-import Footer from './component/Footer';
-
-import Collect_event from './component/collect_images/Collect_event';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import CollectEvent from './component/collect_images/Collect_event';
 import Home from './component/home/Home';
 import About from './component/About';
-import Login_Register from './component/login/Login_Register';
-import Dashboard from './component/dashboard/Dashboard'
+import LoginRegister from './component/login/Login_Register';
+import Dashboard from './component/dashboard/Dashboard';
 import InEvent from './component/dashboard/InEvent';
 import CameraCaptureWithMask from './component/collect_images/CameraCaptureWithMask';
 import EmailVerified from './component/login/EmailVerify';
@@ -47,8 +41,8 @@ function App() {
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
           <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/in-event' element={<InEvent />} />
-          <Route path='/collect/:eventId' element={<Collect_event />} />
-          <Route path='/login' element={<Login_Register />} />
+          <Route path='/collect/:eventId' element={<CollectEvent />} />
+          <Route path='/login' element={<LoginRegister />} />
           <Route path='/about' element={<About />} />
 
         </Routes>

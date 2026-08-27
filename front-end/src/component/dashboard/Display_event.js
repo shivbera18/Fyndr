@@ -1,91 +1,137 @@
-import React, { useEffect, useState } from "react";
-import { Card,Row,Col, message } from 'antd';
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from 'react';
+import NeoCard from '../ui/NeoCard';
+import NeoButton from '../ui/NeoButton';
+import NeoBadge from '../ui/NeoBadge';
 
-const { Meta } = Card;
+const Display_event = ({ refresh, onclick, onQrClick }) => {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-const Display_event = ({refresh,onclick}) => {
-    const [events, setEvents] = useState([]);
-    const navigate = useNavigate()
-    
-    const fetchEvents = async () => {
-        const userString = localStorage.getItem("user");
-        if (userString) {
-            const user = JSON.parse(userString);
+  const fetchEvents = async () => {
+    const userString = localStorage.getItem('user');
+    if (!userString) return;
 
-            try {
-                let result = await fetch('http://localhost:5000/display_event', {
-                    method: 'POST',
-                    body: JSON.stringify({ userId: user._id }),
-                    headers: {
-                        "Content-Type": "application/json"
-                    }
-                });
+    try {
+      const user = JSON.parse(userString);
+      setLoading(true);
+      const res = await fetch('http://localhost:5000/display_event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user._id }),
+      });
 
-                result = await result.json();
-                
-                if (Array.isArray(result)) {
-                    setEvents(result);
-                } else {
-                    setEvents(result);
-                    message.warning(result.message);
-                }
-            } catch (error) {
-                message.warning(error);
-            }
-        }
-    };
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setEvents(data);
+      } else {
+        setEvents([]);
+      }
+    } catch (_) {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    
+  useEffect(() => {
+    fetchEvents();
+  }, [refresh]);
 
-    useEffect(() => {
-        
-
-        fetchEvents();
-    }, [refresh]);
-    
+  if (loading) {
     return (
-        <div style={{}}>
-            <h1>Your Event's</h1>
-            <Row gutter={16} className="justify-content-center">
-          
-            {events.length > 0 ? (
-                events.map((event, index) => (
-                    <Card
-                        key={index}
-                        hoverable
-                        style={{
-                            width: 250,
-                            margin: 15,
-                            padding: 10,
-                        }}
-                        // onClick={() => navigate('/in-event', {
-                        //     state: {
-                        //         prop: event._id, // Event ID
-                        //         name: event.event_name // Event name (optional)
-                        //     }
-                        // })}
-                        onClick={()=>{ 
-                            const eventID = event._id
-                            const name = event.event_name
-                            const display_pin = event.pin
-                            
-                            onclick(eventID,name,display_pin)
-                        }}
-                        cover={<img alt="example" src={event.event_photo ? `http://localhost:5000/event_profile/${event.event_photo}` : "https://os.alipayobjects.com/rmsportal/QBnOOoLaAfKPirc.png"} />}
-                    >
-                        <Meta title={event.event_name}  />
-                    </Card>
-                ))
-            ) : (
-                
-                <p >{events.result || "No event's!  Create new event's"}</p>
-            )}
-            
-            </Row>
-            </div>
-        
+      <div className="text-center py-5">
+        <div className="spinner-border text-dark" role="status" />
+        <p className="mt-2 fw-bold">Loading your events...</p>
+      </div>
     );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="text-center py-5">
+        <NeoCard style={{ maxWidth: '480px', margin: '0 auto' }}>
+          <span className="fs-1 d-block mb-2">🎉</span>
+          <h4>No Events Created Yet</h4>
+          <p style={{ color: '#6B7280', fontWeight: 600 }}>
+            Create your first event to start uploading photos and generating guest QR codes.
+          </p>
+        </NeoCard>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-3">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h3 className="m-0">YOUR ACTIVE EVENTS</h3>
+        <NeoBadge variant="yellow" className="px-3 py-1 fs-6">
+          {events.length} EVENT{events.length > 1 ? 'S' : ''}
+        </NeoBadge>
+      </div>
+
+      <div className="row g-4">
+        {events.map((event, index) => {
+          const coverUrl = event.event_photo
+            ? `http://localhost:5000/event_profile/${event.event_photo}`
+            : '/images/wedding.jpg';
+
+          return (
+            <div key={event._id || index} className="col-12 col-md-6 col-lg-4">
+              <NeoCard
+                header={event.event_name}
+                headerAccent={index % 3 === 0 ? 'yellow' : index % 3 === 1 ? 'cyan' : 'lime'}
+                hoverable
+                style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+              >
+                {/* Cover Image */}
+                <div
+                  style={{
+                    height: '180px',
+                    borderRadius: '8px',
+                    border: '2px solid #121212',
+                    overflow: 'hidden',
+                    marginBottom: '16px',
+                    backgroundColor: '#E5E7EB',
+                  }}
+                >
+                  <img
+                    src={coverUrl}
+                    alt={event.event_name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+
+                {/* Event Metadata */}
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <div className="d-flex align-items-center gap-1">
+                    <span style={{ fontWeight: 800, fontSize: '0.85rem' }}>PIN:</span>
+                    <NeoBadge variant="dark" style={{ letterSpacing: '0.1em' }}>
+                      {event.pin || '123456'}
+                    </NeoBadge>
+                  </div>
+                  <small style={{ color: '#6B7280', fontWeight: 700 }}>
+                    ID: {event._id.slice(-6)}
+                  </small>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-auto d-flex gap-2 flex-wrap">
+                  <NeoButton
+                    variant="yellow"
+                    size="sm"
+                    full
+                    onClick={() => onclick(event._id, event.event_name, event.pin)}
+                  >
+                    📂 Open Album & Upload →
+                  </NeoButton>
+                </div>
+              </NeoCard>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
 
 export default Display_event;

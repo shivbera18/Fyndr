@@ -1,146 +1,256 @@
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-
-import './style.css';
-import Footer from "../Footer";
-import Header from "../navbar/Header";
-import { Input, message } from "antd";
-
-
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import Header from '../navbar/Header';
+import Footer from '../Footer';
+import NeoCard from '../ui/NeoCard';
+import NeoButton from '../ui/NeoButton';
+import NeoInput from '../ui/NeoInput';
 
 const Login_Register = () => {
-    useEffect(() => {
-        const auth = localStorage.getItem("user")
-        if (auth) {
-            navigate("/dashboard")
-        }
-    })
+  const navigate = useNavigate();
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  
+  // Form State
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-    const [name, setname] = useState('')
-    const [email, seteamil] = useState('')
-    const [password, setpassword] = useState('')
-
-    const navigate = useNavigate()
-
-
-
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        let result = await fetch('http://localhost:5000/register', {
-            method: 'post',
-            body: JSON.stringify({ name, email, password }),
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        // result = await result.json()
-        // if (result.name&&result._id) {
-        //     // localStorage.setItem("user", JSON.stringify(result))
-        //     navigate(`/emailverified?email=${email}`);
-
-        // }
-        if(result.ok){
-            
-            navigate(`/emailverified`, {state: {
-                        email: email, 
-                        password: password 
-                    }});
-        }
-        else {
-            result = await result.json()
-            message.warning(result.message)
-        }
-
-    };
-
-    async function handleSubmit2(e){
-        e.preventDefault()
-        let result = await fetch('http://localhost:5000/login',{
-            method:"post",
-            body: JSON.stringify({email,password}),
-            headers:{
-                "Content-Type":"application/json"
-            }
-        })
-        // result = await result.json()
-        // if (result.name) {
-        //     localStorage.setItem("user", JSON.stringify(result))
-        //     navigate("/dashboard")
-
-        if(result.ok){
-            navigate(`/emailverified`, {state: {
-                        email: email, // Event ID
-                        password: password // Event name (optional)
-                    }});
-        
-
-        }else{
-            result = await result.json()
-            message.warning(result.message);
-            
-        }
+  useEffect(() => {
+    const auth = localStorage.getItem('user');
+    if (auth) {
+      navigate('/dashboard');
     }
+  }, [navigate]);
 
+  // Handle Login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
 
+    try {
+      const response = await fetch('http://localhost:5000/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
 
-    function en1() {
-        const container = document.getElementById('container');
-        container.classList.add("active");
+      const data = await response.json();
+      if (response.ok && data._id) {
+        localStorage.setItem('user', JSON.stringify(data));
+        setSuccessMessage('Login successful! Redirecting...');
+        setTimeout(() => navigate('/dashboard'), 600);
+      } else {
+        setErrorMessage(data.message || data.error || 'Invalid email or password.');
+      }
+    } catch (err) {
+      setErrorMessage('Could not connect to authentication server.');
+    } finally {
+      setLoading(false);
     }
-    function en2() {
-        const container = document.getElementById('container');
-        container.classList.remove("active");
+  };
+
+  // Handle Registration
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setSuccessMessage(data.message || 'Account created successfully! You can now sign in.');
+        setMode('login');
+      } else {
+        setErrorMessage(data.message || data.error || 'Registration failed.');
+      }
+    } catch (err) {
+      setErrorMessage('Could not connect to authentication server.');
+    } finally {
+      setLoading(false);
     }
+  };
 
+  return (
+    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
+      <Header />
 
-    return (
-        <>
-            <Header />
-            <div className="row justify-content-center">
-                <div className="container-1 " id="container">
-                    <div className="form-container sign-up">
-                        <form onSubmit={handleSubmit}>
-                            <h1>Create Account</h1>
-                            
-                        
-                            <input type="text" placeholder="Name" onChange={(e) => setname(e.target.value)} />
-                            <input type="email" placeholder="Email" onChange={(e) => seteamil(e.target.value)} />
-                            <Input.Password type="password" placeholder="Password" minLength={'8'} onChange={(e) => setpassword(e.target.value)} />
-                            <button type="submit">Sign Up</button>
-                        </form>
-                    </div>
-                    <div className="form-container sign-in">
-                        <form onSubmit={handleSubmit2}>
-                            <h1>Sign In</h1>
-                           
-                            <input type="email" placeholder="Email" onChange={(e) => seteamil(e.target.value)} />
-                            <input type="password" placeholder="Password" minLength={'8'} onChange={(e) => setpassword(e.target.value)} />
-                            <Link to={"/forgetpassword"}>Forget Your Password?</Link>
-                            <button type="submit">Sign In</button>
-                        </form>
-                    </div>
-                    <div className="toggle-container">
-                        <div className="toggle">
-                            <div className="toggle-panel toggle-left">
-                                <h1>Welcome Back!</h1>
-                                <p>Enter your personal details to use all of site features</p>
-                                <button className="hidden" id="login" onClick={en2}>Sign In</button>
-                            </div>
-                            <div className="toggle-panel toggle-right">
-                                <h1>Hello, Friend!</h1>
-                                <p>Register with your personal details to use all of site features</p>
-                                <button className="hidden" id="register" onClick={en1}>Sign Up</button>
-                            </div>
-                        </div>
+      <div className="container py-5">
+        <div className="row justify-content-center">
+          <div className="col-12 col-md-8 col-lg-5">
+            <NeoCard
+              header={mode === 'login' ? 'PHOTOGRAPHER SIGN IN' : 'CREATE PHOTOGRAPHER ACCOUNT'}
+              headerAccent={mode === 'login' ? 'yellow' : 'cyan'}
+              style={{ backgroundColor: '#FFFFFF' }}
+            >
+              {/* Tab Selector */}
+              <div className="d-flex gap-2 mb-4">
+                <button
+                  type="button"
+                  className={`neo-btn flex-fill ${mode === 'login' ? 'neo-btn-yellow' : 'neo-btn-white'}`}
+                  onClick={() => {
+                    setMode('login');
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                  }}
+                  style={{ fontSize: '0.9rem', padding: '8px 12px' }}
+                >
+                  🔑 Sign In
+                </button>
+                <button
+                  type="button"
+                  className={`neo-btn flex-fill ${mode === 'register' ? 'neo-btn-cyan' : 'neo-btn-white'}`}
+                  onClick={() => {
+                    setMode('register');
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                  }}
+                  style={{ fontSize: '0.9rem', padding: '8px 12px' }}
+                >
+                  ✨ Register
+                </button>
+              </div>
 
-                    </div>
+              {/* Status Alert Messages */}
+              {errorMessage && (
+                <div
+                  className="p-3 mb-3"
+                  style={{
+                    backgroundColor: 'var(--neo-coral-light)',
+                    border: '2px solid var(--neo-black)',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    color: '#991B1B',
+                  }}
+                >
+                  ⚠️ {errorMessage}
                 </div>
+              )}
 
-            </div>
-            <Footer />
-        </>
-    )
-}
+              {successMessage && (
+                <div
+                  className="p-3 mb-3"
+                  style={{
+                    backgroundColor: 'var(--neo-lime-light)',
+                    border: '2px solid var(--neo-black)',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    color: '#166534',
+                  }}
+                >
+                  ✓ {successMessage}
+                </div>
+              )}
+
+              {/* Sign In Form */}
+              {mode === 'login' && (
+                <form onSubmit={handleLogin}>
+                  <NeoInput
+                    label="Email Address"
+                    type="email"
+                    placeholder="photographer@studio.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+
+                  <NeoInput
+                    label="Password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <Link
+                      to="/forgetpassword"
+                      style={{ fontWeight: 800, color: 'var(--neo-black)', fontSize: '0.85rem' }}
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+
+                  <NeoButton
+                    type="submit"
+                    variant="yellow"
+                    size="lg"
+                    full
+                    loading={loading}
+                  >
+                    Sign In to Dashboard →
+                  </NeoButton>
+                </form>
+              )}
+
+              {/* Registration Form */}
+              {mode === 'register' && (
+                <form onSubmit={handleRegister}>
+                  <NeoInput
+                    label="Full Name or Studio Name"
+                    type="text"
+                    placeholder="e.g. Apex Wedding Studio"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+
+                  <NeoInput
+                    label="Email Address"
+                    type="email"
+                    placeholder="studio@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+
+                  <NeoInput
+                    label="Password"
+                    type="password"
+                    placeholder="At least 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+
+                  <NeoButton
+                    type="submit"
+                    variant="cyan"
+                    size="lg"
+                    full
+                    loading={loading}
+                  >
+                    Create Free Account →
+                  </NeoButton>
+                </form>
+              )}
+
+              {/* Card Footer Note */}
+              <div className="mt-4 pt-3 text-center border-top" style={{ borderColor: '#E5E7EB' }}>
+                <small style={{ fontWeight: 600, color: '#6B7280' }}>
+                  Guest looking for event photos? Ask your photographer for the Event QR code.
+                </small>
+              </div>
+            </NeoCard>
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+    </div>
+  );
+};
 
 export default Login_Register;
