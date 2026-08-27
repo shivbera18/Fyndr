@@ -79,8 +79,8 @@ def mock_embedding(image_path):
         # fallback: zero embedding
         data = image_path.encode()
     h = hashlib.md5(data).hexdigest()
-    random.seed(int(h[:8],16))
-    emb = np.array([random.uniform(-1,1) for _ in range(512)], dtype=np.float32)
+    rnd = random.Random(int(h[:8],16))
+    emb = np.array([rnd.uniform(-1,1) for _ in range(512)], dtype=np.float32)
     emb = emb / np.linalg.norm(emb)
     return emb
 
