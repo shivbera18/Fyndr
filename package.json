@@ -4,7 +4,7 @@
   "private": true,
   "description": "Fyndr \u2014 Event photo sharing with face recognition (one-command dev)",
   "scripts": {
-    "dev": "node -e \"require('fs').mkdirSync('logs',{recursive:true})\" && docker compose -f docker-compose.dev.yml up -d mongo --wait && concurrently --names \"mongo,api,ml,web\" --prefix-colors \"yellow,cyan,magenta,green\" \"docker logs -f fyndr-mongo-dev 2>&1 | tee logs/mongo.log\" \"npm:dev:api 2>&1 | tee logs/api.log\" \"npm:dev:ml 2>&1 | tee logs/ml.log\" \"npm:dev:web 2>&1 | tee logs/web.log\"",
+    "dev": "node -e \"require('fs').mkdirSync('logs',{recursive:true})\" && docker compose -f docker-compose.dev.yml up -d mongo --wait && concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api 2>&1 | tee logs/api.log\" \"npm:dev:ml 2>&1 | tee logs/ml.log\" \"npm:dev:web 2>&1 | tee logs/web.log\"",
     "dev:mongo": "docker compose -f docker-compose.dev.yml up -d mongo --wait",
     "dev:api": "node node-server-1/index.js",
     "dev:ml": "cd flask-server-2 && venv\\Scripts\\python.exe app.py || cd flask-server-2 && venv/bin/python app.py",
