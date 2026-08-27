@@ -6,6 +6,7 @@ from bson.objectid import ObjectId
 import io
 from flask_cors import CORS
 import json
+import ast
 from flask_socketio import SocketIO
 import hashlib
 import random
@@ -147,12 +148,18 @@ def match_faces():
         if not emb_str:
             continue
         try:
-            # prefer JSON, fallback to eval for legacy rows only if JSON fails
+            # Prefer JSON; fallback to ast.literal_eval for legacy Python repr (no eval RCE)
             try:
                 db_embedding = np.array(json.loads(emb_str), dtype=np.float32)
             except Exception:
-                # legacy: eval with restricted globals (avoid code injection)
-                db_embedding = np.array(json.loads(emb_str.replace("'", '"')) if "'" in emb_str else eval(emb_str, {"__builtins__": {}}, {}), dtype=np.float32)
+                try:
+                    # handle single-quoted legacy: replace then json, else literal_eval
+                    if emb_str.strip().startswith('[') and "'" in emb_str:
+                        db_embedding = np.array(json.loads(emb_str.replace("'", '"')), dtype=np.float32)
+                    else:
+                        db_embedding = np.array(ast.literal_eval(emb_str), dtype=np.float32)
+                except Exception:
+                    continue
         except Exception:
             continue
         if db_embedding.shape != (512,):
