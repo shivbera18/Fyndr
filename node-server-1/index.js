@@ -343,8 +343,14 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
             files.map(file => limit(async () => {
                 let hash;
                 try {
-                    const buf = fs.readFileSync(file.path);
-                    hash = crypto.createHash('sha256').update(buf).digest('hex');
+                    // non-blocking streaming hash (avoid fs.readFileSync blocking event loop)
+                    hash = await new Promise((resolve, reject) => {
+                        const h = crypto.createHash('sha256');
+                        const s = fs.createReadStream(file.path);
+                        s.on('error', reject);
+                        s.on('data', d => h.update(d));
+                        s.on('end', () => resolve(h.digest('hex')));
+                    });
                 } catch (e) {
                     return { file: file.originalname, error: 'hash failed: ' + e.message, status: 'failed' };
                 }
