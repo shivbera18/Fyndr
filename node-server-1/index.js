@@ -58,7 +58,7 @@ let otpStorage = {}; // In-memory store to map email -> OTP
 
 //-----------------------------------------------------------------------------
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_fyndr_local';
 const transporter = nodemailer.createTransport({
     service: 'Gmail',
     auth: {
@@ -68,10 +68,14 @@ const transporter = nodemailer.createTransport({
 });
 
 
-//------------------------------------------------------------------------------
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const EVENT_PROFILE_DIR = path.join(__dirname, 'event_profile');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(EVENT_PROFILE_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Ensure this directory exists
+        cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
         cb(null, `${Date.now()}-${file.originalname}`); // Unique filename
@@ -91,7 +95,7 @@ const upload = multer({
 });
 const storage2 = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'event_profile/'); // Ensure this directory exists
+        cb(null, EVENT_PROFILE_DIR);
     },
     filename: (req, file, cb) => {
         cb(null, `${Date.now()}-${file.originalname}`); // Unique filename
@@ -110,9 +114,8 @@ const event_profile_up = multer({
     },
 });
 
-app.use('/uploads', express.static('uploads'));
-app.use('/event_profile', express.static('event_profile'));
-//---------------------------------------------------------------------------------
+app.use('/uploads', express.static(UPLOAD_DIR));
+app.use('/event_profile', express.static(EVENT_PROFILE_DIR));
 
 app.post("/register", async (req, resp) => {
     try {
