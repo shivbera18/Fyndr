@@ -1,0 +1,227 @@
+{
+  "mock": {
+    "name": "mock",
+    "n_pairs": 200,
+    "mean_accuracy": 0.4722050132036683,
+    "std_accuracy": 0.09317156292282346,
+    "fold_accuracies": [
+      0.3793103448275862,
+      0.45454545454545453,
+      0.55,
+      0.6,
+      0.5882352941176471,
+      0.3181818181818182,
+      0.5652173913043478,
+      0.38461538461538464,
+      0.4444444444444444,
+      0.4375
+    ],
+    "mean_threshold": 0.048,
+    "thresholds": [
+      0.03,
+      0.06,
+      0.03,
+      0.06,
+      0.03,
+      0.06,
+      0.06,
+      0.03,
+      0.06,
+      0.06
+    ],
+    "far_at_mean_thr": 0.15,
+    "frr_at_mean_thr": 0.86,
+    "embed_ms_per_img": 0.4166677744701655,
+    "total_embed_s": 0.16500043869018555,
+    "failed_detect": 0,
+    "sims_mean_matched": 0.0018801493290811777,
+    "sims_mean_mismatched": 0.00019845212809741498
+  },
+  "buffalo_s_320": {
+    "name": "buffalo_s_320",
+    "n_pairs": 200,
+    "mean_accuracy": 0.9941176470588236,
+    "std_accuracy": 0.017647058823529415,
+    "fold_accuracies": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.9411764705882353,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mean_threshold": 0.1325,
+    "thresholds": [
+      0.135,
+      0.135,
+      0.135,
+      0.135,
+      0.11,
+      0.135,
+      0.135,
+      0.135,
+      0.135,
+      0.135
+    ],
+    "far_at_mean_thr": 0.0,
+    "frr_at_mean_thr": 0.0,
+    "embed_ms_per_img": 402.4407074909018,
+    "total_embed_s": 159.3665201663971,
+    "failed_detect": 0,
+    "sims_mean_matched": 0.6168101075291633,
+    "sims_mean_mismatched": -0.006308036856353283
+  },
+  "latency": {
+    "n": 200,
+    "mock_ms": 0.8615982532501221,
+    "buffalo_s_320_ms": 342.2994339466095,
+    "det_size": [
+      320,
+      320
+    ]
+  },
+  "faiss": {
+    "n_vectors": 20000,
+    "dim": 512,
+    "has_faiss": false,
+    "numpy_brute_ms_per_query": 9.65700626373291,
+    "faiss_flat_ip_ms_per_query": null,
+    "index_size_mb": 39.0625
+  },
+  "sota_literature": {
+    "note": "LFW 6000 pairs 10-fold accuracy from papers, CPU latency approx on i7-12700 / ONNX",
+    "models": [
+      {
+        "model": "Human",
+        "pairs_acc": 0.9753,
+        "detector": "human",
+        "dim": null,
+        "latency_ms": null
+      },
+      {
+        "model": "Dlib 128-d (ResNet34)",
+        "pairs_acc": 0.9938,
+        "detector": "HOG+MMOD",
+        "dim": 128,
+        "latency_ms": 60,
+        "model_mb": 22
+      },
+      {
+        "model": "FaceNet Inception (Schroff CVPR15)",
+        "pairs_acc": 0.9963,
+        "detector": "MTCNN",
+        "dim": 512,
+        "latency_ms": 110,
+        "model_mb": 90
+      },
+      {
+        "model": "SphereFace (Liu CVPR17)",
+        "pairs_acc": 0.9942,
+        "detector": "MTCNN",
+        "dim": 512,
+        "latency_ms": 70,
+        "model_mb": 50
+      },
+      {
+        "model": "CosFace (Wang CVPR18)",
+        "pairs_acc": 0.9973,
+        "detector": "MTCNN",
+        "dim": 512,
+        "latency_ms": 75,
+        "model_mb": 50
+      },
+      {
+        "model": "ArcFace R50 (Deng CVPR19) \u2014 buffalo_s",
+        "pairs_acc": 0.9978,
+        "detector": "SCRFD-320",
+        "dim": 512,
+        "latency_ms": 55,
+        "model_mb": 40
+      },
+      {
+        "model": "ArcFace R100 (Deng)",
+        "pairs_acc": 0.9982,
+        "detector": "SCRFD-640",
+        "dim": 512,
+        "latency_ms": 90,
+        "model_mb": 120
+      },
+      {
+        "model": "CurricularFace R100 (Huang CVPR20)",
+        "pairs_acc": 0.998,
+        "detector": "RetinaFace",
+        "dim": 512,
+        "latency_ms": 95,
+        "model_mb": 120
+      },
+      {
+        "model": "MagFace R100 (Meng CVPR21)",
+        "pairs_acc": 0.9983,
+        "detector": "RetinaFace",
+        "dim": 512,
+        "latency_ms": 95,
+        "model_mb": 120
+      },
+      {
+        "model": "AdaFace R100 WebFace12M (Kim CVPR22)",
+        "pairs_acc": 0.9983,
+        "detector": "RetinaFace",
+        "dim": 512,
+        "latency_ms": 90,
+        "model_mb": 120
+      },
+      {
+        "model": "SFace (Liu ECCV22) lightweight",
+        "pairs_acc": 0.996,
+        "detector": "YuNet",
+        "dim": 128,
+        "latency_ms": 25,
+        "model_mb": 6
+      },
+      {
+        "model": "YOLO5Face (Qi 2021)",
+        "pairs_acc": null,
+        "detector": "YOLO5Face-320",
+        "dim": null,
+        "latency_ms": 15,
+        "note": "detection only, FDDB 95.8%"
+      },
+      {
+        "model": "SCRFD-320 (Guo 2021) \u2014 ours det",
+        "pairs_acc": null,
+        "detector": "SCRFD-320",
+        "dim": null,
+        "latency_ms": 18,
+        "model_mb": 4
+      },
+      {
+        "model": "MTCNN (Zhang 2016)",
+        "pairs_acc": null,
+        "detector": "MTCNN",
+        "dim": null,
+        "latency_ms": 45,
+        "model_mb": 2
+      },
+      {
+        "model": "RetinaFace R50 (Deng 2020)",
+        "pairs_acc": null,
+        "detector": "RetinaFace-R50",
+        "dim": null,
+        "latency_ms": 35,
+        "model_mb": 30
+      },
+      {
+        "model": "YuNet (Wu 2022) OpenCV",
+        "pairs_acc": null,
+        "detector": "YuNet-320",
+        "dim": null,
+        "latency_ms": 8,
+        "model_mb": 0.3
+      }
+    ]
+  }
+}
