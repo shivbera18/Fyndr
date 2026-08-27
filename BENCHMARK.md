@@ -167,10 +167,10 @@ Measured on same 200-image latency benchmark (independent from accuracy loop).
 | `2d106det.onnx` | 5.0 MB | landmarks 106 | ignored |
 | `1k3d68.onnx` | 143.6 MB | 3D68 landmarks | ignored (model ignore log) |
 | `genderage.onnx` | 1.3 MB | gender/age | ignored |
-| **Total buffalo_s** | **~166 MB** on disk, **~40 MB** active (det+rec) | — | — |
+| **Total buffalo_s** | **~166 MB** on disk (with unused `1k3d68` 143 MB), **~16 MB** active (det 2.5 + rec 13.6) | — | — |
 | `buffalo_l.zip` | 281 MB | R100 + RetinaFace | — |
 
-*Disk 166 MB seems large due to `1k3d68` (143 MB) which is not needed for detection/recognition (insightface logs `model ignore`). Active models 16 MB (det 2.5 + rec 13.6). Literature 40 MB includes all. Can prune `1k3d68`, `2d106det`, `genderage` to 16 MB.*
+*Disk 166 MB includes 143 MB `1k3d68.onnx` (3D68 landmarks, not needed — `model ignore` log). **Active 16 MB** (2.5 + 13.6). Literature reports 40 MB trimmed (det_10g + w600k_r50) for older pack. Prune `1k3d68`, `2d106det`, `genderage` to save 150 MB.*
 
 **RAM:** `app_insight` ~400 MB resident (ONNX graphs + cv2). Per 640px image ~0.8 MB. `FAISS` per event ~39 MB/20k.
 
