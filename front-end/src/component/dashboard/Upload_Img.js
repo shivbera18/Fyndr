@@ -57,6 +57,7 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
     setLoading(true); // Start loading
 
     try {
+      let successCount = 0;
       for (const file of newFileList) {
         const formData = new FormData();
         formData.append('name', file.originFileObj);
@@ -72,13 +73,16 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
           timeout: 60000, // 1-minute timeout for large files
         });
 
-        if (response.status === 200) {
-          message.success(`Successfully uploaded ${file.name} with embedding.`);
-          if (inevent) d_ref();
-          setFileList([]);
+        if (response.status === 200 || response.status === 207) {
+          message.success(`Successfully uploaded ${file.name}`);
+          successCount++;
         } else {
-          message.error(`Failed to upload ${file.name}: ${response.data.error}`);
+          message.error(`Failed to upload ${file.name}: ${response.data?.error || 'Upload error'}`);
         }
+      }
+      if (successCount > 0) {
+        setFileList([]);
+        if (inevent && typeof d_ref === 'function') d_ref();
       }
     } catch (error) {
       message.error(`Error uploading file: ${error.message}`);

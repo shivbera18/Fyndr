@@ -58,7 +58,7 @@ let otpStorage = {}; // In-memory store to map email -> OTP
 
 //-----------------------------------------------------------------------------
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_fyndr_local';
 const transporter = nodemailer.createTransport({
     service: 'Gmail',
     auth: {
@@ -68,10 +68,14 @@ const transporter = nodemailer.createTransport({
 });
 
 
-//------------------------------------------------------------------------------
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const EVENT_PROFILE_DIR = path.join(__dirname, 'event_profile');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(EVENT_PROFILE_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Ensure this directory exists
+        cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
         cb(null, `${Date.now()}-${file.originalname}`); // Unique filename
@@ -91,7 +95,7 @@ const upload = multer({
 });
 const storage2 = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'event_profile/'); // Ensure this directory exists
+        cb(null, EVENT_PROFILE_DIR);
     },
     filename: (req, file, cb) => {
         cb(null, `${Date.now()}-${file.originalname}`); // Unique filename
@@ -110,9 +114,8 @@ const event_profile_up = multer({
     },
 });
 
-app.use('/uploads', express.static('uploads'));
-app.use('/event_profile', express.static('event_profile'));
-//---------------------------------------------------------------------------------
+app.use('/uploads', express.static(UPLOAD_DIR));
+app.use('/event_profile', express.static(EVENT_PROFILE_DIR));
 
 app.post("/register", async (req, resp) => {
     try {
@@ -382,15 +385,18 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                 formData.append('event_id', event_id);
                 formData.append('photo_id', photoId.toString());
 
-                let embedding;
+                let embeddings = [];
                 try {
                     const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
                         headers: { ...formData.getHeaders() },
                         maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
                     });
                     if (response.data.error) throw new Error(response.data.error);
-                    embedding = response.data.embedding;
-                    if (!Array.isArray(embedding) || embedding.length !== 512) throw new Error('invalid embedding');
+                    if (Array.isArray(response.data.embeddings)) {
+                        embeddings = response.data.embeddings;
+                    } else if (Array.isArray(response.data.embedding)) {
+                        embeddings = [response.data.embedding];
+                    }
                 } catch (e) {
                     await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
                     try { fs.unlinkSync(file.path); } catch(_){}
@@ -402,7 +408,7 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                         _id: photoId,
                         name: file.filename,
                         event_id, upload_by,
-                        embedding: JSON.stringify(embedding),
+                        embedding: JSON.stringify(embeddings),
                         hash, status: 'done'
                     });
                     await photo.save();
