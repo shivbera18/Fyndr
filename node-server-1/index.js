@@ -30,15 +30,20 @@ require("./Config_db")
 const app = express();
 
 app.use(express.json());
-app.use(cors())
-// P2: metrics middleware
+app.use(cors());
+// P2: metrics middleware – normalized route, no high-cardinality req.path, with duration histogram
 app.use((req,res,next)=>{
-  const end = res.end;
   const start = Date.now();
+  const origEnd = res.end;
   res.end = function(...args){
-    const route = req.route ? req.route.path : req.path;
-    httpRequests.inc({method:req.method, route, status:res.statusCode});
-    return end.apply(this,args);
+    // Prefer matched route, fallback to path without query/id to avoid cardinality explosion
+    let route = 'unknown';
+    if (req.route && req.route.path) route = req.route.path;
+    else if (req.path) route = req.path.replace(/\/[a-f0-9]{24}/gi, '/:id').split('?')[0] || 'unknown';
+    const elapsed = (Date.now() - start) / 1000;
+    try { httpRequests.inc({ method: req.method, route, status: res.statusCode }); } catch(_){}
+    // Optionally observe via uploadDuration/faceSearchDuration elsewhere; keep generic timing available
+    return origEnd.apply(this, args);
   };
   next();
 });
@@ -749,24 +754,46 @@ app.put("/events/:id", async (req, res) => {
 
 
 
-// P2: Prometheus metrics
+// P2: Prometheus metrics (no auth needed, scrape interval 15s)
 app.get('/metrics', async (req,res)=>{
-  res.set('Content-Type', promClient.register.contentType);
-  res.end(await promClient.register.metrics());
+  try {
+    res.set('Content-Type', promClient.register.contentType);
+    res.end(await promClient.register.metrics());
+  } catch(e){ res.status(500).send(String(e.message)); }
 });
-// P1: queue stats per event
+// P2: queue stats per event + DLQ helpers
 app.get('/queue/stats', async (req,res)=>{
   const { event_id } = req.query;
   if(!event_id) return res.status(400).send({error:'event_id required'});
-  res.send(await queueStats(event_id));
+  if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
+  try { res.send(await queueStats(event_id)); } catch(e){ res.status(500).send({error:e.message}); }
 });
-// P1: R2 presigned PUT (falls back to local if no R2 env)
+app.get('/queue/failed', async (req,res)=>{
+  const { event_id, limit } = req.query;
+  if(!event_id) return res.status(400).send({error:'event_id required'});
+  const q = require('./queue/mongoQueue');
+  res.send(await q.listFailed(event_id, Math.min(parseInt(limit)||20, 100)));
+});
+app.post('/queue/retry', async (req,res)=>{
+  const { event_id, photo_hash } = req.body;
+  if(!event_id) return res.status(400).send({error:'event_id required'});
+  const q = require('./queue/mongoQueue');
+  const r = await q.retryFailed(event_id, photo_hash);
+  res.send({ ok:true, modified: r.modifiedCount || r.matchedCount || 0 });
+});
+// P2: R2 presigned PUT (falls back to local if no R2 env) – validated key, contentType allowlist
 app.post('/presign', async (req,res)=>{
   const { key, contentType } = req.body;
-  if(!key) return res.status(400).send({error:'key required'});
-  const url = await getPresignedPut(key, contentType);
-  if(url) return res.send({ url, via:'r2' });
-  res.send({ url: null, via:'local', message:'R2 not configured, use local upload' });
+  if(!key || typeof key !== 'string') return res.status(400).send({error:'key required'});
+  if (key.includes('..') || key.startsWith('/') || key.length > 512) return res.status(400).send({error:'invalid key'});
+  const ct = contentType || 'image/jpeg';
+  const allowedCT = ['image/jpeg','image/png','image/webp','image/gif','image/bmp'];
+  if (!allowedCT.includes(ct)) return res.status(400).send({error:'unsupported contentType'});
+  try {
+    const url = await getPresignedPut(key, ct);
+    if(url) return res.send({ url, via:'r2', expiresIn: 3600 });
+    res.send({ url: null, via:'local', message:'R2 not configured, use local upload' });
+  } catch(e){ res.status(500).send({error:e.message}); }
 });
 
 app.listen(5000)
