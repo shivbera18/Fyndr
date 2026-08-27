@@ -25,3 +25,7 @@ Thumbs.db
 front-end/public/models/
 front-end/public/person/
 front-end/build/
+# benchmark data (large LFW 180MB)
+benchmark/data/
+!/benchmark/data/.gitkeep
+/tmp/fyndr_faiss/
