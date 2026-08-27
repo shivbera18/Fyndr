@@ -8,7 +8,7 @@ from collections import defaultdict
 import numpy as np
 
 _locks_guard = threading.Lock()
-_event_locks = defaultdict(threading.Lock)
+_event_locks = defaultdict(threading.RLock)
 
 def _get_lock(event_id):
     with _locks_guard:
@@ -54,8 +54,9 @@ def _atomic_write(path, data, mode="w"):
 def _load_meta(meta_path):
     if os.path.exists(meta_path):
         try:
-            return json.loads(open(meta_path).read())
-        except:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                return json.loads(f.read())
+        except Exception:
             return []
     return []
 
@@ -134,9 +135,9 @@ def remove(event_id, photo_id):
         meta_path = _path(event_id, "meta.json")
         npy_path = _path(event_id, "npy")
         idx_path = _path(event_id, "index")
-        if not os.path.exists(meta_path):
+        meta = _load_meta(meta_path)
+        if not meta:
             return False
-        meta = json.loads(open(meta_path).read())
         del_indices = [i for i, m in enumerate(meta) if m.get("photo_id") == photo_id]
         if not del_indices:
             return False
@@ -209,12 +210,14 @@ def search(event_id, query_emb, k=48, threshold=0.34):
         if not os.path.exists(idx_path):
             return []
         index = faiss.read_index(idx_path)
-        meta = json.loads(open(meta_path).read())
+        meta = _load_meta(meta_path)
+        if not meta:
+            return []
         # search top candidate vectors (up to 4x k to account for multi-face photos)
         search_k = min(k * 4, index.ntotal)
         D, I = index.search(q.reshape(1, -1), search_k)
         for score, idx in zip(D[0], I[0]):
-            if idx == -1:
+            if idx == -1 or idx >= len(meta):
                 continue
             if score < threshold:
                 continue
@@ -227,10 +230,14 @@ def search(event_id, query_emb, k=48, threshold=0.34):
         if not os.path.exists(npy_path):
             return []
         arr = np.load(npy_path)  # (N,512)
-        meta = json.loads(open(meta_path).read())
+        meta = _load_meta(meta_path)
+        if not meta:
+            return []
         scores = arr.dot(q)  # (N,)
         idxs = np.argsort(-scores)
         for idx in idxs:
+            if idx >= len(meta):
+                continue
             s = float(scores[idx])
             if s < threshold:
                 continue
