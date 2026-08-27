@@ -44,9 +44,17 @@ def _atomic_write(path, data, mode="w"):
         f.write(data)
     os.replace(tmp, path)
 
+def _load_meta(meta_path):
+    if os.path.exists(meta_path):
+        try:
+            return json.loads(open(meta_path).read())
+        except:
+            return []
+    return []
+
 def add(event_id, photo_id, embedding):
-    """Append 512-d embedding for event. embedding: list/np array, L2 normalized."""
-    # validate ids (will raise if invalid)
+    """Append 512-d embedding for event. embedding: list/np array, L2 normalized.
+    Persists both npy (source of truth) and FAISS index for rebuild safety."""
     _path(event_id, "index")
     photo_id = _sanitize_photo_id(photo_id)
     vec = np.array(embedding, dtype=np.float32)
@@ -57,46 +65,52 @@ def add(event_id, photo_id, embedding):
         vec = vec / n
     else:
         raise ValueError("zero norm embedding")
-    if HAS_FAISS:
-        idx_path = _path(event_id, "index")
-        meta_path = _path(event_id, "meta.json")
-        # load or create
-        if os.path.exists(idx_path):
-            try:
-                index = faiss.read_index(idx_path)
-                meta = json.loads(open(meta_path).read()) if os.path.exists(meta_path) else []
-            except:
-                index = faiss.IndexFlatIP(512)
-                meta = []
-        else:
-            index = faiss.IndexFlatIP(512)
-            meta = []
-        # dedup: if photo_id already in meta, replace rather than duplicate
-        existing_idx = next((i for i, m in enumerate(meta) if m.get("photo_id") == photo_id), -1)
-        if existing_idx != -1:
-            # FAISS IndexFlatIP does not support update; for now skip duplicate add
-            return True
-        index.add(vec.reshape(1, -1))
-        meta.append({"photo_id": photo_id, "id": len(meta)})
-        # atomic write for meta
-        faiss.write_index(index, idx_path)
-        _atomic_write(meta_path, json.dumps(meta))
-    else:
-        # numpy fallback: append to .npy
-        npy_path = _path(event_id, "npy")
-        meta_path = _path(event_id, "meta.json")
-        if os.path.exists(npy_path):
-            meta = json.loads(open(meta_path).read()) if os.path.exists(meta_path) else []
-            if any(m.get("photo_id") == photo_id for m in meta):
-                return True
+
+    npy_path = _path(event_id, "npy")
+    meta_path = _path(event_id, "meta.json")
+    idx_path = _path(event_id, "index")
+
+    meta = _load_meta(meta_path)
+    if any(m.get("photo_id") == photo_id for m in meta):
+        return True  # idempotent
+
+    # Always persist npy as source of truth
+    if os.path.exists(npy_path):
+        try:
             arr = np.load(npy_path)
             arr = np.vstack([arr, vec.reshape(1, -1)])
-        else:
+        except:
             arr = vec.reshape(1, -1)
-            meta = []
-        np.save(npy_path, arr)
-        meta.append({"photo_id": photo_id})
-        _atomic_write(meta_path, json.dumps(meta))
+    else:
+        arr = vec.reshape(1, -1)
+    np.save(npy_path, arr)
+    meta.append({"photo_id": photo_id, "id": len(meta)})
+    _atomic_write(meta_path, json.dumps(meta))
+
+    if HAS_FAISS:
+        # Update FAISS index incrementally (or create)
+        try:
+            if os.path.exists(idx_path):
+                index = faiss.read_index(idx_path)
+            else:
+                index = faiss.IndexFlatIP(512)
+                # if npy had prior rows but index missing, rebuild from npy (excluding last already added)
+                if len(meta) > 1 and os.path.exists(npy_path):
+                    # rebuild from full npy to keep consistent
+                    index = faiss.IndexFlatIP(512)
+                    index.add(arr)
+                    faiss.write_index(index, idx_path)
+                    return True
+            index.add(vec.reshape(1, -1))
+            faiss.write_index(index, idx_path)
+        except Exception as e:
+            # fallback: rebuild from npy
+            try:
+                index = faiss.IndexFlatIP(512)
+                index.add(arr)
+                faiss.write_index(index, idx_path)
+            except Exception as e2:
+                print(f"[faiss_store] add rebuild failed: {e2} (orig {e})")
     return True
 
 def remove(event_id, photo_id):
@@ -104,6 +118,8 @@ def remove(event_id, photo_id):
     _path(event_id, "index")
     photo_id = _sanitize_photo_id(photo_id)
     meta_path = _path(event_id, "meta.json")
+    npy_path = _path(event_id, "npy")
+    idx_path = _path(event_id, "index")
     if not os.path.exists(meta_path):
         return False
     meta = json.loads(open(meta_path).read())
@@ -111,52 +127,44 @@ def remove(event_id, photo_id):
     if idx == -1:
         return False
     meta.pop(idx)
-    if HAS_FAISS:
-        idx_path = _path(event_id, "index")
-        if os.path.exists(idx_path):
-            # rebuild index without removed vector
-            if os.path.exists(_path(event_id, "npy")):
-                # prefer npy rebuild if exists
-                pass
-            # For simplicity, delete and require re-add if using FAISS; fallback to numpy rebuild
-            # If we have npy, we can rebuild FAISS from npy
-            # Otherwise just delete index if no vectors left
-            if not meta:
+    # Update npy (source of truth)
+    if os.path.exists(npy_path):
+        try:
+            arr = np.load(npy_path)
+            arr = np.delete(arr, idx, axis=0)
+            if len(meta) == 0:
+                try: os.remove(npy_path)
+                except: pass
                 try: os.remove(idx_path)
                 except: pass
                 _atomic_write(meta_path, json.dumps(meta))
                 return True
-            # Need stored vectors to rebuild – without them we drop index
-            # Best effort: delete index, next add will recreate
+            np.save(npy_path, arr)
+        except Exception as e:
+            print(f"[faiss_store] npy delete failed: {e}")
+            _atomic_write(meta_path, json.dumps(meta))
+            return True
+        # Rebuild FAISS from remaining npy if needed
+        if HAS_FAISS:
+            try:
+                if len(meta) == 0:
+                    try: os.remove(idx_path)
+                    except: pass
+                else:
+                    index = faiss.IndexFlatIP(512)
+                    index.add(arr)
+                    faiss.write_index(index, idx_path)
+            except Exception as e:
+                print(f"[faiss_store] rebuild failed: {e}")
+                try: os.remove(idx_path)
+                except: pass
+    else:
+        # no npy, just update meta and drop index (vectors lost, but best effort)
+        if HAS_FAISS and os.path.exists(idx_path):
             try: os.remove(idx_path)
             except: pass
-        _atomic_write(meta_path, json.dumps(meta))
-        # also remove npy if exists
-        npy_path = _path(event_id, "npy")
-        if os.path.exists(npy_path):
-            arr = np.load(npy_path)
-            arr = np.delete(arr, idx, axis=0)
-            if len(meta)==0:
-                try: os.remove(npy_path)
-                except: pass
-            else:
-                np.save(npy_path, arr)
-        return True
-    else:
-        npy_path = _path(event_id, "npy")
-        if os.path.exists(npy_path):
-            arr = np.load(npy_path)
-            arr = np.delete(arr, idx, axis=0)
-            if len(meta)==0:
-                try: os.remove(npy_path)
-                except: pass
-                _atomic_write(meta_path, json.dumps(meta))
-            else:
-                np.save(npy_path, arr)
-                _atomic_write(meta_path, json.dumps(meta))
-        else:
-            _atomic_write(meta_path, json.dumps(meta))
-        return True
+    _atomic_write(meta_path, json.dumps(meta))
+    return True
 
 def delete_event(event_id):
     """Delete all FAISS data for an event."""
