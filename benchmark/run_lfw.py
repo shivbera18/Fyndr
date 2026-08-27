@@ -231,9 +231,11 @@ def benchmark_accuracy(pairs, issame, folds, embed_fn, name="mock", sample_limit
     }
 
 def latency_benchmark(n_images=100, det_size=(320,320)):
-    # measure buffalo_s latency vs mock
+    # reproducible: fixed seed
+    random.seed(42)
+    np.random.seed(42)
     # pick random LFW images
-    all_imgs = list((DATA_DIR/"lfw").rglob("*.jpg"))
+    all_imgs = sorted((DATA_DIR/"lfw").rglob("*.jpg"))
     if not all_imgs:
         return {}
     sample = random.sample(all_imgs, min(n_images, len(all_imgs)))
@@ -266,6 +268,8 @@ def latency_benchmark(n_images=100, det_size=(320,320)):
     }
 
 def faiss_benchmark():
+    # reproducible
+    np.random.seed(42)
     # synthetic FAISS perf as in faiss_store.py
     try:
         import faiss
