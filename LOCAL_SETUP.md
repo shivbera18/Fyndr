@@ -1,111 +1,130 @@
-# Pic-Share — Local Setup & Tested Flow
+# Local Setup — Fyndr (Complete)
 
-All three services running on Windows 11, no Docker, no GPU, mock embeddings (no C++ build).
+> One-command dev, Docker alternative, seeding, troubleshooting. Works on Windows 11 + Oracle Linux aarch64.
 
-## Services & Ports
+## Prerequisites
 
-| Service | Port | Path | Status |
-|---------|------|------|--------|
-| MongoDB | 27017 | mongod service PID 5248 | Running |
-| Node (Express) | 5000 | node-server-1/index.js | Running (node.log) |
-| Flask (mock InsightFace) | 5001 | flask-server-2/app.py | Running (flask.log) |
-| Frontend (React) | 3000 | front-end react-scripts | Compiling (slow, see below) |
+- Node 20+, pnpm 9+ (`npm i -g pnpm`), Python 3.9+, MongoDB 8.0, Git
+- Windows: `mongod` as service (`sc query MongoDB`), Python `venv` at `flask-server-2/venv/Scripts/python.exe`
+- Oracle: `mongod` `systemctl`, Python `venv/bin/python`
 
-Fixes applied:
-- Flask 5000 -> 5001 (collision with Node), ctx_id 1 -> -1 (CPU)
-- frontend CameraCaptureWithMask.js 5000/match_faces -> 5001
-- node index.js flask URL 5000 -> 5001, transporter pass -> env.EMAIL_PASS
-- new users isVerified:true (skip email), sendMail wrapped try/catch
-- requirements.txt dlib file:// removed, mock InsightFace fallback
-
-## Quick Start
+## 1. One-Command Dev (recommended, no Docker)
 
 ```bash
-# 1. Mongo — Windows service
-node -e "require('mongoose').connect('mongodb://localhost:27017/photo_sharing_db').then(()=>console.log('mongo ok'))"
+git clone https://github.com/shivbera18/Fyndr.git
+cd Fyndr  # pic-share
+# first time:
+npm install --prefix node-server-1
+npm install --prefix front-end
+python -m venv flask-server-2/venv
+# Windows:
+flask-server-2/venv/Scripts/pip install Flask Flask-Cors Flask-PyMongo Flask-SocketIO pymongo pillow numpy requests python-engineio python-socketio eventlet
+# Linux/Mac:
+# flask-server-2/venv/bin/pip install -r flask-server-2/requirements.txt
 
-# 2. Node
-cd pic-share/node-server-1
-npm install
-# .env already created with JWT_SECRET, EMAIL_USER dummy
-node index.js # nohup node index.js > node.log 2>&1 &
+# create env
+cat > node-server-1/.env <<EOF
+JWT_SECRET=dev_secret_fyndr_local
+EMAIL_USER=dummy@example.com
+EMAIL_PASS=dummy
+EOF
 
-# 3. Flask venv mock
-cd ../flask-server-2
-python -m venv venv
-./venv/Scripts/pip install Flask Flask-Cors Flask-PyMongo Flask-SocketIO pymongo pillow numpy requests python-engineio python-socketio eventlet
-./venv/Scripts/python app.py # http://127.0.0.1:5001/test_db_connection
+# run all 3 with one command:
+pnpm dev          # or npm run dev
+# → api  http://localhost:5000 (Node)
+# → ml   http://127.0.0.1:5001 (Flask mock, InsightFace fallback)
+# → web  http://localhost:3000 (React)
+# logs: cyan api, magenta ml, green web
 
-# 4. Frontend
-cd ../front-end
-npm install
-npm start # http://localhost:3000 ~60-90s first compile
-# fast prod alternative:
-npm run build && npx serve -s build -l 3000
+# Kill all:
+# taskkill /F /IM node.exe && taskkill /F /IM python.exe  (Windows)
+# pkill -f "node|python" (Linux)
 ```
 
-## Tested Backend Flow (all OK)
+**What `pnpm dev` does:** `concurrently` runs `node node-server-1/index.js` + `cd flask-server-2 && venv/.../python app.py` + `npm start --prefix front-end`.
 
-Register:
-```
-POST http://localhost:5000/register {"name":"Shiv","email":"shiv_test@example.com","password":"shiv123"}
--> {"message":"Registration successful!"}
-```
+## 2. Docker Dev (no local installs, except Docker)
 
-Login:
-```
-POST http://localhost:5000/login {"email":"shiv_test@example.com","password":"shiv123"}
--> {"_id":"6a8f95e5c8eba306a1ccbab1","name":"Shiv"}
+```bash
+pnpm compose:dev   # docker compose -f docker-compose.dev.yml up --build
+# → mongo 27017, api 5000, ml 5001, web 3000
+pnpm compose:logs
+pnpm compose:down
 ```
 
-Create Event:
-```
-POST http://localhost:5000/event {"event_name":"Shiv Wedding Test","created_id":"6a8f95e5c8eba306a1ccbab1","pin":"123456"}
--> {"event_name":"Shiv Wedding Test","_id":"6a8f95ebc8eba306a1ccbab5"}
-```
+`docker-compose.dev.yml` builds `node-server-1/Dockerfile`, `flask-server-2/Dockerfile`, `front-end/Dockerfile (dev)` and mounts `src` for hot reload.
 
-List my events:
-```
-POST http://localhost:5000/display_event {"userId":"6a8f95e5c8eba306a1ccbab1"}
--> [{"_id":"6a8f95ebc8eba306a1ccbab5",...}]
+## 3. Docker Prod (backend only, frontend on Vercel)
+
+```bash
+pnpm compose:prod  # docker compose -f docker-compose.prod.yml up --build -d
+# → mongo + api + ml only
+# frontend: Vercel import `front-end`, env REACT_APP_API_URL=https://api.fyndr.in REACT_APP_ML_URL=https://ml.fyndr.in
 ```
 
-Upload (Node -> Flask mock get_embedding -> Mongo):
+## 4. Seeding
+
+**Via API (curl, tested):**
+```bash
+# Register
+curl -X POST http://localhost:5000/register -H "Content-Type: application/json" -d '{"name":"Shiv","email":"shiv@fyndr.in","password":"shiv123"}'
+# Login → _id
+curl -X POST http://localhost:5000/login -H "Content-Type: application/json" -d '{"email":"shiv@fyndr.in","password":"shiv123"}'
+# Create Event
+curl -X POST http://localhost:5000/event -H "Content-Type: application/json" -d '{"event_name":"Demo","created_id":"<id>","pin":"123456"}'
+# Upload (presigned or local)
+curl -X POST http://localhost:5000/photo -F name=@front-end/public/images/wedding.jpg -F event_id=<eventId> -F upload_by=<id>
+# Guest search
+curl -X POST http://127.0.0.1:5001/match_faces -F image=@front-end/public/images/wedding.jpg -F event_id=<eventId>
 ```
-POST http://localhost:5000/photo -F name=@wedding.jpg -F event_id=6a8f95ebc8eba306a1ccbab5 -F upload_by=...
--> [{"name":"...wedding.jpg","embedding":"[...]"}]
+
+**Via script (one command, creates Demo event + wedding.jpg):**
+```bash
+node scripts/seed.js
+# → Guest: http://localhost:3000/collect/<eventId> PIN 123456
+# Env: API_URL=http://127.0.0.1:5000 node scripts/seed.js
 ```
 
-Guest selfie search (same image -> 1.0):
+**Via Mongo shell:**
+```bash
+mongosh --eval "db.photos.find({event_id:'<id>'})"
+mongosh --eval "db.events.find()"
 ```
-POST http://127.0.0.1:5001/match_faces -F image=@wedding.jpg -F event_id=...
--> {"matches":[{"id":"...","name":"...","similarity":1.0}]}
+
+**Reset:**
+```bash
+mongosh --eval "db.dropDatabase()" # in photo_sharing_db
+# or
+curl -X POST http://localhost:5000/delete-event -H "Content-Type: application/json" -d '{"_id":"<eventId>"}'
 ```
 
-Verified: Node log `Email skipped (local dev)` expected with dummy, Flask log `InsightFace not available, using mock embeddings`.
+## 5. Frontend Manual Flow (after pnpm dev)
 
-## Frontend Manual Flow
+1. `http://localhost:3000` → Home → Get Started → `/login` → Register/Login
+2. `/dashboard` → Create Event → `Demo` + PIN `123456` → card appears
+3. Click event → `/in-event` → Upload Img → `wedding.jpg` → Submit → grid `http://localhost:5000/uploads/...`
+4. Copy QR → `http://localhost:3000/collect/<eventId>` → PIN `123456` → `/camera` → Capture → matched photos
 
-1. http://localhost:3000 -> Home -> Get Started -> /login -> Register/Login
-2. /dashboard -> Create Event -> Shiv Wedding Test + PIN 123456 -> card appears
-3. Click event -> /in-event -> Upload Img -> select wedding.jpg -> Submit -> grid shows image from http://localhost:5000/uploads/...
-4. Copy QR/link -> http://localhost:3000/collect/6a8f95ebc8eba306a1ccbab5 -> enter PIN 123456 -> /camera
-5. /camera -> Allow camera -> Capture & Match -> matched photos -> Download
+## 6. Health
 
-If npm start hangs: `npm run build` (~90s) then `npx serve -s build -l 3000`.
+```bash
+curl http://127.0.0.1:5000/metrics | grep fyndr
+curl http://127.0.0.1:5001/faiss_stats?event_id=test
+curl "http://127.0.0.1:5000/queue/stats?event_id=test"
+mongosh --eval "db.adminCommand('ping')"
+node tests/e2e.test.js # full register→match
+```
 
-## Troubleshooting
+## 7. Troubleshooting
 
-- Port 5000 in use: netstat -ano | findstr 5000 -> taskkill /PID <pid> /F
-- Mongo: sc query MongoDB -> net start MongoDB
-- Flask insightface build fail: expected on Windows, mock handles it. Real embeddings need WSL2 Ubuntu.
-- Email 535: dummy creds, handled.
-- Upload timeout: mock instant, real ~200ms/photo CPU.
-- No face detected: mock never fails.
+| Issue | Fix |
+|-------|-----|
+| `EADDRINUSE 5000/3000/5001` | `netstat -ano \| findstr 5000` → `taskkill /PID <pid> /F` (Win) / `lsof -i :5000` → `kill` (Linux) |
+| `mongod` not running | `sc query MongoDB` → `net start MongoDB` / `sudo systemctl start mongod` |
+| `InsightFace ... No module named 'insightface'` | Expected on Windows/aarch64, mock handles it (deterministic hash). Real needs `pip install insightface onnxruntime` on x64 or WSL2 |
+| `535 BadCredentials` email | Dummy `EMAIL_*`, handled `try/catch` → `Email skipped (local dev)` |
+| `CI=true` build fail (eslint) | `CI=false npm run build --prefix front-end` (already in Dockerfile) |
+| `faiss-cpu not available` | Fallback `numpy` brute, `faiss_store.py` handles both |
+| `pnpm dev` no output | `npm run dev` same, check `concurrently` installed at root `npm install` |
 
-## Next Improvements (see IMPROVEMENT_PLAN.md)
-
-- Presigned R2 6x concurrent + pg-boss queue (replace sequential loop)
-- Delete public/models 38MB + bootstrap, migrate to Next.js+Tailwind+shadcn
-- Replace eval(photo.embedding) brute with FAISS per-event IndexFlatIP
-- Postgres+pgvector or FAISS file for 5k-50k scale
+See `DEPLOYMENT.md` for Oracle/Vercel, `ML_MODEL.md` for buffalo_s, `cloud.md` for `ssh fyndr`.

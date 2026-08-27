@@ -1,0 +1,62 @@
+# Fyndr — docker-compose prod: mongo + api + ml only (frontend on Vercel)
+# Usage: pnpm compose:prod -> docker compose -f docker-compose.prod.yml up --build -d
+services:
+  mongo:
+    image: mongo:8
+    container_name: fyndr-mongo-prod
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_prod:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build: ./node-server-1
+    container_name: fyndr-api-prod
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/photo_sharing_db
+      - JWT_SECRET=${JWT_SECRET:-prod_secret_change_me}
+      - EMAIL_USER=${EMAIL_USER:-}
+      - EMAIL_PASS=${EMAIL_PASS:-}
+      - FLASK_URL=http://ml:5001
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+      - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-fyndr}
+      - PORT=5000
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ml:
+        condition: service_started
+    volumes:
+      - uploads_prod:/app/uploads
+      - event_profile_prod:/app/event_profile
+    restart: unless-stopped
+
+  ml:
+    build: ./flask-server-2
+    container_name: fyndr-ml-prod
+    ports:
+      - "5001:5001"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/photo_sharing_db
+      - FAISS_BASE=/tmp/fyndr_faiss
+    volumes:
+      - faiss_prod:/tmp/fyndr_faiss
+    restart: unless-stopped
+
+volumes:
+  mongo_prod:
+  uploads_prod:
+  event_profile_prod:
+  faiss_prod:

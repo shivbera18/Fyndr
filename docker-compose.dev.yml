@@ -1,0 +1,75 @@
+# Fyndr — docker-compose dev: mongo + api + ml + web (all)
+# Usage: pnpm compose:dev  -> docker compose -f docker-compose.dev.yml up --build
+services:
+  mongo:
+    image: mongo:8
+    container_name: fyndr-mongo-dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_dev:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./node-server-1
+    container_name: fyndr-api-dev
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/photo_sharing_db
+      - JWT_SECRET=dev_secret_fyndr_local
+      - EMAIL_USER=dummy@example.com
+      - EMAIL_PASS=dummy
+      - FLASK_URL=http://ml:5001
+      - PORT=5000
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ml:
+        condition: service_started
+    volumes:
+      - ./node-server-1/uploads:/app/uploads
+      - ./node-server-1/event_profile:/app/event_profile
+    restart: unless-stopped
+
+  ml:
+    build: ./flask-server-2
+    container_name: fyndr-ml-dev
+    ports:
+      - "5001:5001"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/photo_sharing_db
+      - FAISS_BASE=/tmp/fyndr_faiss
+    volumes:
+      - faiss_dev:/tmp/fyndr_faiss
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./front-end
+      target: dev
+    container_name: fyndr-web-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_ML_URL=http://localhost:5001
+      - PORT=3000
+      - HOST=0.0.0.0
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - api
+    volumes:
+      - ./front-end/src:/app/src
+      - ./front-end/public:/app/public
+      - /app/node_modules
+    restart: unless-stopped
+
+volumes:
+  mongo_dev:
+  faiss_dev:

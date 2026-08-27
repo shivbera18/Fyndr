@@ -14,7 +14,11 @@
     "start": "pm2 start ecosystem.config.js",
     "setup": "npm install --prefix node-server-1 && npm install --prefix front-end && python -m venv flask-server-2/venv && flask-server-2/venv/Scripts/pip install -r flask-server-2/requirements.txt",
     "test": "node tests/e2e.test.js",
-    "test:ci": "npm run test"
+    "test:ci": "npm run test",
+    "compose:dev": "docker compose -f docker-compose.dev.yml up --build",
+    "compose:prod": "docker compose -f docker-compose.prod.yml up --build -d",
+    "compose:down": "docker compose -f docker-compose.dev.yml down && docker compose -f docker-compose.prod.yml down",
+    "compose:logs": "docker compose -f docker-compose.dev.yml logs -f"
   },
   "devDependencies": {
     "axios": "^1.20.0",
