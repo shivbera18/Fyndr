@@ -1,74 +1,78 @@
 import React, { useState } from 'react';
-import { Button, QRCode, Segmented, Space,Switch } from 'antd';
-function doDownload(url, fileName) {
-  const a = document.createElement('a');
-  a.download = fileName;
-  a.href = url;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-const downloadCanvasQRCode = () => {
-  const canvas = document.getElementById('myqrcode')?.querySelector('canvas');
-  if (canvas) {
-    const url = canvas.toDataURL();
-    doDownload(url, 'QRCode.png');
-  }
-};
-const downloadSvgQRCode = () => {
-  const svg = document.getElementById('myqrcode')?.querySelector('svg');
-  const svgData = new XMLSerializer().serializeToString(svg);
-  const blob = new Blob([svgData], {
-    type: 'image/svg+xml;charset=utf-8',
-  });
-  const url = URL.createObjectURL(blob);
-  doDownload(url, 'QRCode.svg');
-};
-const Qrcode = (prop) => {
-  const url1 = prop
-  const [switcher,setswitcher] = useState(false)
-  const [renderType, setRenderType] = React.useState('canvas');
+import { QRCode } from 'antd';
+import NeoButton from '../ui/NeoButton';
+import NeoBadge from '../ui/NeoBadge';
+
+const Qrcode = ({ url, eventName = 'Event' }) => {
+  const [copied, setCopied] = useState(false);
+
+  const downloadQRCode = () => {
+    const canvas = document.getElementById('fyndr-qrcode')?.querySelector('canvas');
+    if (canvas) {
+      const a = document.createElement('a');
+      a.download = `${eventName.replace(/\s+/g, '_')}_QRCode.png`;
+      a.href = canvas.toDataURL('image/png');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const copyLink = () => {
+    if (url) {
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
-    <Space id="myqrcode" direction="vertical">
-      <div className="row pt-2">
-          <div className="col-10">
-            <p>Genrate QRCode</p>
-          </div>
-          <div className="col-2">
-            <Switch onChange={() => {
-              if (switcher) {
-                setswitcher(false)
-              } else {
-                setswitcher(true)
-              }
-            }} />
-          </div>
-        </div>
-      
-      
-      <div>
-        
-        { 
-        switcher?<p>Share QRCode with gust
+    <div
+      className="p-4 text-center"
+      style={{
+        backgroundColor: 'var(--neo-white)',
+        border: '3px solid var(--neo-black)',
+        borderRadius: '12px',
+        boxShadow: '4px 4px 0px var(--neo-black)',
+      }}
+    >
+      <NeoBadge variant="yellow" className="mb-3 px-3 py-1">
+        📱 GUEST EVENT QR CODE
+      </NeoBadge>
+
+      <div
+        id="fyndr-qrcode"
+        className="d-flex justify-content-center p-3 mb-3"
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '3px solid var(--neo-black)',
+          borderRadius: '12px',
+          display: 'inline-block',
+        }}
+      >
         <QRCode
-          type={renderType}
-          value={prop.url}
-          bgColor="#fff"
-          style={{
-            marginBottom: 16,
-          }}
-          icon="https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg"
+          value={url || window.location.href}
+          size={200}
+          bordered={false}
+          bgColor="#FFFFFF"
+          fgColor="#121212"
         />
-        <Button
-          type="primary"
-          onClick={renderType === 'canvas' ? downloadCanvasQRCode : downloadSvgQRCode}
-        >
-          Download QRCode
-        </Button>
-        </p>:<></>
-        }
       </div>
-    </Space>
+
+      <p style={{ fontWeight: 700, fontSize: '0.9rem', color: '#4B5563', wordBreak: 'break-all' }}>
+        {url}
+      </p>
+
+      <div className="d-flex gap-2 justify-content-center flex-wrap mt-3">
+        <NeoButton variant="yellow" size="sm" onClick={downloadQRCode}>
+          💾 Download QR Code (PNG)
+        </NeoButton>
+        <NeoButton variant="white" size="sm" onClick={copyLink}>
+          {copied ? '✓ Link Copied!' : '📋 Copy Link'}
+        </NeoButton>
+      </div>
+    </div>
   );
 };
+
 export default Qrcode;

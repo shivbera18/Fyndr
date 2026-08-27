@@ -1,237 +1,277 @@
-import React, { useEffect, useState } from "react";
-import { Image, message, Button, FloatButton, Popconfirm, Input } from 'antd';
-import { DeleteOutlined, RollbackOutlined } from '@ant-design/icons';
-import Upload_Img from "./Upload_Img";
-import Qrcode from "./Qrcode";
-
-
-
-const cancel = (e) => {
-  message.info('Cancel');
-};
-
-
-
+import React, { useEffect, useState } from 'react';
+import Upload_Img from './Upload_Img';
+import Qrcode from './Qrcode';
+import NeoButton from '../ui/NeoButton';
+import NeoCard from '../ui/NeoCard';
+import NeoBadge from '../ui/NeoBadge';
+import NeoModal from '../ui/NeoModal';
 
 const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   const [images, setImages] = useState([]);
-  const [hoveredImageIndex, setHoveredImageIndex] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [copied, setCopied] = useState(false);
 
-  const [url, seturl] = useState('')
-  const [updateName, setupdatename] = useState('')
-  const [updatePin, setupdatePin] = useState('')
-  const [onEdit, setonEdit] = useState(true)
-  const [pin1, setpin] = useState('')
-  const [name1, setname] = useState('')
+  const guestUrl = `http://localhost:3000/collect/${eventID}`;
 
-  // const [pin,setpin]= useState('')
-
-  function d_ref() {
-    setRefresh(prev => prev + 1);
-  }
-
-  useEffect(() => {
-    seturl(`http://localhost:3000/collect/${eventID}`)
-
-
-
-    const fetchImages = async () => {
-      try {
-
-        const _id = eventID;
-        let result = await fetch('http://localhost:5000/in-event', {
-          method: "post",
-          body: JSON.stringify({ _id }),
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        result = await result.json();
-        if (Array.isArray(result)) {
-          setImages(result);
-        } else {
-          message.error("Images not found!");
-          setImages([]);
-        }
-      } catch (error) {
-        message.error("Error fetching images");
+  const fetchImages = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('http://localhost:5000/in-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _id: eventID }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setImages(data);
+      } else {
         setImages([]);
       }
-    };
-
-    fetchImages();
-  }, [eventID, name, pin]);
-
-
-
-  //event delete completely
-  const confirm = async (e) => {
-    const _id = eventID
-    let result = await fetch('http://localhost:5000/delete-event', {
-      method: "delete",
-      body: JSON.stringify({ _id }),
-      headers: {
-        "Content-Type": "application/json"
-      }
-
-    })
-
-    if (result.ok) {
-      result = await result.json()
-      message.success(`Event ${result.event_name} is Deleted!`);
-      backbtn()
-    } else {
-      result = await result.json()
-      message.error(result.message)
+    } catch (_) {
+      setImages([]);
+    } finally {
+      setLoading(false);
     }
-
-
-
   };
 
-  const handleUpdateEvent = async () => {
-    try {
-      let result = await fetch(`http://localhost:5000/events/${eventID}`, {
-        method: 'PUT',
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ updateName, updatePin }),
-
-      })
-
-      if (result.ok) {
-        result = await result.json()
-        message.success(result.message)
-        setname(updateName)
-        setpin(updatePin)
-
-      } else {
-        result = await result.json()
-        message.error(result.message)
-      }
-    } catch (error) {
-      message.error('something wrong error with fetch')
+  useEffect(() => {
+    if (eventID) {
+      fetchImages();
     }
-  }
+  }, [eventID]);
 
-  const handleDelete = async (name, _id) => {
+  const handleDeleteEvent = async () => {
     try {
-      let result = await fetch('http://localhost:5000/delete-image', {
-        method: "delete",
-        body: JSON.stringify({ name, _id }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const res = await fetch('http://localhost:5000/delete-event', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _id: eventID }),
       });
-      result = await result.json();
-      if (result.success) {
-        message.success("Image deleted successfully!");
-        setImages(images.filter(image => image.name !== name));
-      } else {
-        message.error(result.message);
+      if (res.ok) {
+        if (setRefresh) setRefresh((prev) => prev + 1);
+        if (backbtn) backbtn();
       }
-    } catch (error) {
-      message.error(error);
-    }
+    } catch (_) {}
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    try {
+      const res = await fetch('http://localhost:5000/delete-img', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _id: photoId }),
+      });
+      if (res.ok) {
+        setImages((prev) => prev.filter((img) => img._id !== photoId));
+      }
+    } catch (_) {}
+  };
+
+  const copyGuestLink = () => {
+    navigator.clipboard.writeText(guestUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="">
-      <Popconfirm
-        title="Delete the Event"
-        description="Are you sure to delete this Event?"
-        onConfirm={confirm}
-        onCancel={cancel}
-        okText="Yes"
-        cancelText="No"
-      >
-        <FloatButton shape="circle" type="primary"
-          style={{
-            insetInlineEnd: 24,
-
-
-          }}
-          icon={<DeleteOutlined />} />
-
-      </Popconfirm>
-
-      <FloatButton shape="circle" type="primary"
-        style={{
-          insetInlineEnd: 94,
-        }}
-        icon={<RollbackOutlined />} onClick={backbtn} ></FloatButton>
-
-
-
-      <div>
-        {name1 ? (<h4 className="p-2">Event: {name1}</h4>) : (<h4 className="p-2">Event: {name}</h4>)}
-        {pin1 ? (<h5>Event PIN: {pin1}</h5>) : (pin ? <h5>Event PIN: {pin}</h5> : <h5>No PIN</h5>)}
-
-        <Button
-          onClick={() => {
-            setonEdit(prev => !prev)
-            setupdatePin(pin)
-            setupdatename(name)
-          }}
-          type="primary"
-        >Edit Pin or event</Button>
-        {onEdit ? (null) : (
-          <div>
-            <input type="text" placeholder="Enter New name" defaultValue={name} onChange={(e) => setupdatename(e.target.value)} />
-            <input type="text" placeholder="Enter New Pin" defaultValue={pin} onChange={(e) => setupdatePin(e.target.value)} />
-            <Button onClick={() => { handleUpdateEvent(); setonEdit(true) }} type="primary" >Update</Button>
-          </div>
-        )}
-        
-        <p className="pt-4">Share this link with gust: <a href={url}> {url} </a></p>
-        <Qrcode url={url} />
-      </div>
-
-      <div>
-        <Upload_Img event_id={eventID} d_ref={d_ref} inevent={true} />
-      </div>
-      <div className="row p-4 content-justify-center">
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-          {images.length > 0 ? (
-            images.map((image, index) => (
-              <div
-                key={index}
-                style={{ position: "relative", }}
-                onMouseEnter={() => setHoveredImageIndex(index)}
-                onMouseLeave={() => setHoveredImageIndex(null)}
-              >
-                <Image
-                  width={180}
-
-                  src={`http://localhost:5000/uploads/${image.name}`}
-                  alt={`image ${index}`}
-                  style={{ display: "block" }}
-                />
-                {hoveredImageIndex === index && (
-                  <Button
-                    type="primary"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleDelete(image.name, image._id)}
-                    style={{
-                      position: "absolute",
-                      top: "10%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      zIndex: 1,
-                      opacity: 0.8,
-                    }}
-                  />
-                )}
-              </div>
-            ))
-          ) : (
-            <p>No images found</p>
-          )}
+    <div className="my-2">
+      {/* Top Navigation Bar */}
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <NeoButton variant="white" size="sm" onClick={backbtn}>
+          ← Back to Events List
+        </NeoButton>
+        <div className="d-flex gap-2">
+          <NeoButton variant="cyan" size="sm" onClick={() => setShowQrModal(true)}>
+            📱 Guest QR Code
+          </NeoButton>
+          <NeoButton variant="coral" size="sm" onClick={() => setShowDeleteModal(true)}>
+            🗑️ Delete Event
+          </NeoButton>
         </div>
       </div>
+
+      {/* Event Details Card */}
+      <NeoCard header={`EVENT: ${name}`} headerAccent="yellow" className="mb-4">
+        <div className="row align-items-center g-3">
+          <div className="col-12 col-md-6">
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <span style={{ fontWeight: 800 }}>SECURITY PIN:</span>
+              <NeoBadge variant="dark" style={{ letterSpacing: '0.1em', fontSize: '1rem' }}>
+                {pin || '123456'}
+              </NeoBadge>
+              <NeoBadge variant="lime">{images.length} PHOTOS</NeoBadge>
+            </div>
+            <div style={{ color: '#4B5563', fontWeight: 600, fontSize: '0.9rem' }}>
+              Guests enter this PIN on their phone to access the event selfie search.
+            </div>
+          </div>
+
+          <div className="col-12 col-md-6 text-md-end">
+            <div className="d-flex gap-2 justify-content-md-end flex-wrap">
+              <NeoButton variant="yellow" size="sm" onClick={copyGuestLink}>
+                {copied ? '✓ Link Copied!' : '📋 Copy Guest Link'}
+              </NeoButton>
+              <a
+                href={guestUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="neo-btn neo-btn-white neo-btn-sm"
+              >
+                ↗ Open Guest View
+              </a>
+            </div>
+          </div>
+        </div>
+      </NeoCard>
+
+      {/* Batch Photo Uploader */}
+      <Upload_Img event_id={eventID} inevent={true} d_ref={fetchImages} />
+
+      {/* Event Photo Gallery */}
+      <div className="mt-5">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h4 className="m-0">EVENT PHOTO GALLERY ({images.length})</h4>
+          <NeoButton variant="white" size="sm" onClick={fetchImages}>
+            🔄 Refresh Gallery
+          </NeoButton>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-4">
+            <div className="spinner-border text-dark" role="status" />
+          </div>
+        ) : images.length === 0 ? (
+          <div className="text-center py-4">
+            <NeoCard style={{ maxWidth: '400px', margin: '0 auto' }}>
+              <p style={{ fontWeight: 700, color: '#6B7280' }} className="m-0">
+                No photos in this event yet. Use the upload box above to add photos!
+              </p>
+            </NeoCard>
+          </div>
+        ) : (
+          <div className="row g-3">
+            {images.map((photo, index) => {
+              const photoUrl = `http://localhost:5000/uploads/${photo.name}`;
+              return (
+                <div key={photo._id || index} className="col-6 col-md-4 col-lg-3">
+                  <div
+                    className="p-2"
+                    style={{
+                      backgroundColor: 'var(--neo-white)',
+                      border: '3px solid var(--neo-black)',
+                      borderRadius: '10px',
+                      boxShadow: '3px 3px 0px var(--neo-black)',
+                      position: 'relative',
+                    }}
+                  >
+                    <img
+                      src={photoUrl}
+                      alt={`Event photo ${index + 1}`}
+                      style={{
+                        width: '100%',
+                        height: '180px',
+                        objectFit: 'cover',
+                        borderRadius: '6px',
+                        border: '1.5px solid #121212',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setPreviewImage(photoUrl)}
+                    />
+                    <div className="d-flex justify-content-between align-items-center mt-2 px-1">
+                      <small style={{ fontWeight: 700, color: '#6B7280' }}>
+                        #{index + 1}
+                      </small>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePhoto(photo._id)}
+                        className="btn btn-sm text-danger p-0"
+                        style={{ fontWeight: 800 }}
+                        title="Delete photo"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* QR Code Modal */}
+      <NeoModal
+        open={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        title={`GUEST QR CODE — ${name}`}
+        accent="cyan"
+      >
+        <Qrcode url={guestUrl} eventName={name} />
+      </NeoModal>
+
+      {/* Delete Event Modal */}
+      <NeoModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="DELETE EVENT CONFIRMATION"
+        accent="coral"
+        footer={
+          <>
+            <NeoButton variant="white" size="sm" onClick={() => setShowDeleteModal(false)}>
+              Cancel
+            </NeoButton>
+            <NeoButton variant="coral" size="sm" onClick={handleDeleteEvent}>
+              Yes, Delete Entire Event
+            </NeoButton>
+          </>
+        }
+      >
+        <p style={{ fontWeight: 700, color: '#1F2937' }}>
+          Are you sure you want to delete event <span className="neo-highlight">"{name}"</span>?
+        </p>
+        <p style={{ color: '#4B5563', fontSize: '0.9rem' }}>
+          This will permanently delete the event, its photos, and its FAISS face vector index. This action cannot be undone.
+        </p>
+      </NeoModal>
+
+      {/* Photo Preview Modal */}
+      <NeoModal
+        open={Boolean(previewImage)}
+        onClose={() => setPreviewImage(null)}
+        title="PHOTO PREVIEW"
+        accent="yellow"
+        maxWidth="800px"
+      >
+        {previewImage && (
+          <div className="text-center">
+            <img
+              src={previewImage}
+              alt="Preview"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                border: '2px solid #121212',
+              }}
+            />
+            <div className="mt-3">
+              <a
+                href={previewImage}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="neo-btn neo-btn-yellow neo-btn-sm"
+              >
+                💾 Download High-Res File
+              </a>
+            </div>
+          </div>
+        )}
+      </NeoModal>
     </div>
   );
 };
