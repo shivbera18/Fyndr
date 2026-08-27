@@ -301,21 +301,36 @@ p {
   justify-content: flex-end;
   gap: 12px;
 }
+/* Marquee Animation (neobrutalism.dev spec) */
+@keyframes neoMarqueeScroll {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
 
-/* Taglines and Hero decorative helpers */
-.neo-highlight {
-  display: inline-block;
-  background-color: var(--neo-yellow);
-  padding: 2px 8px;
-  border: var(--neo-border-thin);
-  box-shadow: 2px 2px 0px var(--neo-black);
-  transform: rotate(-1deg);
+.neo-marquee-container:hover .neo-marquee-track {
+  animation-play-state: paused;
+}
+
+/* Custom Neobrutalist Scrollbars */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FFFFFF;
+  border-left: 3px solid var(--neo-black);
+  border-top: 3px solid var(--neo-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neo-yellow);
+  border: 3px solid var(--neo-black);
   border-radius: 4px;
 }
 
-.neo-highlight-cyan {
-  background-color: var(--neo-cyan);
-  transform: rotate(1deg);
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neo-lime);
 }
 
 .neo-highlight-lime {
