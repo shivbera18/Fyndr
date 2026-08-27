@@ -90,14 +90,26 @@ const CameraCaptureWithMask = () => {
     setErrorMessage('');
   };
 
-  const downloadImage = (url, filename) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || 'matched_photo.jpg';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const downloadImage = async (url, filename) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || 'matched_photo.jpg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (_) {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleUserMediaError = () => {
+    setErrorMessage('⚠️ Camera access was unavailable or denied. Switched to gallery photo upload.');
+    setUseUploadMode(true);
   };
 
   return (
@@ -144,6 +156,7 @@ const CameraCaptureWithMask = () => {
                       audio={false}
                       ref={webcamRef}
                       screenshotFormat="image/jpeg"
+                      onUserMediaError={handleUserMediaError}
                       videoConstraints={{ facingMode: 'user', width: 480, height: 480 }}
                       style={{
                         width: '100%',

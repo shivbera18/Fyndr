@@ -71,9 +71,33 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   };
 
   const copyGuestLink = () => {
-    navigator.clipboard.writeText(guestUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (guestUrl) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(guestUrl)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          })
+          .catch(() => fallbackCopy(guestUrl));
+      } else {
+        fallbackCopy(guestUrl);
+      }
+    }
+  };
+
+  const fallbackCopy = (text) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (_) {}
   };
 
   return (
