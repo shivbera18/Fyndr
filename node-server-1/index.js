@@ -30,15 +30,20 @@ require("./Config_db")
 const app = express();
 
 app.use(express.json());
-app.use(cors())
-// P2: metrics middleware
+app.use(cors());
+// P2: metrics middleware – normalized route, no high-cardinality req.path, with duration histogram
 app.use((req,res,next)=>{
-  const end = res.end;
   const start = Date.now();
+  const origEnd = res.end;
   res.end = function(...args){
-    const route = req.route ? req.route.path : req.path;
-    httpRequests.inc({method:req.method, route, status:res.statusCode});
-    return end.apply(this,args);
+    // Prefer matched route, fallback to path without query/id to avoid cardinality explosion
+    let route = 'unknown';
+    if (req.route && req.route.path) route = req.route.path;
+    else if (req.path) route = req.path.replace(/\/[a-f0-9]{24}/gi, '/:id').split('?')[0] || 'unknown';
+    const elapsed = (Date.now() - start) / 1000;
+    try { httpRequests.inc({ method: req.method, route, status: res.statusCode }); } catch(_){}
+    // Optionally observe via uploadDuration/faceSearchDuration elsewhere; keep generic timing available
+    return origEnd.apply(this, args);
   };
   next();
 });
@@ -323,63 +328,108 @@ app.post('/in-event', async (req, resp) => {
 app.post('/photo', upload.array('name', 100), async (req, res) => {
     const endTimer = uploadDuration.startTimer();
     try {
-        const files = req.files;
+        const files = req.files || [];
         const { event_id, upload_by } = req.body;
-        if(!event_id) return res.status(400).send({error:'event_id required'});
-        const limit = pLimit(6); // P1: 6 concurrent, not 50k all at once
-        const photos = await Promise.all(
+        if (!event_id) return res.status(400).send({ error: 'event_id required' });
+        if (!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({ error: 'invalid event_id' });
+        if (files.length === 0) return res.status(400).send({ error: 'no files uploaded' });
+        const eventExists = await Event.findById(event_id).select('_id');
+        if (!eventExists) return res.status(404).send({ error: 'event not found' });
+
+        const limit = pLimit(6);
+        const queueMod = require('./queue/mongoQueue');
+
+        const results = await Promise.all(
             files.map(file => limit(async () => {
-                // P1: hash for idempotency
-                const buf = fs.readFileSync(file.path);
-                const hash = crypto.createHash('sha256').update(buf).digest('hex');
-                const q = await enqueue(event_id, hash, file.filename);
-                if(q && q.status === 'done'){
-                    // already processed, dedup
-                    fs.unlinkSync(file.path);
-                    const existing = await Photo.findOne({ event_id, name: file.filename });
-                    return existing || q;
+                let hash;
+                try {
+                    // non-blocking streaming hash (avoid fs.readFileSync blocking event loop)
+                    hash = await new Promise((resolve, reject) => {
+                        const h = crypto.createHash('sha256');
+                        const s = fs.createReadStream(file.path);
+                        s.on('error', reject);
+                        s.on('data', d => h.update(d));
+                        s.on('end', () => resolve(h.digest('hex')));
+                    });
+                } catch (e) {
+                    return { file: file.originalname, error: 'hash failed: ' + e.message, status: 'failed' };
                 }
+
+                // Per-event idempotency: check Photo first (fast path)
+                try {
+                    const existingPhoto = await Photo.findOne({ event_id, hash });
+                    if (existingPhoto) {
+                        try { fs.unlinkSync(file.path); } catch(_){}
+                        await queueMod.markDone(event_id, hash).catch(()=>{});
+                        return existingPhoto;
+                    }
+                } catch(_){}
+
+                const q = await enqueue(event_id, hash, file.filename);
+                if (q && q.status === 'done') {
+                    try { fs.unlinkSync(file.path); } catch(_){}
+                    const existing = await Photo.findOne({ event_id, hash });
+                    return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: q.photo_hash };
+                }
+
+                // Pre-generate photoId so we can index FAISS in single ML call
+                const photoId = new mongoose.Types.ObjectId();
                 const formData = new FormData();
                 formData.append('image', fs.createReadStream(file.path));
+                formData.append('event_id', event_id);
+                formData.append('photo_id', photoId.toString());
 
-                const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
-                    headers: { ...formData.getHeaders() },
-                    maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
-                });
-                if (response.data.error) {
-                    fs.unlinkSync(file.path);
-                    throw new Error(response.data.error);
-                }
-                const embedding = response.data.embedding;
-                const photo = new Photo({
-                    name: file.filename,
-                    event_id: event_id,
-                    upload_by: upload_by,
-                    embedding: JSON.stringify(embedding),
-                });
-                await photo.save();
-                // P1: also index in FAISS via second call with photo_id (ensures file-based index)
+                let embedding;
                 try {
-                    const fd2 = new FormData();
-                    fd2.append('image', fs.createReadStream(file.path));
-                    fd2.append('event_id', event_id);
-                    fd2.append('photo_id', photo._id.toString());
-                    // fire and forget, embedding already known, but this ensures FAISS has correct photo_id
-                    // we already added with hash, now add with real id as well
-                    // Instead, directly call faiss via embedding already added with hash, now add with id
-                    // For mock, embedding deterministic from image, so same
-                    await axios.post('http://127.0.0.1:5001/get_embedding', fd2, { headers: {...fd2.getHeaders()}, timeout: 5000 }).catch(()=>{});
-                    // Also directly add to faiss via embedding (if flask didn't)
-                    // The mock embedding is deterministic, so second add with same vector but different id will duplicate; avoid duplicate by not re-adding if hash already indexed
-                } catch(e){}
-                await require('./queue/mongoQueue').markDone(hash).catch(()=>{});
-                return photo;
+                    const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
+                        headers: { ...formData.getHeaders() },
+                        maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
+                    });
+                    if (response.data.error) throw new Error(response.data.error);
+                    embedding = response.data.embedding;
+                    if (!Array.isArray(embedding) || embedding.length !== 512) throw new Error('invalid embedding');
+                } catch (e) {
+                    await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
+                    try { fs.unlinkSync(file.path); } catch(_){}
+                    return { file: file.originalname, hash, error: e.message, status: 'failed' };
+                }
+
+                try {
+                    const photo = new Photo({
+                        _id: photoId,
+                        name: file.filename,
+                        event_id, upload_by,
+                        embedding: JSON.stringify(embedding),
+                        hash, status: 'done'
+                    });
+                    await photo.save();
+                    await queueMod.markDone(event_id, hash).catch(()=>{});
+                    return photo;
+                } catch (e) {
+                    if (e.code === 11000) {
+                        // race: another worker saved same hash — clean orphan FAISS vector
+                        try { fs.unlinkSync(file.path); } catch(_){}
+                        try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
+                        const dup = await Photo.findOne({ event_id, hash });
+                        await queueMod.markDone(event_id, hash).catch(()=>{});
+                        return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
+                    }
+                    // on generic save failure, also try to clean orphan FAISS
+                    try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
+                    await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
+                    return { file: file.originalname, hash, error: e.message, status: 'failed' };
+                }
             }))
         );
+
+        const failed = results.filter(r => r && r.error);
         endTimer();
-        res.status(200).send(photos);
+        // 207 Multi-Status if partial failures, 200 if all ok
+        if (failed.length > 0 && failed.length < results.length) return res.status(207).send(results);
+        if (failed.length === results.length) return res.status(422).send(results);
+        res.status(200).send(results);
     } catch (error) {
-        console.error(error);
+        console.error('[photo] upload error', error);
         endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
     }
@@ -390,48 +440,35 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
 app.delete('/delete-event', async (req, res) => {
     try {
         const { _id } = req.body;
+        if (!_id) return res.status(400).send({ message: "Event is Missing! Please Reload" });
+        if (!mongoose.Types.ObjectId.isValid(_id)) return res.status(400).send({ message: "Invalid Event ID" });
 
-        if (!_id) {
-            return res.status(400).send({ message: "Event is Missing! Please Reload" });
-        }
-
-        // Delete event by ID
         const event = await Event.findByIdAndDelete(new mongoose.Types.ObjectId(_id));
+        if (!event) return res.status(404).send({ message: "Event not found! Reload the page." });
 
-        if (!event) {
-            return res.status(404).send({ message: "Event not found! Reload the page." });
-        }
-
-        
-        if(event.event_photo){
-            const coverImage_path = path.join(__dirname,'event_profile',event.event_photo)
+        if (event.event_photo) {
+            const coverImage_path = path.join(__dirname,'event_profile',event.event_photo);
             fs.unlink(coverImage_path,(err)=>{
-                if(err){
-                    console.error(`failed to deleted cover image ${coverImage_path}`)
-                }else{
-                    console.log(`Deleted cover image ${coverImage_path}`)
-                }
-            })
+                if(err) console.error(`failed to deleted cover image ${coverImage_path}`, err);
+                else console.log(`Deleted cover image ${coverImage_path}`);
+            });
         }
 
-        // Find and delete all photos linked to the event
-        const photos = await Photo.find({ event_id: _id });
+        const photos = await Photo.find({ event_id: _id }).select('name _id');
         await Photo.deleteMany({ event_id: _id });
+        // cleanup jobs + faiss
+        try { await require('./queue/mongoQueue').Job.deleteMany({ event_id: _id }); } catch(_){}
+        try { await axios.post('http://127.0.0.1:5001/faiss_delete_event', { event_id: _id }, { timeout: 5000 }); } catch(e){ console.log('[faiss] delete_event failed', e.message); }
 
-        // Delete photo files from the "uploads" folder
         photos.forEach((photo) => {
             const photoPath = path.join(__dirname, 'uploads', photo.name);
             fs.unlink(photoPath, (err) => {
-                if (err) {
-                    console.error(`Failed to delete file: ${photoPath}`, err);
-                } else {
-                    console.log(`Deleted file: ${photoPath}`);
-                }
+                if (err) console.error(`Failed to delete file: ${photoPath}`, err);
+                else console.log(`Deleted file: ${photoPath}`);
             });
         });
 
         return res.status(200).send(event);
-
     } catch (error) {
         console.error("Error deleting event:", error);
         res.status(500).json({ success: false, message: "Error deleting Event!" });
@@ -443,34 +480,33 @@ app.delete('/delete-event', async (req, res) => {
 app.delete('/delete-image', async (req, res) => {
     try {
         const { name, _id } = req.body;
-
-        if (!name || !_id) {
-            return res.status(400).json({ success: false, message: "Missing images detail's" });
-        }
-
+        if (!name || !_id) return res.status(400).json({ success: false, message: "Missing images detail's" });
+        if (!mongoose.Types.ObjectId.isValid(_id)) return res.status(400).json({ success: false, message: "Invalid image id" });
 
         const result = await Photo.findOneAndDelete({ name, _id: new mongoose.Types.ObjectId(_id) });
+        if (!result) return res.status(404).json({ success: false, message: "Image not found in database" });
 
-
-
-        if (!result) {
-            return res.status(404).json({ success: false, message: "Image not found in database" });
+        // cleanup queue + faiss if we have event_id (guard legacy photos without hash)
+        if (result.event_id) {
+            if (result.hash) {
+                try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }); } catch(_){}
+            }
+            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 3000 }); } catch(e){ console.log('[faiss] remove failed', e.message); }
         }
 
-        // Delete the image file from the server
         const imagePath = path.join(__dirname, 'uploads', name);
         fs.unlink(imagePath, (err) => {
             if (err) {
+                console.error('[delete-image] unlink failed', err);
                 return res.status(500).json({ success: false, message: "Failed to delete image file" });
             }
-
             return res.json({ success: true, message: "Image deleted successfully" });
         });
     } catch (error) {
+        console.error('[delete-image]', error);
         res.status(500).json({ success: false, message: "Error deleting image!" });
     }
 });
-
 
 //-----------------------------------------------------------------------------------------------------
 app.post("/collect_event", async (req, resp) => {
@@ -713,24 +749,56 @@ app.put("/events/:id", async (req, res) => {
 
 
 
-// P2: Prometheus metrics
+// P2: Prometheus metrics (no auth needed, scrape interval 15s)
 app.get('/metrics', async (req,res)=>{
-  res.set('Content-Type', promClient.register.contentType);
-  res.end(await promClient.register.metrics());
+  try {
+    res.set('Content-Type', promClient.register.contentType);
+    res.end(await promClient.register.metrics());
+  } catch(e){ res.status(500).send(String(e.message)); }
 });
-// P1: queue stats per event
+// P2: queue stats per event + DLQ helpers
 app.get('/queue/stats', async (req,res)=>{
   const { event_id } = req.query;
   if(!event_id) return res.status(400).send({error:'event_id required'});
-  res.send(await queueStats(event_id));
+  if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
+  try { res.send(await queueStats(event_id)); } catch(e){ res.status(500).send({error:e.message}); }
 });
-// P1: R2 presigned PUT (falls back to local if no R2 env)
+app.get('/queue/failed', async (req,res)=>{
+  const { event_id, limit } = req.query;
+  if(!event_id) return res.status(400).send({error:'event_id required'});
+  if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
+  let lim = parseInt(limit,10);
+  if (Number.isNaN(lim) || lim <=0) lim = 20;
+  lim = Math.min(Math.max(lim,1),100);
+  try {
+    const q = require('./queue/mongoQueue');
+    res.send(await q.listFailed(event_id, lim));
+  } catch(e){ res.status(500).send({error:e.message}); }
+});
+app.post('/queue/retry', async (req,res)=>{
+  const { event_id, photo_hash } = req.body;
+  if(!event_id) return res.status(400).send({error:'event_id required'});
+  if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
+  if (photo_hash && (typeof photo_hash !== 'string' || photo_hash.length !== 64)) return res.status(400).send({error:'invalid photo_hash (expect sha256 hex)'});
+  try {
+    const q = require('./queue/mongoQueue');
+    const r = await q.retryFailed(event_id, photo_hash);
+    res.send({ ok:true, modified: r.modifiedCount || r.matchedCount || 0 });
+  } catch(e){ res.status(500).send({error:e.message}); }
+});
+// P2: R2 presigned PUT (falls back to local if no R2 env) – validated key, contentType allowlist
 app.post('/presign', async (req,res)=>{
   const { key, contentType } = req.body;
-  if(!key) return res.status(400).send({error:'key required'});
-  const url = await getPresignedPut(key, contentType);
-  if(url) return res.send({ url, via:'r2' });
-  res.send({ url: null, via:'local', message:'R2 not configured, use local upload' });
+  if(!key || typeof key !== 'string') return res.status(400).send({error:'key required'});
+  if (key.includes('..') || key.startsWith('/') || key.length > 512) return res.status(400).send({error:'invalid key'});
+  const ct = contentType || 'image/jpeg';
+  const allowedCT = ['image/jpeg','image/png','image/webp','image/gif','image/bmp'];
+  if (!allowedCT.includes(ct)) return res.status(400).send({error:'unsupported contentType'});
+  try {
+    const url = await getPresignedPut(key, ct);
+    if(url) return res.send({ url, via:'r2', expiresIn: 3600 });
+    res.send({ url: null, via:'local', message:'R2 not configured, use local upload' });
+  } catch(e){ res.status(500).send({error:e.message}); }
 });
 
 app.listen(5000)
