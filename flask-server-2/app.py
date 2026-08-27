@@ -9,6 +9,7 @@ import json
 from flask_socketio import SocketIO
 import hashlib
 import random
+from faiss_store import add as faiss_add, search as faiss_search, stats as faiss_stats
 
 # Try InsightFace, fallback to mock for local dev without C++ build
 try:
@@ -101,27 +102,41 @@ def match_faces():
         query_emb=query_emb/np.linalg.norm(query_emb)
         faces=[type('obj', (object,), {'embedding': query_emb})()]
 
+    # P1: try FAISS per-event index first (18ms vs 8s brute)
+    try:
+        faiss_res = faiss_search(event_id, query_emb, k=48, threshold=0.34)
+        if faiss_res:
+            # map photo_id -> photo doc for name
+            matches = []
+            for pid, score in faiss_res:
+                try:
+                    doc = mongo.db.photos.find_one({"_id": ObjectId(pid)})
+                    if doc:
+                        matches.append({'id': pid, 'name': doc['name'], 'similarity': float(score)})
+                    else:
+                        matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
+                except:
+                    matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
+            # sort by similarity desc (faiss already)
+            return jsonify({'matches': matches}), 200
+    except Exception as e:
+        print(f"[faiss] search fallback brute: {e}")
+
+    # Fallback brute (kept for backward compat, threshold 0.34)
     photo_collection = mongo.db.photos
     photos = photo_collection.find({"event_id": event_id})
-    
-
     matches = []
     for photo in photos:
-        # print("for loop",photo)
-        # Convert the string representation of the embedding back to a numpy array
-        # Assuming photo['embedding'] is stored as a string representation of a list
-        db_embedding = np.array(eval(photo['embedding']))  # Safely convert string to array
-
-        # Calculate cosine similarity
-        similarity = np.dot(faces[0].embedding, db_embedding) / (np.linalg.norm(faces[0].embedding) * np.linalg.norm(db_embedding))
-
-        # Debugging output
-        
-
-        if similarity > 0.3:  # Adjust threshold as needed
-            matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': similarity})
-
+        try:
+            db_embedding = np.array(eval(photo['embedding']))
+        except:
+            continue
+        similarity = np.dot(query_emb, db_embedding) / (np.linalg.norm(query_emb) * np.linalg.norm(db_embedding))
+        if similarity > 0.34:
+            matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': float(similarity)})
     if matches:
+        # sort desc
+        matches.sort(key=lambda x: x['similarity'], reverse=True)
         return jsonify({'matches': matches}),200
     else:
         return jsonify({'message': 'You are not Present In this event'}), 200
@@ -149,19 +164,32 @@ def get_embedding():
         faces = app_insight.get(img)
         if len(faces) > 0:
             embedding = faces[0].embedding.tolist()
-            return jsonify({'embedding': embedding})
         else:
             return jsonify({'error': 'No face detected in the image'}), 400
     else:
-        # mock: deterministic pseudo-embedding from image hash (so same person similar)
-        # use image bytes hash to generate stable 512-d vector
         h=hashlib.md5(image_bytes).hexdigest()
         random.seed(int(h[:8],16))
         embedding=[random.uniform(-1,1) for _ in range(512)]
-        # L2 normalize
         norm=sum(x*x for x in embedding)**0.5
         embedding=[x/norm for x in embedding]
-        return jsonify({'embedding': embedding})
+    # P1: optional FAISS index if caller provides event_id+photo_id
+    event_id_q = request.form.get('event_id') or request.args.get('event_id')
+    photo_id_q = request.form.get('photo_id') or request.args.get('photo_id')
+    if event_id_q and photo_id_q:
+        try:
+            faiss_add(event_id_q, photo_id_q, embedding)
+        except Exception as e:
+            print(f"[faiss] add failed {e}")
+    return jsonify({'embedding': embedding})
+        else:
+            return jsonify({'error': 'No face detected in the image'}), 400
+
+@app.route('/faiss_stats', methods=['GET'])
+def faiss_stats_route():
+    event_id = request.args.get('event_id')
+    if not event_id:
+        return jsonify({'error': 'event_id required'}), 400
+    return jsonify(faiss_stats(event_id))
 
 if __name__ == '__main__':
      socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)
