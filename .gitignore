@@ -7,6 +7,8 @@ flask-server-2/__pycache__/
 *.pyc
 # logs
 *.log
+logs/*
+!logs/.gitkeep
 flask-server-2/flask.log
 node-server-1/node.log
 front-end/frontend.log
