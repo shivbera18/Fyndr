@@ -431,48 +431,35 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
 app.delete('/delete-event', async (req, res) => {
     try {
         const { _id } = req.body;
+        if (!_id) return res.status(400).send({ message: "Event is Missing! Please Reload" });
+        if (!mongoose.Types.ObjectId.isValid(_id)) return res.status(400).send({ message: "Invalid Event ID" });
 
-        if (!_id) {
-            return res.status(400).send({ message: "Event is Missing! Please Reload" });
-        }
-
-        // Delete event by ID
         const event = await Event.findByIdAndDelete(new mongoose.Types.ObjectId(_id));
+        if (!event) return res.status(404).send({ message: "Event not found! Reload the page." });
 
-        if (!event) {
-            return res.status(404).send({ message: "Event not found! Reload the page." });
-        }
-
-        
-        if(event.event_photo){
-            const coverImage_path = path.join(__dirname,'event_profile',event.event_photo)
+        if (event.event_photo) {
+            const coverImage_path = path.join(__dirname,'event_profile',event.event_photo);
             fs.unlink(coverImage_path,(err)=>{
-                if(err){
-                    console.error(`failed to deleted cover image ${coverImage_path}`)
-                }else{
-                    console.log(`Deleted cover image ${coverImage_path}`)
-                }
-            })
+                if(err) console.error(`failed to deleted cover image ${coverImage_path}`, err);
+                else console.log(`Deleted cover image ${coverImage_path}`);
+            });
         }
 
-        // Find and delete all photos linked to the event
-        const photos = await Photo.find({ event_id: _id });
+        const photos = await Photo.find({ event_id: _id }).select('name _id');
         await Photo.deleteMany({ event_id: _id });
+        // cleanup jobs + faiss
+        try { await require('./queue/mongoQueue').Job.deleteMany({ event_id: _id }); } catch(_){}
+        try { await axios.post('http://127.0.0.1:5001/faiss_delete_event', { event_id: _id }, { timeout: 5000 }); } catch(e){ console.log('[faiss] delete_event failed', e.message); }
 
-        // Delete photo files from the "uploads" folder
         photos.forEach((photo) => {
             const photoPath = path.join(__dirname, 'uploads', photo.name);
             fs.unlink(photoPath, (err) => {
-                if (err) {
-                    console.error(`Failed to delete file: ${photoPath}`, err);
-                } else {
-                    console.log(`Deleted file: ${photoPath}`);
-                }
+                if (err) console.error(`Failed to delete file: ${photoPath}`, err);
+                else console.log(`Deleted file: ${photoPath}`);
             });
         });
 
         return res.status(200).send(event);
-
     } catch (error) {
         console.error("Error deleting event:", error);
         res.status(500).json({ success: false, message: "Error deleting Event!" });
@@ -484,34 +471,31 @@ app.delete('/delete-event', async (req, res) => {
 app.delete('/delete-image', async (req, res) => {
     try {
         const { name, _id } = req.body;
-
-        if (!name || !_id) {
-            return res.status(400).json({ success: false, message: "Missing images detail's" });
-        }
-
+        if (!name || !_id) return res.status(400).json({ success: false, message: "Missing images detail's" });
+        if (!mongoose.Types.ObjectId.isValid(_id)) return res.status(400).json({ success: false, message: "Invalid image id" });
 
         const result = await Photo.findOneAndDelete({ name, _id: new mongoose.Types.ObjectId(_id) });
+        if (!result) return res.status(404).json({ success: false, message: "Image not found in database" });
 
-
-
-        if (!result) {
-            return res.status(404).json({ success: false, message: "Image not found in database" });
+        // cleanup queue + faiss if we have event_id
+        if (result.event_id) {
+            try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }); } catch(_){}
+            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 3000 }); } catch(e){ console.log('[faiss] remove failed', e.message); }
         }
 
-        // Delete the image file from the server
         const imagePath = path.join(__dirname, 'uploads', name);
         fs.unlink(imagePath, (err) => {
             if (err) {
+                console.error('[delete-image] unlink failed', err);
                 return res.status(500).json({ success: false, message: "Failed to delete image file" });
             }
-
             return res.json({ success: true, message: "Image deleted successfully" });
         });
     } catch (error) {
+        console.error('[delete-image]', error);
         res.status(500).json({ success: false, message: "Error deleting image!" });
     }
 });
-
 
 //-----------------------------------------------------------------------------------------------------
 app.post("/collect_event", async (req, resp) => {
