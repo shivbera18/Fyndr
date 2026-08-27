@@ -20,8 +20,6 @@ PAIRS_URLS = [
     "https://vis-www.cs.umass.edu/lfw/pairs.txt",
     "http://vis-www.cs.umass.edu/lfw/pairs.txt",
 ]
-# also pairsDevTrain from figshare for reference
-PAIRS_FIGSHARE = "https://ndownloader.figshare.com/files/5976012"  # pairsDevTrain.txt
 
 def download(url, dest, retries=3):
     # try requests first (handles figshare presigned redirects better)
