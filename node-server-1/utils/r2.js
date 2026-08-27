@@ -23,7 +23,7 @@ async function getPresignedPut(key, contentType = 'image/jpeg') {
   if (!s3) return null;
   if (!key || typeof key !== 'string' || key.includes('..') || key.length > 512) throw new Error('invalid key');
   const { PutObjectCommand } = require('@aws-sdk/client-s3');
-  const { getSignedUrl } = require('@aws-sdk/s3-presigner');
+  const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
   const cmd = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET || 'fyndr',
     Key: key,
