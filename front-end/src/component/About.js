@@ -4,6 +4,8 @@ import Footer from './Footer';
 import NeoCard from './ui/NeoCard';
 import NeoBadge from './ui/NeoBadge';
 import NeoButton from './ui/NeoButton';
+import NeoImageCard from './ui/NeoImageCard';
+import NeoAlert from './ui/NeoAlert';
 import { useNavigate } from 'react-router-dom';
 
 const About = () => {
@@ -51,8 +53,52 @@ const About = () => {
             </NeoCard>
           </div>
         </div>
+        {/* Security & Privacy Banner */}
+        <div className="mb-5">
+          <NeoAlert
+            variant="lime"
+            icon="🔒"
+            title="100% EPHEMERAL PRIVACY GUARANTEE"
+          >
+            Guest selfie images are processed strictly in-memory and permanently purged within 60 seconds. Facial embeddings are mathematically irreversibly mapped and isolated per event.
+          </NeoAlert>
+        </div>
 
-        {/* Tech Stack Specs */}
+        {/* Photography Showcase Image Cards */}
+        <div className="mb-5">
+          <div className="text-center mb-4">
+            <NeoBadge variant="cyan" className="mb-2 px-3 py-1 fs-6">
+              📸 EVENT SHOWCASE
+            </NeoBadge>
+            <h2 className="display-6 fw-black">POWERED FOR ANY SCALE</h2>
+          </div>
+          <div className="row g-4 justify-content-center">
+            <div className="col-12 col-md-4">
+              <NeoImageCard
+                imageUrl="/images/wedding.jpg"
+                caption="Wedding Celebrations — Multi-group face clustering"
+                tag="Weddings"
+                tagVariant="yellow"
+              />
+            </div>
+            <div className="col-12 col-md-4">
+              <NeoImageCard
+                imageUrl="/images/wedding2.jpg"
+                caption="Portrait & Couple Shoots — Sub-second retrieval"
+                tag="Portraits"
+                tagVariant="cyan"
+              />
+            </div>
+            <div className="col-12 col-md-4">
+              <NeoImageCard
+                imageUrl="/images/imran.jpg"
+                caption="Galas & Festivals — High-density crowd indexing"
+                tag="Events"
+                tagVariant="lime"
+              />
+            </div>
+          </div>
+        </div>
         <div className="mb-5">
           <NeoCard header="PRODUCTION TECH STACK" headerAccent="purple">
             <div className="row g-3 text-center">
