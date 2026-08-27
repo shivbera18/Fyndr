@@ -1,144 +1,193 @@
-
-import React, { useState } from "react";
-import { Button, Checkbox, Form, Input, message } from 'antd';
-import { useNavigate } from "react-router-dom";
-
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import Header from '../navbar/Header';
+import Footer from '../Footer';
+import NeoCard from '../ui/NeoCard';
+import NeoButton from '../ui/NeoButton';
+import NeoInput from '../ui/NeoInput';
 
 const ForgetPass = () => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1); // 1: Send OTP, 2: Enter OTP & New Password
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const [email, seteamil] = useState('')
-  const [otp, setOTP] = useState('')
-  const [loade, setloade] = useState(false)
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [newpassword,setpassword] = useState('')
-  const naviagte = useNavigate()
- 
-  const handlemail = async () => {
-    setloade(true)
-    let result = await fetch('http://localhost:5000/send-otp', {
-      method: "post",
-      body: JSON.stringify({ email }),
+  // Step 1: Send OTP
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
 
-      headers: {
-        'Content-Type': 'application/json'
+    try {
+      const res = await fetch('http://localhost:5000/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMessage('Reset OTP sent to your email.');
+        setStep(2);
+      } else {
+        setErrorMessage(data.message || data.error || 'Failed to send OTP.');
       }
-    })
-    if (result.ok) {
-      result = await result.json()
-      message.success(result.message)
-    } else {
-      result = await result.json()
-      message.warning(result.message)
+    } catch (_) {
+      setErrorMessage('Could not connect to server.');
+    } finally {
+      setLoading(false);
     }
-    setloade(false)
-  }
+  };
 
-  const hnadleOTP = async () => {
+  // Step 2: Verify OTP & Update Password
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
 
-    let result = await fetch('http://localhost:5000/newPassword-verify-otp', {
-      method: "post",
-      body: JSON.stringify({ otp, email, newpassword }),
-      headers: {
-        'Content-Type': 'application/json'
+    try {
+      const res = await fetch('http://localhost:5000/newPassword-verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), otp: otp.trim(), newpassword: newPassword }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMessage('Password successfully updated! Redirecting to login...');
+        setTimeout(() => navigate('/login'), 1200);
+      } else {
+        setErrorMessage(data.message || data.error || 'Invalid or expired OTP.');
       }
-    })
-    if (result.ok) {
-      result = await result.json()
-      message.success(result.message)
-      naviagte('/login')
-    } else {
-      result = await result.json()
-      message.warning(result.message)
+    } catch (_) {
+      setErrorMessage('Could not connect to server.');
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   return (
+    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
+      <Header />
 
-    <div className="container p-3 pt-4">
-      <div className="pt-4 forget-password row">
-        <Form className="col-6"
+      <div className="container py-5">
+        <div className="row justify-content-center">
+          <div className="col-12 col-md-8 col-lg-5">
+            <NeoCard header="PASSWORD RECOVERY" headerAccent="coral">
+              {errorMessage && (
+                <div
+                  className="p-3 mb-3"
+                  style={{
+                    backgroundColor: 'var(--neo-coral-light)',
+                    border: '2px solid var(--neo-black)',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    color: '#991B1B',
+                  }}
+                >
+                  ⚠️ {errorMessage}
+                </div>
+              )}
 
-          name="basic"
-          autoComplete="off"
-        >
-          <h2>Forget Password</h2>
-          <br />
+              {successMessage && (
+                <div
+                  className="p-3 mb-3"
+                  style={{
+                    backgroundColor: 'var(--neo-lime-light)',
+                    border: '2px solid var(--neo-black)',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    color: '#166534',
+                  }}
+                >
+                  ✓ {successMessage}
+                </div>
+              )}
 
-          <Form.Item
-            label="Email"
-            name="Email"
-            rules={[
-              {
-                required: true,
-                message: 'Please Enter your Email!',
-              },
-            ]}
-          >
-            <Input type="email" onChange={(e) => seteamil(e.target.value)} placeholder="Enter Email" />
-          </Form.Item>
-          <br />
+              {step === 1 ? (
+                <form onSubmit={handleSendOtp}>
+                  <p style={{ fontWeight: 600, color: '#4B5563' }}>
+                    Enter your registered email address to receive a one-time verification code.
+                  </p>
+                  <NeoInput
+                    label="Email Address"
+                    type="email"
+                    placeholder="photographer@studio.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <NeoButton
+                    type="submit"
+                    variant="yellow"
+                    size="lg"
+                    full
+                    loading={loading}
+                  >
+                    Send Reset Code →
+                  </NeoButton>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp}>
+                  <NeoInput
+                    label="6-Digit OTP Code"
+                    type="text"
+                    placeholder="e.g. 123456"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    required
+                  />
+                  <NeoInput
+                    label="New Password"
+                    type="password"
+                    placeholder="Enter strong new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                  <div className="d-flex gap-2">
+                    <NeoButton
+                      variant="white"
+                      size="md"
+                      onClick={() => setStep(1)}
+                    >
+                      ← Back
+                    </NeoButton>
+                    <NeoButton
+                      type="submit"
+                      variant="lime"
+                      size="md"
+                      full
+                      loading={loading}
+                    >
+                      Update Password
+                    </NeoButton>
+                  </div>
+                </form>
+              )}
 
-          <p>We will send you OTP on your Email it will be valid for 5 minutes,
-            <br /> If the OTP expire regenerate "Just click Generate OTP".
-          </p>
-
-          <br />
-          <Form.Item
-
-          >
-            <Button type="primary" onClick={handlemail} disabled={loade} >{loade ? <span>Loading...</span> : <span>Generate OTP</span>}</Button>
-          </Form.Item>
-
-
-          <br />
-          <Form.Item
-            label="OTP"
-            name="OTP"
-
-            rules={[
-              {
-                required: true,
-                message: 'Please Enter your OTP!',
-              },
-            ]}
-          >
-            <Input.OTP onChange={(e) => setOTP(e)} />
-          </Form.Item>
-          <br />
-
-          <p>when you enter OTP must be the Email Entered! already
-            <br />The OTP must be 6 digit
-          </p>
-          <Form.Item
-            label="New Password"
-            name="Password"
-
-            rules={[
-              {
-                required: true,
-                message: 'Please Enter your New Password!',
-              },
-            ]}
-          >
-            <Input.Password  onChange={(e)=>setpassword(e.target.value)} placeholder="New password"
-              visibilityToggle={{
-                visible: passwordVisible,
-                onVisibleChange: setPasswordVisible,
-              }} />
-
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" onClick={hnadleOTP} >Change Password</Button>
-          </Form.Item>
-
-        </Form>
+              <div className="mt-4 pt-3 text-center border-top">
+                <Link
+                  to="/login"
+                  style={{ fontWeight: 800, color: 'var(--neo-black)', textDecoration: 'none' }}
+                >
+                  ← Back to Sign In
+                </Link>
+              </div>
+            </NeoCard>
+          </div>
+        </div>
       </div>
+
+      <Footer />
     </div>
-
-  )
-
-
-}
-
+  );
+};
 
 export default ForgetPass;

@@ -1,41 +1,60 @@
-import { Button, message } from 'antd';
 import React, { useEffect, useState } from 'react';
-import {  useLocation ,useNavigate} from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import Header from '../navbar/Header';
+import Footer from '../Footer';
+import NeoCard from '../ui/NeoCard';
+import NeoButton from '../ui/NeoButton';
 
+const ConfirmVerify = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [status, setStatus] = useState('checking');
 
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const queryStatus = queryParams.get('status');
+    if (queryStatus === 'success') {
+      setStatus('success');
+    } else {
+      setStatus('error');
+    }
+  }, [location]);
 
-const ConfirmVerify = ()=>{
-    const location = useLocation();
-    const navigate = useNavigate()
-    const [confirm,setconfirm] = useState('')
-
-    useEffect(() => {
-        const queryParams = new URLSearchParams(location.search);
-        const status = queryParams.get('status');
-
-        const auth = localStorage.getItem("user")
-        if (auth) {
-            navigate("/dashboard")
-        }
-
-        // Optional: Auto-redirect to dashboard after successful verification
-        if (status === 'success') {
-            message.success("Verified you Email!!!")
-            setconfirm("Verified your Email!")
-            setTimeout(() => navigate('/'), 5000);
-        }else{
-            message.loading("link is experide!")
-            setconfirm("The link is experide!!")
-            setTimeout(() => navigate('/'), 5000);
-        }
-    }, []);
-    return(
-        <div className='pt-4'>
-
-            <h1  className='pt-4'>{confirm}</h1>
-
+  return (
+    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
+      <Header />
+      <div className="container py-5">
+        <div className="row justify-content-center">
+          <div className="col-12 col-md-6 text-center">
+            <NeoCard
+              header={status === 'success' ? 'ACCOUNT ACTIVATED' : 'LINK EXPIRED'}
+              headerAccent={status === 'success' ? 'lime' : 'coral'}
+            >
+              <span className="fs-1 mb-3 d-inline-block">
+                {status === 'success' ? '🎉' : '⚠️'}
+              </span>
+              <h3>
+                {status === 'success'
+                  ? 'Your Email Has Been Verified!'
+                  : 'Verification Link Invalid or Expired'}
+              </h3>
+              <p style={{ fontWeight: 600, color: '#374151' }}>
+                {status === 'success'
+                  ? 'You can now create events, upload albums, and share photo galleries.'
+                  : 'Please request a new link or sign in directly if already activated.'}
+              </p>
+              <div className="mt-4 d-flex justify-content-center gap-2">
+                <NeoButton variant="yellow" size="lg" onClick={() => navigate('/login')}>
+                  Go to Sign In →
+                </NeoButton>
+              </div>
+            </NeoCard>
+          </div>
         </div>
-    )
-}
+      </div>
+      <Footer />
+    </div>
+  );
+};
 
 export default ConfirmVerify;
