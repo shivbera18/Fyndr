@@ -93,14 +93,15 @@ _app_det = None
 def get_app(det_size=(320,320)):
     global _app, _app_det
     if _app is None and HAS_INSIGHT:
-        # use buffalo_s explicitly (40MB) — our prod choice; buffalo_l is 120MB heavy fallback
+        # use buffalo_s explicitly (16 MB active) — fail fast if missing, don't silently pull buffalo_l 281 MB
         try:
             _app = FaceAnalysis(name='buffalo_s', allowed_modules=['detection','recognition'])
-        except:
-            _app = FaceAnalysis(allowed_modules=['detection','recognition'])
+        except Exception as e:
+            print(f"[error] buffalo_s not found ({e}); expected at ~/.insightface/models/buffalo_s — download via https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_s.zip and unzip to that folder")
+            raise
         _app.prepare(ctx_id=-1, det_size=det_size)
         _app_det = det_size
-        print(f"[insight] prepared {'buffalo_s' if hasattr(_app,'name') else 'default'} det_size {det_size}")
+        print(f"[insight] prepared buffalo_s det_size {det_size}")
     elif _app is not None and _app_det != det_size:
         # need to re-prepare for new size (320 vs 640)
         try:
