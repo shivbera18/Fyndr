@@ -625,11 +625,24 @@ app.post('/studio', async (req, resp) => {
     }
 });
 
-//-----------------------------------------------------------------------------------------------------
+app.post('/find_studio', async (req, res) => {
+    try {
+        const { create_by } = req.body || {};
+        if (!create_by) return res.status(400).send({ message: "create_by parameter is required" });
+        const studio = await Studio.findOne({ create_by });
+        if (studio) {
+            return res.status(200).send(studio);
+        }
+        return res.status(200).send({});
+    } catch (error) {
+        logger.error('[find_studio]', error);
+        return res.status(500).send({ message: 'An unexpected error occurred' });
+    }
+});
+
 app.get('/exist-studio', async (req, res) => {
     try {
         const { create_by } = req.query; // Use query for GET request parameters
-
         if (create_by) {
             const exist = await Studio.findOne({ create_by });
 
