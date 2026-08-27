@@ -7,7 +7,8 @@ import Goal from './Goal';
 import NeoButton from '../ui/NeoButton';
 import NeoCard from '../ui/NeoCard';
 import NeoBadge from '../ui/NeoBadge';
-
+import NeoMarquee from '../ui/NeoMarquee';
+import NeoAccordion from '../ui/NeoAccordion';
 const Home = () => {
   const navigate = useNavigate();
 
@@ -111,8 +112,22 @@ const Home = () => {
         </div>
       </section>
 
+      {/* ================= NEOBRUTALISM MARQUEE BANNER ================= */}
+      <NeoMarquee
+        items={[
+          '⚡ SUB-SECOND FACE RECOGNITION',
+          '📸 50,000+ PHOTOS PER EVENT',
+          '🔒 100% PRIVATE ZERO GUEST PASSWORDS',
+          '🚀 FAISS VECTOR SEARCH',
+          '🤳 1-SECOND SELFIE SCAN',
+          '🎨 PHOTOGRAPHER STUDIO BRANDING',
+          '📱 ZERO APP INSTALLATION'
+        ]}
+        bgColor="var(--neo-yellow)"
+      />
+
       {/* ================= INTERACTIVE PHOTO SLIDER ================= */}
-      <section className="container py-2">
+      <section className="container py-4">
         <Slider />
       </section>
 
@@ -192,6 +207,42 @@ const Home = () => {
         </div>
       </section>
 
+      {/* ================= FAQ ACCORDION SECTION ================= */}
+      <section className="py-5">
+        <div className="container" style={{ maxWidth: '800px' }}>
+          <div className="text-center mb-4">
+            <NeoBadge variant="cyan" className="mb-2 px-3 py-1 fs-6">
+              ❓ FREQUENTLY ASKED QUESTIONS
+            </NeoBadge>
+            <h2 className="display-6 fw-black">EVERYTHING YOU NEED TO KNOW</h2>
+          </div>
+
+          <NeoAccordion
+            items={[
+              {
+                title: '⚡ How fast is face search for wedding guests?',
+                content: 'Sub-second! Fyndr uses FAISS IndexFlatIP (512-d ArcFace vectors) on CPU, querying through 50,000 faces in under 20ms. Guests receive their photos instantly.',
+                accent: 'yellow'
+              },
+              {
+                title: '📱 Do guests need to download an app or create an account?',
+                content: 'No app or account is required. Guests simply scan the event QR code, open Fyndr in Safari or Chrome, enter the 6-digit PIN, and take a quick selfie to find their photos.',
+                accent: 'cyan'
+              },
+              {
+                title: '🔒 How is guest selfie privacy protected?',
+                content: 'Selfie images are processed ephemerally in-memory and permanently purged within 60 seconds. Facial embeddings are strictly isolated per event.',
+                accent: 'lime'
+              },
+              {
+                title: '📸 Can photographers upload high-resolution DSLR raw/jpg files?',
+                content: 'Yes! Fyndr supports high-res JPEG, PNG, and WebP images with streaming SHA-256 deduplication and auto-scaling to ensure fast processing.',
+                accent: 'coral'
+              }
+            ]}
+          />
+        </div>
+      </section>
       {/* ================= FINAL CTA BANNER ================= */}
       <section className="py-5 my-4">
         <div className="container">
