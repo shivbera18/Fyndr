@@ -55,7 +55,7 @@ services:
       target: dev
     container_name: fyndr-web-dev
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - REACT_APP_API_URL=http://localhost:5000
       - REACT_APP_ML_URL=http://localhost:5001
