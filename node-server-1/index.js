@@ -382,15 +382,18 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                 formData.append('event_id', event_id);
                 formData.append('photo_id', photoId.toString());
 
-                let embedding;
+                let embeddings = [];
                 try {
                     const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
                         headers: { ...formData.getHeaders() },
                         maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
                     });
                     if (response.data.error) throw new Error(response.data.error);
-                    embedding = response.data.embedding;
-                    if (!Array.isArray(embedding) || embedding.length !== 512) throw new Error('invalid embedding');
+                    if (Array.isArray(response.data.embeddings)) {
+                        embeddings = response.data.embeddings;
+                    } else if (Array.isArray(response.data.embedding)) {
+                        embeddings = [response.data.embedding];
+                    }
                 } catch (e) {
                     await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
                     try { fs.unlinkSync(file.path); } catch(_){}
@@ -402,7 +405,7 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                         _id: photoId,
                         name: file.filename,
                         event_id, upload_by,
-                        embedding: JSON.stringify(embedding),
+                        embedding: JSON.stringify(embeddings),
                         hash, status: 'done'
                     });
                     await photo.save();

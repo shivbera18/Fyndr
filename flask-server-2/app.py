@@ -56,13 +56,14 @@ CORS(app)
 # Initialize InsightFace
 app_insight = FaceAnalysis(allowed_modules=['detection', 'recognition']) if HAS_INSIGHT else None
 if HAS_INSIGHT:
-    app_insight.prepare(ctx_id=-1, det_size=(320, 320))
+    app_insight.prepare(ctx_id=-1, det_size=(640, 640))
 
-# Load and prepare image function
+# Load and prepare image function (converts PIL RGB to OpenCV BGR array expected by InsightFace)
 def load_image_from_bytes(image_bytes):
     try:
         image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        return np.array(image)
+        rgb_arr = np.array(image)
+        return rgb_arr[:, :, ::-1]
     except Exception as e:
         return None
 
@@ -176,24 +177,30 @@ def match_faces():
         try:
             # Prefer JSON; fallback to ast.literal_eval for legacy Python repr (no eval RCE)
             try:
-                db_embedding = np.array(json.loads(emb_str), dtype=np.float32)
+                raw_emb = json.loads(emb_str)
             except Exception:
                 try:
-                    # handle single-quoted legacy: replace then json, else literal_eval
                     if emb_str.strip().startswith('[') and "'" in emb_str:
-                        db_embedding = np.array(json.loads(emb_str.replace("'", '"')), dtype=np.float32)
+                        raw_emb = json.loads(emb_str.replace("'", '"'))
                     else:
-                        db_embedding = np.array(ast.literal_eval(emb_str), dtype=np.float32)
+                        raw_emb = ast.literal_eval(emb_str)
                 except Exception:
                     continue
+            db_embedding = np.array(raw_emb, dtype=np.float32)
+            if db_embedding.ndim == 1 and db_embedding.shape == (512,):
+                db_embedding = db_embedding.reshape(1, -1)
+            elif db_embedding.ndim == 2 and db_embedding.shape[1] == 512:
+                pass
+            else:
+                continue
         except Exception:
             continue
-        if db_embedding.shape != (512,):
-            continue
-        denom = q_norm * np.linalg.norm(db_embedding)
-        similarity = float(np.dot(query_emb, db_embedding) / denom) if denom != 0 else 0
-        if similarity > threshold:
-            matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': similarity})
+        norms = np.linalg.norm(db_embedding, axis=1)
+        dots = np.dot(db_embedding, query_emb)
+        sims = np.where(norms > 0, dots / (norms * q_norm), 0.0)
+        best_sim = float(np.max(sims)) if len(sims) > 0 else 0.0
+        if best_sim > threshold:
+            matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': best_sim})
     if matches:
         matches.sort(key=lambda x: x['similarity'], reverse=True)
         return jsonify({'matches': matches}), 200
@@ -233,24 +240,26 @@ def get_embedding():
         except Exception as e:
             return jsonify({'error': f'face detection failed: {e}'}), 500
         if len(faces) == 0:
-            return jsonify({'error': 'No face detected in the image'}), 400
-        if len(faces) > 1:
-            faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
-        embedding = faces[0].embedding.tolist()
+            return jsonify({'embeddings': [], 'embedding': None, 'face_count': 0, 'message': 'No face detected in the image'}), 200
+        # Sort faces largest to smallest
+        faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
+        embeddings = [f.embedding.tolist() for f in faces]
+        primary_embedding = embeddings[0]
     else:
         h = hashlib.md5(image_bytes).hexdigest()
         random.seed(int(h[:8], 16))
-        embedding = [random.uniform(-1, 1) for _ in range(512)]
-        norm = sum(x * x for x in embedding) ** 0.5
-        embedding = [x / norm for x in embedding] if norm else embedding
+        primary_embedding = [random.uniform(-1, 1) for _ in range(512)]
+        norm = sum(x * x for x in primary_embedding) ** 0.5
+        primary_embedding = [x / norm for x in primary_embedding] if norm else primary_embedding
+        embeddings = [primary_embedding]
     # Optional FAISS index if caller provides event_id+photo_id (atomic, validated)
-    if event_id_q and photo_id_q:
+    if event_id_q and photo_id_q and embeddings:
         try:
-            faiss_add(event_id_q, photo_id_q, embedding)
+            faiss_add(event_id_q, photo_id_q, embeddings)
         except Exception as e:
             logger.error(f"[faiss] add failed {e}", exc_info=True)
-            return jsonify({'error': f'faiss add failed: {e}', 'embedding': embedding}), 500
-    return jsonify({'embedding': embedding})
+            return jsonify({'error': f'faiss add failed: {e}', 'embeddings': embeddings, 'embedding': primary_embedding}), 500
+    return jsonify({'embeddings': embeddings, 'embedding': primary_embedding, 'face_count': len(embeddings)})
 
 @app.route('/faiss_stats', methods=['GET'])
 def faiss_stats_route():
