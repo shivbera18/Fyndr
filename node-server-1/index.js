@@ -764,15 +764,25 @@ app.get('/queue/stats', async (req,res)=>{
 app.get('/queue/failed', async (req,res)=>{
   const { event_id, limit } = req.query;
   if(!event_id) return res.status(400).send({error:'event_id required'});
-  const q = require('./queue/mongoQueue');
-  res.send(await q.listFailed(event_id, Math.min(parseInt(limit)||20, 100)));
+  if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
+  let lim = parseInt(limit,10);
+  if (Number.isNaN(lim) || lim <=0) lim = 20;
+  lim = Math.min(Math.max(lim,1),100);
+  try {
+    const q = require('./queue/mongoQueue');
+    res.send(await q.listFailed(event_id, lim));
+  } catch(e){ res.status(500).send({error:e.message}); }
 });
 app.post('/queue/retry', async (req,res)=>{
   const { event_id, photo_hash } = req.body;
   if(!event_id) return res.status(400).send({error:'event_id required'});
-  const q = require('./queue/mongoQueue');
-  const r = await q.retryFailed(event_id, photo_hash);
-  res.send({ ok:true, modified: r.modifiedCount || r.matchedCount || 0 });
+  if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
+  if (photo_hash && (typeof photo_hash !== 'string' || photo_hash.length !== 64)) return res.status(400).send({error:'invalid photo_hash (expect sha256 hex)'});
+  try {
+    const q = require('./queue/mongoQueue');
+    const r = await q.retryFailed(event_id, photo_hash);
+    res.send({ ok:true, modified: r.modifiedCount || r.matchedCount || 0 });
+  } catch(e){ res.status(500).send({error:e.message}); }
 });
 // P2: R2 presigned PUT (falls back to local if no R2 env) – validated key, contentType allowlist
 app.post('/presign', async (req,res)=>{
