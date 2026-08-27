@@ -486,9 +486,11 @@ app.delete('/delete-image', async (req, res) => {
         const result = await Photo.findOneAndDelete({ name, _id: new mongoose.Types.ObjectId(_id) });
         if (!result) return res.status(404).json({ success: false, message: "Image not found in database" });
 
-        // cleanup queue + faiss if we have event_id
+        // cleanup queue + faiss if we have event_id (guard legacy photos without hash)
         if (result.event_id) {
-            try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }); } catch(_){}
+            if (result.hash) {
+                try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }); } catch(_){}
+            }
             try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 3000 }); } catch(e){ console.log('[faiss] remove failed', e.message); }
         }
 
