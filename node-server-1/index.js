@@ -713,6 +713,26 @@ app.put("/events/:id", async (req, res) => {
 
 
 
+// P2: Prometheus metrics
+app.get('/metrics', async (req,res)=>{
+  res.set('Content-Type', promClient.register.contentType);
+  res.end(await promClient.register.metrics());
+});
+// P1: queue stats per event
+app.get('/queue/stats', async (req,res)=>{
+  const { event_id } = req.query;
+  if(!event_id) return res.status(400).send({error:'event_id required'});
+  res.send(await queueStats(event_id));
+});
+// P1: R2 presigned PUT (falls back to local if no R2 env)
+app.post('/presign', async (req,res)=>{
+  const { key, contentType } = req.body;
+  if(!key) return res.status(400).send({error:'key required'});
+  const url = await getPresignedPut(key, contentType);
+  if(url) return res.send({ url, via:'r2' });
+  res.send({ url: null, via:'local', message:'R2 not configured, use local upload' });
+});
+
 app.listen(5000)
 console.log("server is running on port 5000")
 // app.listen(5000, () => {
