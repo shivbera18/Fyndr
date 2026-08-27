@@ -181,8 +181,6 @@ def get_embedding():
         except Exception as e:
             print(f"[faiss] add failed {e}")
     return jsonify({'embedding': embedding})
-        else:
-            return jsonify({'error': 'No face detected in the image'}), 400
 
 @app.route('/faiss_stats', methods=['GET'])
 def faiss_stats_route():
