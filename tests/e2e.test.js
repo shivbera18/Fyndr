@@ -53,12 +53,23 @@ async function run() {
   r = await axios.get(`${ML}/faiss_stats?event_id=${eventId}`);
   assert(typeof r.data.ntotal === 'number');
 
-  console.log('[e2e] selfie search');
+  console.log('[e2e] selfie search (matching face)');
   const fd2 = new FormData();
   fd2.append('image', fs.createReadStream(imgPath));
   fd2.append('event_id', eventId);
   r = await axios.post(`${ML}/match_faces`, fd2, { headers: fd2.getHeaders() });
-  assert(r.data.matches || r.data.message);
+  assert(Array.isArray(r.data.matches) && r.data.matches.length > 0, 'expected matching face to be found');
+  assert(r.data.matches[0].similarity >= 0.34, 'expected similarity above threshold');
+
+  console.log('[e2e] selfie search (non-matching face)');
+  const nonMatchPath = path.join(__dirname, '../front-end/public/images/maryam.jpg');
+  if (fs.existsSync(nonMatchPath)) {
+    const fd3 = new FormData();
+    fd3.append('image', fs.createReadStream(nonMatchPath));
+    fd3.append('event_id', eventId);
+    const r3 = await axios.post(`${ML}/match_faces`, fd3, { headers: fd3.getHeaders() });
+    assert(!r3.data.matches || r3.data.matches.length === 0, 'expected non-matching face to return 0 matches');
+  }
 
   console.log('✅ e2e passed');
 }
