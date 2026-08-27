@@ -11,13 +11,36 @@ from flask_socketio import SocketIO
 import hashlib
 import random
 from faiss_store import add as faiss_add, search as faiss_search, stats as faiss_stats, remove as faiss_remove, delete_event as faiss_delete_event
+import logging
+from pathlib import Path
+
+LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+# ml logger: basic logs to ml.log, errors to error.log (main error log)
+logger = logging.getLogger("fyndr-ml")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    fh_combined = logging.FileHandler(LOG_DIR / "ml.log")
+    fh_combined.setLevel(logging.INFO)
+    fh_error = logging.FileHandler(LOG_DIR / "error.log")
+    fh_error.setLevel(logging.ERROR)
+    fmt = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+    fh_combined.setFormatter(fmt)
+    fh_error.setFormatter(fmt)
+    logger.addHandler(fh_combined)
+    logger.addHandler(fh_error)
+    logger.addHandler(logging.StreamHandler())
 
 # Try InsightFace, fallback to mock for local dev without C++ build
 try:
     from insightface.app import FaceAnalysis
     HAS_INSIGHT=True
 except Exception as e:
-    print('InsightFace not available, using mock embeddings:', e)
+    # use logging after logger is defined? fallback to print if logger not yet
+    try:
+        logger.warning(f'InsightFace not available, using mock embeddings: {e}')
+    except:
+        print('InsightFace not available, using mock embeddings:', e)
     HAS_INSIGHT=False
     FaceAnalysis=None
 
@@ -136,7 +159,7 @@ def match_faces():
                     matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
             return jsonify({'matches': matches}), 200
     except Exception as e:
-        print(f"[faiss] search fallback brute: {e}")
+        logger.warning(f"[faiss] search fallback brute: {e}")
 
     # Fallback brute: safe JSON parse, no eval
     photo_collection = mongo.db.photos
@@ -225,7 +248,7 @@ def get_embedding():
         try:
             faiss_add(event_id_q, photo_id_q, embedding)
         except Exception as e:
-            print(f"[faiss] add failed {e}")
+            logger.error(f"[faiss] add failed {e}", exc_info=True)
             return jsonify({'error': f'faiss add failed: {e}', 'embedding': embedding}), 500
     return jsonify({'embedding': embedding})
 

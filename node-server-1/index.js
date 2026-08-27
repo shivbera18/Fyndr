@@ -21,6 +21,7 @@ const { client: promClient, httpRequests, uploadDuration, faceSearchDuration } =
 const { enqueue, stats: queueStats } = require('./queue/mongoQueue');
 const { getPresignedPut } = require('./utils/r2');
 const pLimit = require('p-limit');
+const logger = require('./utils/logger');
 require("./Config_db")
 
 
@@ -136,9 +137,11 @@ app.post("/register", async (req, resp) => {
                 subject: 'Verification',
                 html: `<p>Hello ${name},</p><p>Please verify your email by clicking the link below:</p><br/><a href="${verificationLink}">Verify Email</a>`,
             });
-        } catch(e){ console.log('Email skipped (local dev):', e.message)}
+        } catch(e){ logger.warn('Email skipped (local dev)', { error: e.message, email })}
+        logger.info('User registered', { email, userId: result._id });
         resp.send({ message: "Registration successful! Please verify your email." });
     } catch (error) {
+        logger.error('Registration failed', { error: error.message, stack: error.stack, email: req.body?.email });
         if (error.code === 11000 && error.keyPattern.email) {
             resp.status(400).send({ message: 'Email already exists' });
         } else {
@@ -218,7 +221,7 @@ app.post('/resend-verification', async (req, resp) => {
 
         resp.send({ message: 'Verification email has been resent.' });
     } catch (error) {
-        console.error(error);
+        logger.error(error);
         resp.status(500).send({ message: 'Failed to resend the verification email.' });
     }
 });
@@ -296,7 +299,7 @@ app.post("/display_event", async (req, resp) => {
             resp.status(400).send({ message: "User ID is required" });
         }
     } catch (error) {
-        console.error("Error retrieving events:", error);
+        logger.error("Error retrieving events:", error);
         resp.status(500).send({ message: "An error occurred while retrieving events" });
     }
 });
@@ -429,7 +432,7 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
         if (failed.length === results.length) return res.status(422).send(results);
         res.status(200).send(results);
     } catch (error) {
-        console.error('[photo] upload error', error);
+        logger.error('[photo] upload error', error);
         endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
     }
@@ -449,8 +452,8 @@ app.delete('/delete-event', async (req, res) => {
         if (event.event_photo) {
             const coverImage_path = path.join(__dirname,'event_profile',event.event_photo);
             fs.unlink(coverImage_path,(err)=>{
-                if(err) console.error(`failed to deleted cover image ${coverImage_path}`, err);
-                else console.log(`Deleted cover image ${coverImage_path}`);
+                if(err) logger.error(`failed to deleted cover image ${coverImage_path}`, err);
+                else logger.info(`Deleted cover image ${coverImage_path}`);
             });
         }
 
@@ -458,19 +461,19 @@ app.delete('/delete-event', async (req, res) => {
         await Photo.deleteMany({ event_id: _id });
         // cleanup jobs + faiss
         try { await require('./queue/mongoQueue').Job.deleteMany({ event_id: _id }); } catch(_){}
-        try { await axios.post('http://127.0.0.1:5001/faiss_delete_event', { event_id: _id }, { timeout: 5000 }); } catch(e){ console.log('[faiss] delete_event failed', e.message); }
+        try { await axios.post('http://127.0.0.1:5001/faiss_delete_event', { event_id: _id }, { timeout: 5000 }); } catch(e){ logger.info('[faiss] delete_event failed', e.message); }
 
         photos.forEach((photo) => {
             const photoPath = path.join(__dirname, 'uploads', photo.name);
             fs.unlink(photoPath, (err) => {
-                if (err) console.error(`Failed to delete file: ${photoPath}`, err);
-                else console.log(`Deleted file: ${photoPath}`);
+                if (err) logger.error(`Failed to delete file: ${photoPath}`, err);
+                else logger.info(`Deleted file: ${photoPath}`);
             });
         });
 
         return res.status(200).send(event);
     } catch (error) {
-        console.error("Error deleting event:", error);
+        logger.error("Error deleting event:", error);
         res.status(500).json({ success: false, message: "Error deleting Event!" });
     }
 });
@@ -491,19 +494,19 @@ app.delete('/delete-image', async (req, res) => {
             if (result.hash) {
                 try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }); } catch(_){}
             }
-            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 3000 }); } catch(e){ console.log('[faiss] remove failed', e.message); }
+            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 3000 }); } catch(e){ logger.info('[faiss] remove failed', e.message); }
         }
 
         const imagePath = path.join(__dirname, 'uploads', name);
         fs.unlink(imagePath, (err) => {
             if (err) {
-                console.error('[delete-image] unlink failed', err);
+                logger.error('[delete-image] unlink failed', err);
                 return res.status(500).json({ success: false, message: "Failed to delete image file" });
             }
             return res.json({ success: true, message: "Image deleted successfully" });
         });
     } catch (error) {
-        console.error('[delete-image]', error);
+        logger.error('[delete-image]', error);
         res.status(500).json({ success: false, message: "Error deleting image!" });
     }
 });
@@ -536,7 +539,7 @@ app.post("/collect_event", async (req, resp) => {
             resp.status(404).send({ message: "Event not found or deleted!" });
         }
     } catch (error) {
-        console.error("Error retrieving events:", error);
+        logger.error("Error retrieving events:", error);
         resp.status(500).send({ message: "An error occurred while retrieving events" });
     }
 });
@@ -565,7 +568,7 @@ app.post("/confirm_pin", async (req, resp) => {
             resp.status(400).send({ result: "Event ID is required." });
         }
     } catch (error) {
-        console.error("Server Error:", error);
+        logger.error("Server Error:", error);
         // Send a more specific error response to the client
         resp.status(500).send({
             result: "An error occurred on the server!",
@@ -638,7 +641,7 @@ app.get('/exist-studio', async (req, res) => {
             return res.status(400).send({ message: "create_by parameter is required" });
         }
     } catch (error) {
-        console.error(error);
+        logger.error(error);
         return res.status(500).send({ message: 'An unexpected error occurred' });
     }
 });
@@ -670,7 +673,7 @@ app.post('/send-otp', async (req, res) => {
                 await transporter.sendMail(mailOptions);
                 res.status(200).json({ message: `OTP sent ${email} successfully!` });
             } catch (error) {
-                console.error('Error sending email:', error);
+                logger.error('Error sending email:', error);
                 res.status(500).json({ message: 'Failed to send OTP' });
             }
             
@@ -738,7 +741,7 @@ app.put("/events/:id", async (req, res) => {
         // Success response
         res.status(200).json({ message: "Event updated successfully.", updatedEvent });
     } catch (error) {
-        console.error("Error updating event:", error);
+        logger.error("Error updating event:", error);
         res.status(500).json({ message: "Internal server error.", error: error.message });
     }
 });
@@ -754,14 +757,14 @@ app.get('/metrics', async (req,res)=>{
   try {
     res.set('Content-Type', promClient.register.contentType);
     res.end(await promClient.register.metrics());
-  } catch(e){ res.status(500).send(String(e.message)); }
+  } catch(e){ logger.error('Metrics failed', { error: e.message, stack: e.stack }); res.status(500).send(String(e.message)); }
 });
 // P2: queue stats per event + DLQ helpers
 app.get('/queue/stats', async (req,res)=>{
   const { event_id } = req.query;
   if(!event_id) return res.status(400).send({error:'event_id required'});
   if(!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({error:'invalid event_id'});
-  try { res.send(await queueStats(event_id)); } catch(e){ res.status(500).send({error:e.message}); }
+  try { res.send(await queueStats(event_id)); } catch(e){ logger.error('Queue stats failed', { error: e.message, stack: e.stack, event_id }); res.status(500).send({error:e.message}); }
 });
 app.get('/queue/failed', async (req,res)=>{
   const { event_id, limit } = req.query;
@@ -773,7 +776,7 @@ app.get('/queue/failed', async (req,res)=>{
   try {
     const q = require('./queue/mongoQueue');
     res.send(await q.listFailed(event_id, lim));
-  } catch(e){ res.status(500).send({error:e.message}); }
+  } catch(e){ logger.error('Queue failed list', { error: e.message, stack: e.stack, event_id }); res.status(500).send({error:e.message}); }
 });
 app.post('/queue/retry', async (req,res)=>{
   const { event_id, photo_hash } = req.body;
@@ -784,7 +787,7 @@ app.post('/queue/retry', async (req,res)=>{
     const q = require('./queue/mongoQueue');
     const r = await q.retryFailed(event_id, photo_hash);
     res.send({ ok:true, modified: r.modifiedCount || r.matchedCount || 0 });
-  } catch(e){ res.status(500).send({error:e.message}); }
+  } catch(e){ logger.error('Queue retry failed', { error: e.message, stack: e.stack, event_id }); res.status(500).send({error:e.message}); }
 });
 // P2: R2 presigned PUT (falls back to local if no R2 env) – validated key, contentType allowlist
 app.post('/presign', async (req,res)=>{
@@ -798,11 +801,19 @@ app.post('/presign', async (req,res)=>{
     const url = await getPresignedPut(key, ct);
     if(url) return res.send({ url, via:'r2', expiresIn: 3600 });
     res.send({ url: null, via:'local', message:'R2 not configured, use local upload' });
-  } catch(e){ res.status(500).send({error:e.message}); }
+  } catch(e){ logger.error('Presign failed', { error: e.message, stack: e.stack, key }); res.status(500).send({error:e.message}); }
 });
 
+// Global error logging — main error log is logs/error.log
+app.use((err, req, res, next) => {
+  logger.error('Unhandled Express error', { error: err.message, stack: err.stack, method: req.method, route: req.path });
+  res.status(500).send({ message: 'Internal server error' });
+});
+process.on('uncaughtException', (err) => logger.error('uncaughtException', { error: err.message, stack: err.stack }));
+process.on('unhandledRejection', (reason) => logger.error('unhandledRejection', { error: String(reason), stack: reason?.stack }));
+
 app.listen(5000)
-console.log("server is running on port 5000")
+logger.info("server is running on port 5000")
 // app.listen(5000, () => {
-//     console.log("Server is running on port 5000");
+//     logger.info("Server is running on port 5000");
 // });
