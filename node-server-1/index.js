@@ -401,12 +401,15 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                     return photo;
                 } catch (e) {
                     if (e.code === 11000) {
-                        // race: another worker saved same hash
+                        // race: another worker saved same hash — clean orphan FAISS vector
                         try { fs.unlinkSync(file.path); } catch(_){}
+                        try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
                         const dup = await Photo.findOne({ event_id, hash });
                         await queueMod.markDone(event_id, hash).catch(()=>{});
                         return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
                     }
+                    // on generic save failure, also try to clean orphan FAISS
+                    try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
                     await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
                     return { file: file.originalname, hash, error: e.message, status: 'failed' };
                 }
