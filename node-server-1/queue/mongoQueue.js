@@ -39,9 +39,12 @@ async function claimNext() {
 }
 
 async function markDone(event_id, photo_hash) {
-  // prefer per-event update, fallback to hash-only for backward compat
-  if (event_id) return Job.updateOne({ event_id, photo_hash }, { $set: { status: 'done' } });
-  return Job.updateOne({ photo_hash }, { $set: { status: 'done' } });
+  // backward compat: markDone(hash) single-arg
+  if (photo_hash === undefined) {
+    photo_hash = event_id;
+    return Job.updateOne({ photo_hash }, { $set: { status: 'done' } });
+  }
+  return Job.updateOne({ event_id, photo_hash }, { $set: { status: 'done' } });
 }
 async function markFailed(event_id, photo_hash, err) {
   // support both signatures: markFailed(hash, err) and markFailed(event_id, hash, err)
