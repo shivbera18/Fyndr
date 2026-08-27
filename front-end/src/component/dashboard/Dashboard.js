@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../navbar/Header';
 import Footer from '../Footer';
-import Display_event from './Display_event';
+import DisplayEvent from './Display_event';
 import InEvent from './InEvent';
-import Photographer_detail from './Photographer_detail';
+import PhotographerDetail from './Photographer_detail';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
 import NeoInput from '../ui/NeoInput';
-import NeoModal from '../ui/NeoModal';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -275,9 +274,9 @@ const Dashboard = () => {
             </NeoCard>
           </div>
         ) : activeTab === 'studio' ? (
-          <Photographer_detail />
+          <PhotographerDetail />
         ) : (
-          <Display_event
+          <DisplayEvent
             refresh={refreshKey}
             onclick={(eventID, name, display_pin) => {
               setSelectedEvent({ eventID, name, pin: display_pin });

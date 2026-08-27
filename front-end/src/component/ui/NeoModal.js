@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import NeoButton from './NeoButton';
 
 const NeoModal = ({
   open = false,

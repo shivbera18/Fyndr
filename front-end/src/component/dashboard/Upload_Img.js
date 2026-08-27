@@ -34,7 +34,6 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
     setProgress(0);
 
     let successCount = 0;
-    let failCount = 0;
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
@@ -53,11 +52,9 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
 
         if (response.status === 200 || response.status === 207) {
           successCount++;
-        } else {
-          failCount++;
         }
       } catch (error) {
-        failCount++;
+        // continue to next file
       }
 
       setProgress(Math.round(((i + 1) / selectedFiles.length) * 100));

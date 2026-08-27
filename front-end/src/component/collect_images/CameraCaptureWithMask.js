@@ -18,7 +18,7 @@ const CameraCaptureWithMask = () => {
   const [imageSrc, setImageSrc] = useState(null);
   const [matchedPhotos, setMatchedPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
   const [useUploadMode, setUseUploadMode] = useState(false);
@@ -54,7 +54,6 @@ const CameraCaptureWithMask = () => {
   const processSelfieMatch = async (file) => {
     setLoading(true);
     setErrorMessage('');
-    setSearched(true);
 
     try {
       const formData = new FormData();
@@ -88,7 +87,6 @@ const CameraCaptureWithMask = () => {
   const retakeSelfie = () => {
     setImageSrc(null);
     setMatchedPhotos([]);
-    setSearched(false);
     setErrorMessage('');
   };
 
@@ -305,7 +303,7 @@ const CameraCaptureWithMask = () => {
                           <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '6px' }}>
                             <img
                               src={imgUrl}
-                              alt={`Matched photo ${idx + 1}`}
+                              alt={`Matched item ${idx + 1}`}
                               style={{
                                 width: '100%',
                                 height: '200px',

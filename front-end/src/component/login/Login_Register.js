@@ -5,7 +5,6 @@ import Footer from '../Footer';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoInput from '../ui/NeoInput';
-import NeoBadge from '../ui/NeoBadge';
 
 const Login_Register = () => {
   const navigate = useNavigate();

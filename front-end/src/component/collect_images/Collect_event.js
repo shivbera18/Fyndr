@@ -5,7 +5,6 @@ import Footer from '../Footer';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
-import NeoInput from '../ui/NeoInput';
 
 const Collect_event = () => {
   const { eventId } = useParams();
@@ -39,11 +38,11 @@ const Collect_event = () => {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     if (eventId) {
       fetchEvent();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const handlePinSubmit = async (e) => {

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoInput from '../ui/NeoInput';
-import NeoBadge from '../ui/NeoBadge';
 
 const Photographer_detail = () => {
   const [studioName, setStudioName] = useState('');

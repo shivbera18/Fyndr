@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Upload_Img from './Upload_Img';
+import UploadImg from './Upload_Img';
 import Qrcode from './Qrcode';
 import NeoButton from '../ui/NeoButton';
 import NeoCard from '../ui/NeoCard';
@@ -41,8 +41,8 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
     if (eventID) {
       fetchImages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventID]);
-
   const handleDeleteEvent = async () => {
     try {
       const res = await fetch('http://localhost:5000/delete-event', {
@@ -128,7 +128,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
       </NeoCard>
 
       {/* Batch Photo Uploader */}
-      <Upload_Img event_id={eventID} inevent={true} d_ref={fetchImages} />
+      <UploadImg event_id={eventID} inevent={true} d_ref={fetchImages} />
 
       {/* Event Photo Gallery */}
       <div className="mt-5">
@@ -169,7 +169,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
                   >
                     <img
                       src={photoUrl}
-                      alt={`Event photo ${index + 1}`}
+                      alt={`Event item ${index + 1}`}
                       style={{
                         width: '100%',
                         height: '180px',
