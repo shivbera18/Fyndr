@@ -52,9 +52,9 @@ const CameraCaptureWithMatch = () => {
           message.warning("You are not present in this event.");
         }
       } catch (error) {
-        // Handle errors and show a fallback error message
-        setErrorMessage(error.response?.data?.message || 'An unexpected error occurred. Please try again.');
-        message.error("Your Face is not clear");
+        const errMsg = error.response?.data?.error || error.response?.data?.message || error.message || 'An unexpected error occurred. Please try again.';
+        setErrorMessage(errMsg);
+        message.error(errMsg);
       }
     } else {
       message.warning("Camera is not ready, please try again.");
