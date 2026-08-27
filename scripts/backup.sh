@@ -2,8 +2,8 @@
 # P2: mongodump + age + rclone to Drive/Fyndr/backups/ — RPO 24h, RTO 1h
 set -euo pipefail
 DATE=$(date +%Y-%m-%d)
-ARCHIVE="/tmp/fyndr-${DATE}.archive"
-ENCRYPTED="/tmp/fyndr-${DATE}.archive.age"
+ARCHIVE="/tmp/fyndr-${DATE}.archive.gz"
+ENCRYPTED="/tmp/fyndr-${DATE}.archive.gz.age"
 MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/photo_sharing_db}"
 
 echo "[backup] dumping ${MONGO_URI} -> ${ARCHIVE}"
