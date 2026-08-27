@@ -1,0 +1,22 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8
+        ports: ["27017:27017"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: npm install --prefix node-server-1
+      - run: npm install --prefix front-end
+      - run: pip install Flask Flask-Cors Flask-PyMongo Flask-SocketIO pymongo pillow numpy requests python-engineio python-socketio eventlet
+        working-directory: flask-server-2
+      - run: CI=false npm run build --prefix front-end
+      - run: node --check node-server-1/index.js
+      - run: python -m py_compile flask-server-2/app.py flask-server-2/faiss_store.py

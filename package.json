@@ -12,10 +12,14 @@
     "dev:win": "concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api\" \"npm:dev:ml\" \"npm:dev:web\"",
     "build": "npm run build --prefix front-end",
     "start": "pm2 start ecosystem.config.js",
-    "setup": "npm install --prefix node-server-1 && npm install --prefix front-end && python -m venv flask-server-2/venv && flask-server-2/venv/Scripts/pip install -r flask-server-2/requirements.txt"
+    "setup": "npm install --prefix node-server-1 && npm install --prefix front-end && python -m venv flask-server-2/venv && flask-server-2/venv/Scripts/pip install -r flask-server-2/requirements.txt",
+    "test": "node tests/e2e.test.js",
+    "test:ci": "npm run test"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "axios": "^1.20.0",
+    "concurrently": "^8.2.2",
+    "form-data": "^4.0.6"
   },
   "packageManager": "pnpm@9.0.0"
 }
