@@ -4,7 +4,8 @@
   "private": true,
   "description": "Fyndr \u2014 Event photo sharing with face recognition (one-command dev)",
   "scripts": {
-    "dev": "concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api\" \"npm:dev:ml\" \"npm:dev:web\"",
+    "dev": "docker compose -f docker-compose.dev.yml up -d mongo --wait && concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api\" \"npm:dev:ml\" \"npm:dev:web\"",
+    "dev:mongo": "docker compose -f docker-compose.dev.yml up -d mongo --wait",
     "dev:api": "node node-server-1/index.js",
     "dev:ml": "cd flask-server-2 && venv/Scripts/python app.py || cd flask-server-2 && venv/bin/python app.py",
     "dev:ml:unix": "cd flask-server-2 && venv/bin/python app.py",
