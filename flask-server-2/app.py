@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
 import io
@@ -57,14 +57,25 @@ CORS(app)
 app_insight = FaceAnalysis(allowed_modules=['detection', 'recognition']) if HAS_INSIGHT else None
 if HAS_INSIGHT:
     app_insight.prepare(ctx_id=-1, det_size=(640, 640))
-
-# Load and prepare image function (converts PIL RGB to OpenCV BGR array expected by InsightFace)
+    # Warm up ONNX models at startup to avoid cold-start compilation latency on first user request
+    try:
+        dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+        app_insight.get(dummy)
+        logger.info("InsightFace ONNX models warmed up successfully.")
+    except Exception as e:
+        logger.warning(f"InsightFace warm-up notice: {e}")
+# Load and prepare image function (handles EXIF orientation, downsamples ultra-large DSLR photos, converts to BGR)
 def load_image_from_bytes(image_bytes):
     try:
-        image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        image = Image.open(io.BytesIO(image_bytes))
+        image = ImageOps.exif_transpose(image).convert('RGB')
+        # Downsample ultra-large DSLR photos to 1920px max dimension for memory efficiency and fast inference
+        if max(image.size) > 1920:
+            image.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
         rgb_arr = np.array(image)
         return rgb_arr[:, :, ::-1]
     except Exception as e:
+        logger.warning(f"Error loading image from bytes: {e}")
         return None
 
 # Cosine similarity function

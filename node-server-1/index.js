@@ -235,38 +235,44 @@ app.post('/resend-verification', async (req, resp) => {
 //-------------------------------------------------------------------------------------------------------------------
 
 app.post("/login", async (req, resp) => {
-    if (req.body.email && req.body.password) {
-        const user = await User.findOne(req.body).select("name")
-        if (user) {
-            resp.status(200).send(user)
-        } else {
-            resp.status(404).send({ message: 'Invalid email or password' })
+    const { email, password } = req.body || {};
+    if (email && password) {
+        try {
+            const user = await User.findOne({ email: String(email).trim(), password: String(password) }).select("name");
+            if (user) {
+                resp.status(200).send(user);
+            } else {
+                resp.status(404).send({ message: 'Invalid email or password' });
+            }
+        } catch (error) {
+            logger.error('[login]', error);
+            resp.status(500).send({ message: 'Internal server error' });
         }
     } else {
-        resp.status(400).send({ message: "Email and password are required" })
+        resp.status(400).send({ message: "Email and password are required" });
     }
-})
+});
 
 //--------------------------------------------------------------------------------------------------------------------
 
-app.post("/event", event_profile_up.single('event_photo'), async (req, resp) => {
-    if (req.body.event_name && req.body.created_id) {
+app.post("/event", event_profile_up.any(), async (req, resp) => {
+    const { event_name, created_id, pin } = req.body || {};
+    if (event_name && created_id) {
         try {
-            const userCheck = await User.findById(req.body.created_id);
+            const userCheck = await User.findById(created_id);
             if (userCheck) {
-                // Create the event with data from the request body
+                const uploadedFile = req.files && req.files.length > 0 ? req.files[0] : (req.file || null);
                 const event = new Event({
-                    event_name: req.body.event_name,
-                    pin: req.body.pin,
-                    created_id: req.body.created_id,
-                    event_photo: req.file ? req.file.filename : null  // Save the image path if file is uploaded
+                    event_name: String(event_name).trim(),
+                    pin: pin ? String(pin).trim() : '123456',
+                    created_id,
+                    event_photo: uploadedFile ? uploadedFile.filename : null
                 });
 
-                let result = await event.save();
+                const result = await event.save();
                 if (result) {
-                    const { event_name, _id, event_photo } = result;
-                    result = { event_name, _id, event_photo };  // Include the image URL in the response
-                    resp.status(200).send(result);
+                    const { event_name: eName, _id, event_photo } = result;
+                    resp.status(200).send({ event_name: eName, _id, event_photo, pin: result.pin });
                 } else {
                     resp.status(500).send({ result: "Failed to create event" });
                 }
@@ -286,18 +292,10 @@ app.post("/event", event_profile_up.single('event_photo'), async (req, resp) => 
 
 app.post("/display_event", async (req, resp) => {
     try {
-
-        const { userId } = req.body;
-
+        const { userId } = req.body || {};
         if (userId) {
-            // Assuming that the events are associated with the user via `created_id`
-            const events = await Event.find({ created_id: userId });
-
-            if (events && events.length > 0) {
-                resp.status(200).send(events);
-            } else {
-                resp.status(404).send({ message: "Please create your events" });
-            }
+            const events = await Event.find({ created_id: userId }).sort({ createdAt: -1 });
+            resp.status(200).send(events || []);
         } else {
             resp.status(400).send({ message: "User ID is required" });
         }
@@ -306,22 +304,16 @@ app.post("/display_event", async (req, resp) => {
         resp.status(500).send({ message: "An error occurred while retrieving events" });
     }
 });
-//---------------------------------------------------------------------------------------------------------
-app.post('/in-event', async (req, resp) => {
-    const { _id } = req.body;
 
+app.post('/in-event', async (req, resp) => {
+    const { _id } = req.body || {};
     if (!_id) {
         return resp.status(400).send({ result: "Event ID is required" });
     }
 
     try {
-        const result = await Photo.find({ event_id: _id });
-
-        if (result.length > 0) {
-            resp.status(200).send(result);
-        } else {
-            resp.status(404).send({ result: "Images Not Found!" });
-        }
+        const result = await Photo.find({ event_id: _id }).sort({ createdAt: -1 });
+        resp.status(200).send(result || []);
     } catch (error) {
         resp.status(500).send({ result: "An error occurred while retrieving images", error: error.message });
     }
@@ -389,7 +381,7 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                 try {
                     const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
                         headers: { ...formData.getHeaders() },
-                        maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 30000
+                        maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000
                     });
                     if (response.data.error) throw new Error(response.data.error);
                     if (Array.isArray(response.data.embeddings)) {
@@ -486,36 +478,39 @@ app.delete('/delete-event', async (req, res) => {
 
 
 //-----------------------------------------------------------------------------------------------------
-app.delete('/delete-image', async (req, res) => {
+const deleteImageHandler = async (req, res) => {
     try {
-        const { name, _id } = req.body;
-        if (!name || !_id) return res.status(400).json({ success: false, message: "Missing images detail's" });
-        if (!mongoose.Types.ObjectId.isValid(_id)) return res.status(400).json({ success: false, message: "Invalid image id" });
+        const { name, _id } = req.body || {};
+        if (!_id) return res.status(400).json({ success: false, message: "Missing image ID" });
+        if (!mongoose.Types.ObjectId.isValid(_id)) return res.status(400).json({ success: false, message: "Invalid image ID" });
 
-        const result = await Photo.findOneAndDelete({ name, _id: new mongoose.Types.ObjectId(_id) });
+        const query = name ? { name, _id: new mongoose.Types.ObjectId(_id) } : { _id: new mongoose.Types.ObjectId(_id) };
+        const result = await Photo.findOneAndDelete(query);
         if (!result) return res.status(404).json({ success: false, message: "Image not found in database" });
 
-        // cleanup queue + faiss if we have event_id (guard legacy photos without hash)
         if (result.event_id) {
             if (result.hash) {
-                try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }); } catch(_){}
+                try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }).catch(()=>{}); } catch(_){}
             }
-            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 3000 }); } catch(e){ logger.info('[faiss] remove failed', e.message); }
+            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 5000 }).catch(()=>{}); } catch(_){}
         }
 
-        const imagePath = path.join(__dirname, 'uploads', name);
-        fs.unlink(imagePath, (err) => {
-            if (err) {
-                logger.error('[delete-image] unlink failed', err);
-                return res.status(500).json({ success: false, message: "Failed to delete image file" });
+        const fileName = result.name || name;
+        if (fileName) {
+            const imagePath = path.join(__dirname, 'uploads', fileName);
+            if (fs.existsSync(imagePath)) {
+                try { fs.unlinkSync(imagePath); } catch (err) { logger.warn('[delete-image] unlink error', err); }
             }
-            return res.json({ success: true, message: "Image deleted successfully" });
-        });
+        }
+        return res.json({ success: true, message: "Image deleted successfully" });
     } catch (error) {
         logger.error('[delete-image]', error);
         res.status(500).json({ success: false, message: "Error deleting image!" });
     }
-});
+};
+
+app.delete('/delete-image', deleteImageHandler);
+app.delete('/delete-img', deleteImageHandler);
 
 //-----------------------------------------------------------------------------------------------------
 app.post("/collect_event", async (req, resp) => {
