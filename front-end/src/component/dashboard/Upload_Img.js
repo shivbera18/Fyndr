@@ -114,7 +114,11 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
           timeout: 60000,
         });
 
-        if (response.status === 200 || response.status === 207) {
+        const failed =
+          response.status === 207 &&
+          Array.isArray(response.data) &&
+          response.data.some((result) => result?.status === 'failed' || result?.error);
+        if (!failed && (response.status === 200 || response.status === 207)) {
           successCount++;
           if (item.preview) URL.revokeObjectURL(item.preview);
         } else {

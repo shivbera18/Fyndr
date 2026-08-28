@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ const CameraCaptureWithMask = () => {
   const event_id = location.state;
 
   const webcamRef = useRef(null);
+  const uploadedImageUrlRef = useRef(null);
   const [imageSrc, setImageSrc] = useState(null);
   const [matchedPhotos, setMatchedPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +51,9 @@ const CameraCaptureWithMask = () => {
   const handleFileUpload = async (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageSrc(URL.createObjectURL(file));
+      if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
+      uploadedImageUrlRef.current = URL.createObjectURL(file);
+      setImageSrc(uploadedImageUrlRef.current);
       await processSelfieMatch(file);
     }
   };
@@ -89,10 +92,16 @@ const CameraCaptureWithMask = () => {
   };
 
   const retakeSelfie = () => {
+    if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
+    uploadedImageUrlRef.current = null;
     setImageSrc(null);
     setMatchedPhotos([]);
     setErrorMessage('');
   };
+
+  useEffect(() => () => {
+    if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
+  }, []);
 
   const getApiBase = () => {
     if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
@@ -384,7 +393,10 @@ const CameraCaptureWithMask = () => {
                             <button
                               type="button"
                               className="btn btn-sm p-0 text-dark fw-bold text-decoration-none"
-                              onClick={() => setPreviewPhoto({ url: imgUrl, name: photo.name, sim: simPercent })}
+                              onClick={() => {
+                                setPreviewPhoto({ url: imgUrl, name: photo.name, sim: simPercent });
+                                setIsZoomed(false);
+                              }}
                             >
                               🔍 View Full
                             </button>
