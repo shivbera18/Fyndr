@@ -31,3 +31,4 @@ front-end/build/
 benchmark/data/
 !/benchmark/data/.gitkeep
 /tmp/fyndr_faiss/
+nul
