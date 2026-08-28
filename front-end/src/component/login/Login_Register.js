@@ -1,256 +1,96 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Header from '../navbar/Header';
-import Footer from '../Footer';
-import NeoCard from '../ui/NeoCard';
-import NeoButton from '../ui/NeoButton';
-import NeoInput from '../ui/NeoInput';
 
 const Login_Register = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
-  
-  // Form State
+  const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
 
   useEffect(() => {
-    const auth = localStorage.getItem('user');
-    if (auth) {
-      navigate('/dashboard');
-    }
+    if (localStorage.getItem('user')) navigate('/dashboard');
   }, [navigate]);
 
-  // Handle Login
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-    setLoading(true);
-
+    e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-
-      const data = await response.json();
-      if (response.ok && data._id) {
-        localStorage.setItem('user', JSON.stringify(data));
-        setSuccessMessage('Login successful! Redirecting...');
-        setTimeout(() => navigate('/dashboard'), 600);
-      } else {
-        setErrorMessage(data.message || data.error || 'Invalid email or password.');
-      }
-    } catch (err) {
-      setErrorMessage('Could not connect to authentication server.');
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch('http://localhost:5000/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password }) });
+      const d = await r.json();
+      if (r.ok && d._id) { localStorage.setItem('user', JSON.stringify(d)); setOk('Signed in — redirecting…'); setTimeout(() => navigate('/dashboard'), 500); }
+      else setErr(d.message || d.error || 'Invalid email or password.');
+    } catch { setErr('Cannot reach auth server.'); } finally { setLoading(false); }
   };
-
-  // Handle Registration
   const handleRegister = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-    setLoading(true);
-
+    e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setSuccessMessage(data.message || 'Account created successfully! You can now sign in.');
-        setMode('login');
-      } else {
-        setErrorMessage(data.message || data.error || 'Registration failed.');
-      }
-    } catch (err) {
-      setErrorMessage('Could not connect to authentication server.');
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch('http://localhost:5000/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password }) });
+      const d = await r.json();
+      if (r.ok) { setOk(d.message || 'Account created — sign in now.'); setMode('login'); }
+      else setErr(d.message || d.error || 'Registration failed.');
+    } catch { setErr('Cannot reach auth server.'); } finally { setLoading(false); }
   };
 
   return (
-    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
-      <Header />
-
-      <div className="container py-5">
-        <div className="row justify-content-center">
-          <div className="col-12 col-md-8 col-lg-5">
-            <NeoCard
-              header={mode === 'login' ? 'PHOTOGRAPHER SIGN IN' : 'CREATE PHOTOGRAPHER ACCOUNT'}
-              headerAccent={mode === 'login' ? 'yellow' : 'cyan'}
-              style={{ backgroundColor: '#FFFFFF' }}
-            >
-              {/* Tab Selector */}
-              <div className="d-flex gap-2 mb-4">
-                <button
-                  type="button"
-                  className={`neo-btn flex-fill ${mode === 'login' ? 'neo-btn-yellow' : 'neo-btn-white'}`}
-                  onClick={() => {
-                    setMode('login');
-                    setErrorMessage('');
-                    setSuccessMessage('');
-                  }}
-                  style={{ fontSize: '0.9rem', padding: '8px 12px' }}
-                >
-                  🔑 Sign In
-                </button>
-                <button
-                  type="button"
-                  className={`neo-btn flex-fill ${mode === 'register' ? 'neo-btn-cyan' : 'neo-btn-white'}`}
-                  onClick={() => {
-                    setMode('register');
-                    setErrorMessage('');
-                    setSuccessMessage('');
-                  }}
-                  style={{ fontSize: '0.9rem', padding: '8px 12px' }}
-                >
-                  ✨ Register
-                </button>
-              </div>
-
-              {/* Status Alert Messages */}
-              {errorMessage && (
-                <div
-                  className="p-3 mb-3"
-                  style={{
-                    backgroundColor: 'var(--neo-coral-light)',
-                    border: '2px solid var(--neo-black)',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    color: '#991B1B',
-                  }}
-                >
-                  ⚠️ {errorMessage}
-                </div>
-              )}
-
-              {successMessage && (
-                <div
-                  className="p-3 mb-3"
-                  style={{
-                    backgroundColor: 'var(--neo-lime-light)',
-                    border: '2px solid var(--neo-black)',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    color: '#166534',
-                  }}
-                >
-                  ✓ {successMessage}
-                </div>
-              )}
-
-              {/* Sign In Form */}
-              {mode === 'login' && (
-                <form onSubmit={handleLogin}>
-                  <NeoInput
-                    label="Email Address"
-                    type="email"
-                    placeholder="photographer@studio.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-
-                  <NeoInput
-                    label="Password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-
-                  <div className="d-flex justify-content-between align-items-center mb-4">
-                    <Link
-                      to="/forgetpassword"
-                      style={{ fontWeight: 800, color: 'var(--neo-black)', fontSize: '0.85rem' }}
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-
-                  <NeoButton
-                    type="submit"
-                    variant="yellow"
-                    size="lg"
-                    full
-                    loading={loading}
-                  >
-                    Sign In to Dashboard →
-                  </NeoButton>
-                </form>
-              )}
-
-              {/* Registration Form */}
-              {mode === 'register' && (
-                <form onSubmit={handleRegister}>
-                  <NeoInput
-                    label="Full Name or Studio Name"
-                    type="text"
-                    placeholder="e.g. Apex Wedding Studio"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-
-                  <NeoInput
-                    label="Email Address"
-                    type="email"
-                    placeholder="studio@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-
-                  <NeoInput
-                    label="Password"
-                    type="password"
-                    placeholder="At least 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-
-                  <NeoButton
-                    type="submit"
-                    variant="cyan"
-                    size="lg"
-                    full
-                    loading={loading}
-                  >
-                    Create Free Account →
-                  </NeoButton>
-                </form>
-              )}
-
-              {/* Card Footer Note */}
-              <div className="mt-4 pt-3 text-center border-top" style={{ borderColor: '#E5E7EB' }}>
-                <small style={{ fontWeight: 600, color: '#6B7280' }}>
-                  Guest looking for event photos? Ask your photographer for the Event QR code.
-                </small>
-              </div>
-            </NeoCard>
-          </div>
+    <div style={{ minHeight: '100vh', background: 'hsl(var(--background))', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'hsl(var(--primary))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--primary-foreground))', fontWeight: 700 }}>◆</span>
+          <span style={{ fontWeight: 700, letterSpacing: '-0.02em', color: 'hsl(var(--foreground))' }}>FYNDR</span>
+          <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', letterSpacing: '0.08em', border: '1px solid hsl(var(--border))', padding: '2px 6px', borderRadius: 9999 }}>RIVET</span>
         </div>
-      </div>
+        <div className="neo-card" style={{ width: '100%', maxWidth: 400 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 600 }}>{mode === 'login' ? 'Sign in to Fyndr' : 'Create your account'}</h1>
+            <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13, marginTop: 4 }}>{mode === 'login' ? 'Welcome back — your events await.' : 'Start hosting events in 60s. No card required.'}</p>
+          </div>
 
-      <Footer />
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'hsl(var(--muted))', padding: 3, borderRadius: 8, border: '1px solid hsl(var(--border))' }}>
+            <button onClick={() => { setMode('login'); setErr(''); setOk(''); }} style={{ flex: 1, height: 28, borderRadius: 6, border: 'none', background: mode === 'login' ? 'hsl(var(--card))' : 'transparent', color: mode === 'login' ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, boxShadow: mode === 'login' ? '0 1px 2px hsl(240 6% 4% / 0.08)' : 'none', borderWidth: mode === 'login' ? '1px' : 0, borderStyle: 'solid', borderColor: 'hsl(var(--border))' }}>Sign in</button>
+            <button onClick={() => { setMode('register'); setErr(''); setOk(''); }} style={{ flex: 1, height: 28, borderRadius: 6, border: 'none', background: mode === 'register' ? 'hsl(var(--card))' : 'transparent', color: mode === 'register' ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, boxShadow: mode === 'register' ? '0 1px 2px hsl(240 6% 4% / 0.08)' : 'none', borderWidth: mode === 'register' ? '1px' : 0, borderStyle: 'solid', borderColor: 'hsl(var(--border))' }}>Create account</button>
+          </div>
+
+          {err && <div style={{ background: 'hsl(var(--destructive) / 0.12)', border: '1px solid hsl(var(--destructive) / 0.22)', color: 'hsl(var(--destructive))', borderRadius: 8, padding: '8px 10px', fontSize: 13, marginBottom: 12 }}>{err}</div>}
+          {ok && <div style={{ background: 'hsl(142 76% 36% / 0.12)', border: '1px solid hsl(142 76% 36% / 0.22)', color: 'hsl(142 76% 36%)', borderRadius: 8, padding: '8px 10px', fontSize: 13, marginBottom: 12 }}>{ok}</div>}
+
+          {mode === 'login' ? (
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>Email</span>
+                <input className="neo-input" type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, display: 'flex', justifyContent: 'space-between' }}>Password <Link to="/forgetpassword" style={{ color: 'hsl(var(--primary))', textDecoration: 'none', fontSize: 12 }}>Forgot?</Link></span>
+                <input className="neo-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+              </label>
+              <button type="submit" className="neo-btn neo-btn-yellow" disabled={loading} style={{ height: 36, marginTop: 4 }}>{loading ? 'Signing in…' : 'Sign in →'}</button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>Studio name</span>
+                <input className="neo-input" placeholder="Apex Visuals" value={name} onChange={e => setName(e.target.value)} required autoComplete="organization" />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>Email</span>
+                <input className="neo-input" type="email" placeholder="studio@example.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>Password</span>
+                <input className="neo-input" type="password" placeholder="At least 6 characters" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="new-password" />
+              </label>
+              <button type="submit" className="neo-btn neo-btn-yellow" disabled={loading} style={{ height: 36 }}>{loading ? 'Creating…' : 'Create account →'}</button>
+            </form>
+          )}
+
+          <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Guest? Ask your photographer for the event QR.</div>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>© {new Date().getFullYear()} FYNDR • Rivet-inspired</div>
+      </div>
     </div>
   );
 };
-
 export default Login_Register;

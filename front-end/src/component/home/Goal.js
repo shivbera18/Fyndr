@@ -1,90 +1,36 @@
 import React from 'react';
-import NeoCard from '../ui/NeoCard';
-import NeoBadge from '../ui/NeoBadge';
+
+const steps = [
+  { n: '01', t: 'Upload album', d: 'Create event with 6-digit PIN and upload high-res photos. Auto 512-d indexing.', badge: 'AUTO INDEX' },
+  { n: '02', t: 'Scan & selfie', d: 'Guests scan QR, enter PIN, take 1s selfie. Zero app install.', badge: 'NO APP' },
+  { n: '03', t: 'Instant match', d: 'FAISS queries <50ms, returns every photo you appear in.', badge: 'SUB-SECOND' },
+];
 
 const Goal = () => {
   return (
-    <section className="my-5 py-4">
+    <section style={{ padding: '32px 0' }}>
       <div className="container">
-        {/* Section Title */}
-        <div className="text-center mb-5">
-          <NeoBadge variant="lime" className="mb-2 px-3 py-1 fs-6">
-            ⚡ 3-STEP MAGIC WORKFLOW
-          </NeoBadge>
-          <h2 className="display-6 fw-black">HOW FYNDR WORKS</h2>
-          <p className="lead mx-auto" style={{ maxWidth: '650px', fontWeight: 600, color: '#4B5563' }}>
-            Traditional photo delivery takes days of manual sorting. Fyndr does it in milliseconds with AI facial recognition.
-          </p>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <span className="neo-badge neo-badge-yellow">3-STEP WORKFLOW</span>
+          <h2 style={{ marginTop: 8, fontWeight: 700 }}>How Fyndr works</h2>
+          <p style={{ color: 'hsl(var(--muted-foreground))', maxWidth: 560, margin: '6px auto 0' }}>From ingest to delivery — durable like Rivet Actors.</p>
         </div>
-
-        {/* 3 Step Cards */}
-        <div className="row g-4 justify-content-center">
-          {/* Step 1 */}
-          <div className="col-12 col-md-4">
-            <NeoCard
-              header="STEP 01"
-              headerAccent="yellow"
-              hoverable
-              style={{ height: '100%', backgroundColor: '#FFFDF5' }}
-            >
-              <div className="d-flex align-items-center gap-2 mb-3">
-                <span className="fs-1">📸</span>
-                <h4 className="m-0">Upload Album</h4>
+        <div className="row g-3">
+          {steps.map(s => (
+            <div key={s.n} className="col-12 col-md-4">
+              <div className="neo-card" style={{ height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ width: 28, height: 28, borderRadius: 9999, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{s.n}</span>
+                  <span style={{ fontWeight: 600 }}>{s.t}</span>
+                </div>
+                <div style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13, lineHeight: 1.5 }}>{s.d}</div>
+                <div style={{ marginTop: 12 }}><span className="neo-badge">{s.badge}</span></div>
               </div>
-              <p style={{ fontWeight: 600, color: '#374151' }}>
-                Photographer creates an event (with a 6-digit PIN) and uploads hundreds or thousands of high-res photos.
-              </p>
-              <div className="mt-3">
-                <NeoBadge variant="dark">AUTO 512-D VECTOR INDEX</NeoBadge>
-              </div>
-            </NeoCard>
-          </div>
-
-          {/* Step 2 */}
-          <div className="col-12 col-md-4">
-            <NeoCard
-              header="STEP 02"
-              headerAccent="cyan"
-              hoverable
-              style={{ height: '100%', backgroundColor: '#FFFDF5' }}
-            >
-              <div className="d-flex align-items-center gap-2 mb-3">
-                <span className="fs-1">🤳</span>
-                <h4 className="m-0">Scan & Selfie</h4>
-              </div>
-              <p style={{ fontWeight: 600, color: '#374151' }}>
-                Guests scan the event QR code or open the link on their phone, enter the PIN, and take a quick 1-second selfie.
-              </p>
-              <div className="mt-3">
-                <NeoBadge variant="cyan">ZERO APP INSTALLATION</NeoBadge>
-              </div>
-            </NeoCard>
-          </div>
-
-          {/* Step 3 */}
-          <div className="col-12 col-md-4">
-            <NeoCard
-              header="STEP 03"
-              headerAccent="lime"
-              hoverable
-              style={{ height: '100%', backgroundColor: '#FFFDF5' }}
-            >
-              <div className="d-flex align-items-center gap-2 mb-3">
-                <span className="fs-1">✨</span>
-                <h4 className="m-0">Instant Match</h4>
-              </div>
-              <p style={{ fontWeight: 600, color: '#374151' }}>
-                Fyndr queries the FAISS index in &lt; 50ms, finds every photo where the guest appears, and provides instant downloads.
-              </p>
-              <div className="mt-3">
-                <NeoBadge variant="lime">SUB-SECOND MATCH</NeoBadge>
-              </div>
-            </NeoCard>
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
   );
 };
-
 export default Goal;

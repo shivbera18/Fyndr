@@ -92,7 +92,6 @@ const Collect_event = () => {
               <NeoCard
                 header="GUEST PHOTO PORTAL"
                 headerAccent="yellow"
-                style={{ backgroundColor: '#FFFFFF' }}
               >
                 {/* Event Header Banner */}
                 <div className="text-center mb-4">
@@ -105,8 +104,7 @@ const Collect_event = () => {
                         height: '160px',
                         objectFit: 'cover',
                         borderRadius: '8px',
-                        border: '2px solid #121212',
-                        marginBottom: '16px',
+                        border: '1px solid hsl(var(--border))',
                       }}
                     />
                   )}

@@ -1,173 +1,125 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import NeoButton from '../ui/NeoButton';
-import NeoBadge from '../ui/NeoBadge';
 
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch (_) {
-        setUser(null);
-      }
-    } else {
-      setUser(null);
-    }
+      try { setUser(JSON.parse(stored)); } catch { setUser(null); }
+    } else setUser(null);
   }, [location]);
 
-  const handleLogout = () => {
+  const logout = () => {
     localStorage.removeItem('user');
     setUser(null);
     navigate('/');
   };
 
+  const LogoMark = () => (
+    <span
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        background: 'hsl(var(--primary))',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'hsl(var(--primary-foreground))',
+        fontWeight: 700,
+        fontSize: 12,
+        letterSpacing: '-0.02em',
+      }}
+    >
+      ◆
+    </span>
+  );
+
   return (
     <header className="neo-nav">
       <div className="neo-nav-container">
-        {/* Brand */}
-        <Link to="/" className="neo-brand">
-          <span className="neo-brand-badge">⚡</span>
-          <span>FYNDR</span>
+        <Link to="/" className="neo-brand" style={{ gap: 10 }}>
+          <LogoMark />
+          <span style={{ fontWeight: 700, letterSpacing: '-0.03em' }}>FYNDR</span>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            color: 'hsl(var(--muted-foreground))',
+            border: '1px solid hsl(var(--border))',
+            padding: '2px 6px',
+            borderRadius: 9999,
+            marginLeft: 2,
+          }}>ACTORS</span>
         </Link>
 
-        {/* Desktop Navigation Links */}
         <nav className="neo-nav-links d-none d-md-flex">
-          <Link to="/" className="neo-nav-link">
-            Home
-          </Link>
-          <Link to="/about" className="neo-nav-link">
-            About
-          </Link>
-          {user && (
-            <Link to="/dashboard" className="neo-nav-link">
-              Dashboard
-            </Link>
-          )}
+          <Link to="/" className="neo-nav-link">Overview</Link>
+          <Link to="/about" className="neo-nav-link">About</Link>
+          {user && <Link to="/dashboard" className="neo-nav-link">Dashboard</Link>}
+          <a href="https://github.com/shivbera18/Fyndr" target="_blank" rel="noreferrer" className="neo-nav-link">GitHub</a>
         </nav>
 
-        {/* Action Buttons / User Status */}
-        <div className="d-none d-md-flex align-items-center gap-3">
+        <div className="d-none d-md-flex align-items-center" style={{ gap: 8 }}>
           {user ? (
             <>
-              <NeoBadge variant="lime" className="px-3 py-2">
-                👤 {user.name || user.email?.split('@')[0] || 'Photographer'}
-              </NeoBadge>
-              <NeoButton
-                variant="yellow"
-                size="sm"
-                onClick={() => navigate('/dashboard')}
-              >
-                My Events
-              </NeoButton>
-              <NeoButton
-                variant="white"
-                size="sm"
-                onClick={handleLogout}
-              >
-                Logout
-              </NeoButton>
+              <span style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'hsl(var(--muted-foreground))',
+                border: '1px solid hsl(var(--border))',
+                background: 'hsl(var(--card))',
+                padding: '6px 10px',
+                borderRadius: 8,
+              }}>
+                {user.name || user.email?.split('@')[0]}
+              </span>
+              <button className="neo-btn neo-btn-yellow neo-btn-sm" onClick={() => navigate('/dashboard')}>Dashboard</button>
+              <button className="neo-btn neo-btn-white neo-btn-sm" onClick={logout}>Sign out</button>
             </>
           ) : (
             <>
-              <NeoButton
-                variant="white"
-                size="sm"
-                onClick={() => navigate('/login')}
-              >
-                Sign In
-              </NeoButton>
-              <NeoButton
-                variant="yellow"
-                size="sm"
-                onClick={() => navigate('/login')}
-              >
-                Get Started →
-              </NeoButton>
+              <button className="neo-btn neo-btn-white neo-btn-sm" onClick={() => navigate('/login')}>Sign in</button>
+              <button className="neo-btn neo-btn-yellow neo-btn-sm glow-accent" onClick={() => navigate('/login')}>Get started</button>
             </>
           )}
         </div>
 
-        {/* Mobile Menu Toggle */}
-        <div className="d-flex d-md-none">
-          <button
-            type="button"
-            className="neo-btn neo-btn-yellow neo-btn-sm"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? '✕' : '☰'}
-          </button>
-        </div>
+        <button
+          className="d-md-none neo-btn neo-btn-white neo-btn-sm"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label="Menu"
+        >
+          {mobileOpen ? '✕' : '☰'}
+        </button>
       </div>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
+      {mobileOpen && (
         <div
-          className="d-md-none p-3 mt-2"
           style={{
-            backgroundColor: 'var(--neo-yellow)',
-            borderTop: 'var(--neo-border-thick)',
-            borderBottom: 'var(--neo-border-thick)',
+            borderTop: '1px solid hsl(var(--border))',
+            background: 'hsl(var(--card))',
+            padding: 12,
           }}
+          className="d-md-none"
         >
-          <div className="d-flex flex-column gap-2">
-            <Link
-              to="/"
-              className="neo-btn neo-btn-white neo-btn-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              🏠 Home
-            </Link>
-            <Link
-              to="/about"
-              className="neo-btn neo-btn-white neo-btn-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              ℹ️ About Fyndr
-            </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link className="neo-btn neo-btn-white neo-btn-sm" to="/" onClick={() => setMobileOpen(false)}>Overview</Link>
+            <Link className="neo-btn neo-btn-white neo-btn-sm" to="/about" onClick={() => setMobileOpen(false)}>About</Link>
             {user ? (
               <>
-                <Link
-                  to="/dashboard"
-                  className="neo-btn neo-btn-lime neo-btn-sm"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  📸 Dashboard ({user.name || 'User'})
-                </Link>
-                <button
-                  type="button"
-                  className="neo-btn neo-btn-dark neo-btn-sm text-start"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleLogout();
-                  }}
-                >
-                  🚪 Logout
-                </button>
+                <Link className="neo-btn neo-btn-yellow neo-btn-sm" to="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                <button className="neo-btn neo-btn-white neo-btn-sm" onClick={() => { setMobileOpen(false); logout(); }}>Sign out</button>
               </>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  className="neo-btn neo-btn-cyan neo-btn-sm"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  🔑 Sign In
-                </Link>
-                <Link
-                  to="/login"
-                  className="neo-btn neo-btn-purple neo-btn-sm"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  ✨ Create Free Account
-                </Link>
+                <Link className="neo-btn neo-btn-white neo-btn-sm" to="/login" onClick={() => setMobileOpen(false)}>Sign in</Link>
+                <Link className="neo-btn neo-btn-yellow neo-btn-sm" to="/login" onClick={() => setMobileOpen(false)}>Get started</Link>
               </>
             )}
           </div>

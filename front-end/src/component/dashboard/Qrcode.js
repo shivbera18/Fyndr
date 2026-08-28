@@ -81,7 +81,7 @@ const Qrcode = ({ url, eventName = 'Event' }) => {
         />
       </div>
 
-      <p style={{ fontWeight: 700, fontSize: '0.9rem', color: '#4B5563', wordBreak: 'break-all' }}>
+      <p style={{ fontWeight: 700, fontSize: '0.9rem', color: 'hsl(var(--muted-foreground))', wordBreak: 'break-all' }}>
         {url}
       </p>
 

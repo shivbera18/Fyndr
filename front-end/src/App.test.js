@@ -8,8 +8,8 @@ describe('Fyndr Web App Routing & Landing', () => {
     const brandElements = screen.getAllByText(/FYNDR/i);
     expect(brandElements.length).toBeGreaterThan(0);
 
-    const homeLinks = screen.getAllByText(/Home/i);
-    expect(homeLinks.length).toBeGreaterThan(0);
+    const overviewLinks = screen.getAllByText(/Overview/i);
+    expect(overviewLinks.length).toBeGreaterThan(0);
   });
 
   test('renders main hero headline and call-to-action buttons', () => {
@@ -17,7 +17,7 @@ describe('Fyndr Web App Routing & Landing', () => {
     const heroHeadline = screen.getByText(/FIND YOURSELF IN/i);
     expect(heroHeadline).toBeInTheDocument();
 
-    const ctaButton = screen.getByText(/Launch Your Event/i);
+    const ctaButton = screen.getByText(/Start free/i);
     expect(ctaButton).toBeInTheDocument();
   });
 

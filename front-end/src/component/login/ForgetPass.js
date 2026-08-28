@@ -1,193 +1,63 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import Header from '../navbar/Header';
-import Footer from '../Footer';
-import NeoCard from '../ui/NeoCard';
-import NeoButton from '../ui/NeoButton';
-import NeoInput from '../ui/NeoInput';
+import { Link, useNavigate } from 'react-router-dom';
 
 const ForgetPass = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1: Send OTP, 2: Enter OTP & New Password
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
 
-  // Step 1: Send OTP
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-    setLoading(true);
-
+  const sendOtp = async (e) => {
+    e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setSuccessMessage('Reset OTP sent to your email.');
-        setStep(2);
-      } else {
-        setErrorMessage(data.message || data.error || 'Failed to send OTP.');
-      }
-    } catch (_) {
-      setErrorMessage('Could not connect to server.');
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch('http://localhost:5000/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }) });
+      const d = await r.json();
+      if (r.ok) { setOk('OTP sent to your email.'); setStep(2); } else setErr(d.message || d.error || 'Failed to send OTP.');
+    } catch { setErr('Cannot reach server.'); } finally { setLoading(false); }
   };
-
-  // Step 2: Verify OTP & Update Password
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-    setLoading(true);
-
+  const verify = async (e) => {
+    e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/newPassword-verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), otp: otp.trim(), newpassword: newPassword }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setSuccessMessage('Password successfully updated! Redirecting to login...');
-        setTimeout(() => navigate('/login'), 1200);
-      } else {
-        setErrorMessage(data.message || data.error || 'Invalid or expired OTP.');
-      }
-    } catch (_) {
-      setErrorMessage('Could not connect to server.');
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch('http://localhost:5000/newPassword-verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), otp: otp.trim(), newpassword: newPassword }) });
+      const d = await r.json();
+      if (r.ok) { setOk('Password updated — redirecting…'); setTimeout(() => navigate('/login'), 1000); } else setErr(d.message || d.error || 'Invalid OTP.');
+    } catch { setErr('Cannot reach server.'); } finally { setLoading(false); }
   };
 
   return (
-    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
-      <Header />
+    <div style={{ minHeight: '100vh', background: 'hsl(var(--background))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+          <span style={{ width: 24, height: 24, borderRadius: 8, background: 'hsl(var(--primary))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--primary-foreground))', fontWeight: 700, fontSize: 12 }}>◆</span>
+          <span style={{ fontWeight: 700, color: 'hsl(var(--foreground))' }}>FYNDR</span>
+        </div>
+        <div className="neo-card">
+          <h1 style={{ fontSize: 16, fontWeight: 600 }}>{step === 1 ? 'Reset your password' : 'Enter code & new password'}</h1>
+          <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13, marginTop: 4 }}>{step === 1 ? 'We’ll send a one-time code to your email.' : 'Check your inbox — code expires quickly.'}</p>
 
-      <div className="container py-5">
-        <div className="row justify-content-center">
-          <div className="col-12 col-md-8 col-lg-5">
-            <NeoCard header="PASSWORD RECOVERY" headerAccent="coral">
-              {errorMessage && (
-                <div
-                  className="p-3 mb-3"
-                  style={{
-                    backgroundColor: 'var(--neo-coral-light)',
-                    border: '2px solid var(--neo-black)',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    color: '#991B1B',
-                  }}
-                >
-                  ⚠️ {errorMessage}
-                </div>
-              )}
+          {err && <div style={{ marginTop: 12, background: 'hsl(var(--destructive) / 0.12)', border: '1px solid hsl(var(--destructive) / 0.2)', color: 'hsl(var(--destructive))', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>{err}</div>}
+          {ok && <div style={{ marginTop: 12, background: 'hsl(142 76% 36% / 0.12)', border: '1px solid hsl(142 76% 36% / 0.2)', color: 'hsl(142 76% 36%)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>{ok}</div>}
 
-              {successMessage && (
-                <div
-                  className="p-3 mb-3"
-                  style={{
-                    backgroundColor: 'var(--neo-lime-light)',
-                    border: '2px solid var(--neo-black)',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    color: '#166534',
-                  }}
-                >
-                  ✓ {successMessage}
-                </div>
-              )}
-
-              {step === 1 ? (
-                <form onSubmit={handleSendOtp}>
-                  <p style={{ fontWeight: 600, color: '#4B5563' }}>
-                    Enter your registered email address to receive a one-time verification code.
-                  </p>
-                  <NeoInput
-                    label="Email Address"
-                    type="email"
-                    placeholder="photographer@studio.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                  <NeoButton
-                    type="submit"
-                    variant="yellow"
-                    size="lg"
-                    full
-                    loading={loading}
-                  >
-                    Send Reset Code →
-                  </NeoButton>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOtp}>
-                  <NeoInput
-                    label="6-Digit OTP Code"
-                    type="text"
-                    placeholder="e.g. 123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    required
-                  />
-                  <NeoInput
-                    label="New Password"
-                    type="password"
-                    placeholder="Enter strong new password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                  />
-                  <div className="d-flex gap-2">
-                    <NeoButton
-                      variant="white"
-                      size="md"
-                      onClick={() => setStep(1)}
-                    >
-                      ← Back
-                    </NeoButton>
-                    <NeoButton
-                      type="submit"
-                      variant="lime"
-                      size="md"
-                      full
-                      loading={loading}
-                    >
-                      Update Password
-                    </NeoButton>
-                  </div>
-                </form>
-              )}
-
-              <div className="mt-4 pt-3 text-center border-top">
-                <Link
-                  to="/login"
-                  style={{ fontWeight: 800, color: 'var(--neo-black)', textDecoration: 'none' }}
-                >
-                  ← Back to Sign In
-                </Link>
-              </div>
-            </NeoCard>
-          </div>
+          {step === 1 ? (
+            <form onSubmit={sendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>Email</span><input className="neo-input" type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" /></label>
+              <button className="neo-btn neo-btn-yellow" type="submit" disabled={loading} style={{ height: 36 }}>{loading ? 'Sending…' : 'Send code →'}</button>
+            </form>
+          ) : (
+            <form onSubmit={verify} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>6-digit code</span><input className="neo-input" placeholder="123456" value={otp} onChange={e => setOtp(e.target.value)} required autoComplete="one-time-code" inputMode="numeric" /></label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>New password</span><input className="neo-input" type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} required autoComplete="new-password" /></label>
+              <div style={{ display: 'flex', gap: 8 }}><button type="button" className="neo-btn neo-btn-white" onClick={() => setStep(1)} style={{ flex: 1 }}>Back</button><button className="neo-btn neo-btn-yellow" type="submit" disabled={loading} style={{ flex: 1 }}>{loading ? 'Updating…' : 'Update password'}</button></div>
+            </form>
+          )}
+          <div style={{ textAlign: 'center', marginTop: 14 }}><Link to="/login" style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', textDecoration: 'none' }}>← Back to sign in</Link></div>
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 };
-
 export default ForgetPass;
