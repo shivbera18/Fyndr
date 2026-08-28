@@ -8,8 +8,8 @@ const Footer = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 30, height: 30, borderRadius: 8, background: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dark)', fontWeight: 700, transform: 'rotate(14deg)' }}>✦</span>
-            <span style={{ fontWeight: 700, fontSize: 20, color: 'white' }}>Positivus</span>
-            <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.6)', borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: 8 }}>FYNDR</span>
+            <span style={{ fontWeight: 700, fontSize: 20, color: 'white' }}>FYNDR</span>
+            <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.6)', borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: 8 }}>EVENT PHOTOS</span>
           </span>
           <nav style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
             <Link to="/" style={{ color: 'white', textDecoration: 'underline', fontSize: 16 }}>Overview</Link>
@@ -37,7 +37,7 @@ const Footer = () => {
           <span style={{ display: 'flex', gap: 8 }}>
             <Link to="/" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'underline' }}>Privacy Policy</Link>
             <span>•</span>
-            <span>v1 • Positivus edition</span>
+            <span>v1 • Fast & Private</span>
           </span>
         </div>
       </div>

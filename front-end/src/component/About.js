@@ -11,7 +11,7 @@ const About = () => {
       <div className="container" style={{ padding: '40px 0' }}>
         <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 32 }}>
           <h1 style={{ background: 'var(--green)', padding: '6px 12px', borderRadius: 7, display: 'inline' }}>About Fyndr</h1>
-          <p style={{ maxWidth: 580, fontSize: 16, lineHeight: 1.5 }}>Zero-friction event photos — built for photographers who want durability without the complexity. Inspired by Rivet Actors and Positivus clarity.</p>
+          <p style={{ maxWidth: 580, fontSize: 16, lineHeight: 1.5 }}>Zero-friction event photos — built for photographers who want durability without the complexity. Fast FAISS indexing, ephemeral privacy, and instant guest delivery.</p>
         </div>
 
         <div className="about-two-col">
@@ -36,10 +36,10 @@ const About = () => {
         </div>
 
         <div className="neo-card" style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.08em', color: '#676767', fontWeight: 600, marginBottom: 12 }}>STACK • POSITIVUS GRADE</div>
+          <div style={{ fontSize: 11, letterSpacing: '0.08em', color: '#676767', fontWeight: 600, marginBottom: 12 }}>STACK • PRODUCTION GRADE</div>
           <div className="about-four-col">
             {[
-              ['FRONTEND', 'React 18 • Positivus'],
+              ['FRONTEND', 'React 18 • Fyndr UI'],
               ['API', 'Node 20 • Express'],
               ['ML', 'InsightFace ONNX'],
               ['VECTOR', 'FAISS 512-d'],

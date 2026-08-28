@@ -16,6 +16,7 @@ const Header = () => {
   }, []);
 
   useEffect(() => {
+    setMobileOpen(false);
     const s = localStorage.getItem('user');
     if (s) try { setUser(JSON.parse(s)); } catch { setUser(null); } else setUser(null);
   }, [location]);
@@ -39,8 +40,8 @@ const Header = () => {
         background: 'var(--dark)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         color: 'white', fontSize: size * 0.45, transform: 'rotate(14deg)', fontWeight: 700,
       }}>✦</span>
-      <span style={{ fontWeight: 700, fontSize: 24, letterSpacing: '-0.02em', color: 'var(--dark)' }}>Positivus</span>
-      <span style={{ fontSize: 9, letterSpacing: '0.12em', color: '#676767', borderLeft: '1px solid #DDDDDD', paddingLeft: 8, marginLeft: 2 }}>FYNDR</span>
+      <span style={{ fontWeight: 700, fontSize: 24, letterSpacing: '-0.02em', color: 'var(--dark)' }}>FYNDR</span>
+      <span style={{ fontSize: 9, letterSpacing: '0.12em', color: '#676767', borderLeft: '1px solid #DDDDDD', paddingLeft: 8, marginLeft: 2 }}>EVENT PHOTOS</span>
     </span>
   );
 
@@ -91,16 +92,24 @@ const Header = () => {
       {isMobile && mobileOpen && (
         <div style={{
           position: 'fixed', inset: 0, top: 64, background: 'white',
-          padding: 20, display: 'flex', flexDirection: 'column', gap: 16, zIndex: 19,
-          borderTop: '1px solid #191A23',
+          padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16, zIndex: 1000,
+          borderTop: '1px solid #191A23', overflowY: 'auto',
         }}>
-          <Link to="/" className="neo-nav-link" style={{ fontSize: 22 }} onClick={() => setMobileOpen(false)}>Overview</Link>
-          <Link to="/about" className="neo-nav-link" style={{ fontSize: 22 }} onClick={() => setMobileOpen(false)}>How it works</Link>
-          <Link to="/dashboard" className="neo-nav-link" style={{ fontSize: 22 }} onClick={() => setMobileOpen(false)}>Dashboard</Link>
+          <Link to="/" className="neo-nav-link" style={{ fontSize: 20 }} onClick={() => setMobileOpen(false)}>Overview</Link>
+          <Link to="/about" className="neo-nav-link" style={{ fontSize: 20 }} onClick={() => setMobileOpen(false)}>How it works</Link>
+          <Link to="/dashboard" className="neo-nav-link" style={{ fontSize: 20 }} onClick={() => setMobileOpen(false)}>Dashboard</Link>
+          <a href="https://github.com/shivbera18/Fyndr" target="_blank" rel="noreferrer" className="neo-nav-link" style={{ fontSize: 20 }} onClick={() => setMobileOpen(false)}>GitHub</a>
           {user ? (
-            <button className="neo-btn neo-btn-dark" style={{ marginTop: 12 }} onClick={() => { setMobileOpen(false); navigate('/dashboard'); }}>Dashboard</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+              <span style={{ fontSize: 14, color: '#676767', fontWeight: 500 }}>Signed in as: <strong>{user.name || user.email?.split('@')[0]}</strong></span>
+              <button className="neo-btn neo-btn-yellow" style={{ padding: '12px 20px', fontSize: 16, width: '100%', justifyContent: 'center' }} onClick={() => { setMobileOpen(false); navigate('/dashboard'); }}>Dashboard</button>
+              <button className="neo-btn neo-btn-white" style={{ padding: '12px 20px', fontSize: 16, width: '100%', justifyContent: 'center' }} onClick={() => { setMobileOpen(false); logout(); }}>Logout</button>
+            </div>
           ) : (
-            <button className="neo-btn neo-btn-dark" style={{ marginTop: 12 }} onClick={() => { setMobileOpen(false); navigate('/login'); }}>Request a quote</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+              <button className="neo-btn neo-btn-white" style={{ padding: '12px 20px', fontSize: 16, width: '100%', justifyContent: 'center' }} onClick={() => { setMobileOpen(false); navigate('/login'); }}>Sign in</button>
+              <button className="neo-btn neo-btn-dark" style={{ padding: '12px 20px', fontSize: 16, width: '100%', justifyContent: 'center' }} onClick={() => { setMobileOpen(false); navigate('/login'); }}>Get started</button>
+            </div>
           )}
         </div>
       )}

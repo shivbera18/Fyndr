@@ -38,9 +38,9 @@ const Login_Register = () => {
     <div style={{ minHeight: '100vh', background: 'hsl(var(--background))', display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'hsl(var(--primary))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--primary-foreground))', fontWeight: 700 }}>◆</span>
-          <span style={{ fontWeight: 700, letterSpacing: '-0.02em', color: 'hsl(var(--foreground))' }}>FYNDR</span>
-          <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', letterSpacing: '0.08em', border: '1px solid hsl(var(--border))', padding: '2px 6px', borderRadius: 9999 }}>RIVET</span>
+          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--dark)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, transform: 'rotate(14deg)', fontSize: 13 }}>✦</span>
+          <span style={{ fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--dark)', fontSize: 20 }}>FYNDR</span>
+          <span style={{ fontSize: 10, color: '#676767', letterSpacing: '0.08em', border: '1px solid #DDDDDD', padding: '2px 6px', borderRadius: 9999 }}>EVENT PHOTOS</span>
         </div>
         <div className="neo-card" style={{ width: '100%', maxWidth: 400 }}>
           <div style={{ marginBottom: 16 }}>
@@ -86,9 +86,9 @@ const Login_Register = () => {
             </form>
           )}
 
-          <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Guest? Ask your photographer for the event QR.</div>
+          <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Guest looking for photos? Scan the QR code provided by your event photographer.</div>
         </div>
-        <div style={{ marginTop: 12, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>© {new Date().getFullYear()} FYNDR • Rivet-inspired</div>
+        <div style={{ marginTop: 16, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>© {new Date().getFullYear()} FYNDR — Fast & Private Event Photography</div>
       </div>
     </div>
   );

@@ -155,7 +155,7 @@ const Home = () => {
         <div className="container">
           <div className="final-cta-grid" style={{ border: '1px solid var(--dark)', background: 'var(--dark)', borderRadius: 45 }}>
             <div>
-              <h2 style={{ color: 'white' }}>Ready to deliver photos at Positivus speed?</h2>
+              <h2 style={{ color: 'white' }}>Ready to deliver photos at Fyndr speed?</h2>
               <p style={{ color: 'rgba(255,255,255,0.8)', marginTop: 12, maxWidth: 560 }}>Free for 5 events. No card. Cancel anytime. Your studio, your brand — zero friction.</p>
               <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
                 <button className="neo-btn" style={{ background: 'var(--green)', color: 'var(--dark)', borderColor: 'var(--dark)' }} onClick={() => navigate('/login')}>Create photographer account</button>

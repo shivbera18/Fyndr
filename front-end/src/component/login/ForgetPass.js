@@ -32,8 +32,8 @@ const ForgetPass = () => {
     <div style={{ minHeight: '100vh', background: 'hsl(var(--background))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
-          <span style={{ width: 24, height: 24, borderRadius: 8, background: 'hsl(var(--primary))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--primary-foreground))', fontWeight: 700, fontSize: 12 }}>◆</span>
-          <span style={{ fontWeight: 700, color: 'hsl(var(--foreground))' }}>FYNDR</span>
+          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--dark)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, transform: 'rotate(14deg)', fontSize: 13 }}>✦</span>
+          <span style={{ fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--dark)', fontSize: 20 }}>FYNDR</span>
         </div>
         <div className="neo-card">
           <h1 style={{ fontSize: 16, fontWeight: 600 }}>{step === 1 ? 'Reset your password' : 'Enter code & new password'}</h1>

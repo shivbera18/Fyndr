@@ -6,7 +6,7 @@ import NeoBadge from '../ui/NeoBadge';
 const Display_event = ({ refresh, onclick, onQrClick }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [fetchError, setFetchError] = useState('');
   const fetchEvents = async () => {
     const userString = localStorage.getItem('user');
     if (!userString) return;
@@ -14,6 +14,7 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
     try {
       const user = JSON.parse(userString);
       setLoading(true);
+      setFetchError('');
       const res = await fetch('http://localhost:5000/display_event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,7 +27,8 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
       } else {
         setEvents([]);
       }
-    } catch (_) {
+    } catch (e) {
+      setFetchError('Could not load events from server. Please verify the API is running.');
       setEvents([]);
     } finally {
       setLoading(false);
@@ -42,6 +44,21 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
       <div className="text-center py-5">
         <div className="spinner-border text-dark" role="status" />
         <p className="mt-2 fw-bold">Loading your events...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="text-center py-5">
+        <NeoCard style={{ maxWidth: '480px', margin: '0 auto' }} header="Connection Notice" headerAccent="coral">
+          <span className="fs-1 d-block mb-2">⚠️</span>
+          <h4>Unable to Load Events</h4>
+          <p style={{ color: '#6B7280', fontWeight: 600 }}>{fetchError}</p>
+          <NeoButton variant="yellow" size="sm" onClick={fetchEvents}>
+            🔄 Retry
+          </NeoButton>
+        </NeoCard>
       </div>
     );
   }
@@ -97,10 +114,13 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
                   <img
                     src={coverUrl}
                     alt={event.event_name}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='100%25' height='100%25' fill='%23F3F4F6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%239CA3AF'%3E📸 Event Gallery%3C/text%3E%3C/svg%3E";
+                    }}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 </div>
-
                 {/* Event Metadata */}
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <div className="d-flex align-items-center gap-1">
