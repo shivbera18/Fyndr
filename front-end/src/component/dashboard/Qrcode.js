@@ -36,6 +36,9 @@ const Qrcode = ({ url, eventName = 'Event' }) => {
           a.click();
           document.body.removeChild(a);
         };
+        img.onerror = () => {
+          console.error('Failed to rasterize SVG QR Code to canvas for download.');
+        };
         img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
       }
     }

@@ -116,7 +116,7 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
                     alt={event.event_name}
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='100%25' height='100%25' fill='%23F3F4F6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%239CA3AF'%3E📸 Event Gallery%3C/text%3E%3C/svg%3E";
+                      e.target.src = "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='100%25' height='100%25' fill='%23F3F4F6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%239CA3AF'%3E%F0%9F%93%B8 Event Gallery%3C/text%3E%3C/svg%3E";
                     }}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
