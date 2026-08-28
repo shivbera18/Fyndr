@@ -50,7 +50,7 @@ Ports: `5000 API`, `5001 ML`, `3000 WEB`, `27017 MONGO`. All `pnpm dev` via `con
 ## Agent Rules
 
 - Prefer `read` + `edit` over `write` new files.
-- Run `node --check` / `python -m py_compile` before push.
+- Run `node --check` / `python -m py_compile` before push (can be skipped for trivial text/CSS-only changes).
 - `pm2 restart` on Oracle after `git pull` (see `DEPLOYMENT.md`).
 - Never commit `*.key`, `*.pem`, `.env`, `venv/`, `node_modules/`, `build/`.
 - **One-command dev must stay working (`pnpm dev`)**.

@@ -39,5 +39,6 @@ This is a strict, continuous loop. Do not skip steps.
 
 ## 6. Pre-Merge Verification & Merge
 - Before merging, the implementer MUST verify that the entire build passes (`npm run build`, `python -m py_compile`, `node --check`) and that the full test suite is green (`npm test`, backend integration tests, etc.).
-- Merge the PR **only** after the PR review loop has yielded a zero-defect approval and all verifications pass.
+  - **Exception for Trivial Changes:** For purely cosmetic updates, typo fixes, simple logging additions, or markdown documentation changes, full build and test suites MAY be skipped to accelerate development. However, any logic, state, dependency, or structural change MUST run the full verification.
+- Merge the PR **only** after the PR review loop has yielded a zero-defect approval and all required verifications pass.
 - Use `gh pr merge <PR-NUMBER> --merge --delete-branch` to finalize the PR.

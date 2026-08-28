@@ -24,7 +24,7 @@ pnpm compose:prod # mongo + api + ml only
 
 ## Tasks You Can Do
 
-- **Fix bug:** `grep -r` then `read` then `edit` with tight `PUT N.=M:` ranges. Verify with `node --check` / `py_compile`.
+- **Fix bug:** `grep -r` then `read` then `edit` with tight `PUT N.=M:` ranges. Verify with `node --check` / `py_compile` and full tests (can be skipped for trivial text/CSS-only changes).
 - **Add feature:** Check `UPGRADE_PLAN.md` P1/P2 first — is it in plan? If not, discuss.
 - **UI:** Use `shadcn` + `Tailwind`, not `antd`+`bootstrap`. See `plot.md` tokens `ink 950` etc.
 - **ML:** `buffalo_s` `det 320` on CPU, `faiss_store.py` per-event, threshold `0.34`. Don't add GPU unless `queue wait>2h`.
