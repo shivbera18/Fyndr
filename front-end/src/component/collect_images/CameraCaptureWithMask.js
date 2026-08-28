@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -15,13 +15,18 @@ const CameraCaptureWithMask = () => {
   const event_id = location.state;
 
   const webcamRef = useRef(null);
+  const uploadedImageUrlRef = useRef(null);
   const [imageSrc, setImageSrc] = useState(null);
   const [matchedPhotos, setMatchedPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [isZoomed, setIsZoomed] = useState(false);
   const [useUploadMode, setUseUploadMode] = useState(false);
+
+  const fallbackPlaceholder =
+    'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E';
 
   const captureAndMatch = async () => {
     if (!webcamRef.current) return;
@@ -46,7 +51,9 @@ const CameraCaptureWithMask = () => {
   const handleFileUpload = async (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageSrc(URL.createObjectURL(file));
+      if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
+      uploadedImageUrlRef.current = URL.createObjectURL(file);
+      setImageSrc(uploadedImageUrlRef.current);
       await processSelfieMatch(file);
     }
   };
@@ -85,25 +92,59 @@ const CameraCaptureWithMask = () => {
   };
 
   const retakeSelfie = () => {
+    if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
+    uploadedImageUrlRef.current = null;
     setImageSrc(null);
     setMatchedPhotos([]);
     setErrorMessage('');
   };
 
+  useEffect(() => () => {
+    if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
+  }, []);
+
+  const getApiBase = () => {
+    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      return `${window.location.protocol}//${window.location.hostname}:5000`;
+    }
+    return 'http://localhost:5000';
+  };
+
   const downloadImage = async (url, filename) => {
+    let diskName = filename;
+    if (!diskName && url) {
+      try {
+        diskName = new URL(url, window.location.origin).pathname.split('/').pop();
+      } catch (_) {
+        diskName = 'matched_photo.jpg';
+      }
+    }
+    diskName = diskName || 'matched_photo.jpg';
+    const displayFilename = diskName.replace(/^\d+-/, '');
+
     try {
       const res = await fetch(url);
+      if (!res.ok) throw new Error('Fetch failed');
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = filename || 'matched_photo.jpg';
+      a.download = displayFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (_) {
-      window.open(url, '_blank');
+      const apiBase = getApiBase();
+      const downloadEndpoint = `${apiBase}/download/${encodeURIComponent(diskName)}`;
+      const a = document.createElement('a');
+      a.href = downloadEndpoint;
+      a.download = displayFilename;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
   };
 
@@ -297,8 +338,8 @@ const CameraCaptureWithMask = () => {
                 <h4 className="fw-black mb-3">YOUR MATCHED PHOTOS ({matchedPhotos.length})</h4>
                 <div className="row g-3">
                   {matchedPhotos.map((photo, idx) => {
-                    const imgUrl = `http://localhost:5000/uploads/${photo.name}`;
-                    const simPercent = Math.round((photo.similarity || 0.9) * 100);
+                    const imgUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                    const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
 
                     return (
                       <div key={photo.id || idx} className="col-6 col-md-4 col-lg-3">
@@ -317,6 +358,10 @@ const CameraCaptureWithMask = () => {
                             <img
                               src={imgUrl}
                               alt={`Matched item ${idx + 1}`}
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = fallbackPlaceholder;
+                              }}
                               style={{
                                 width: '100%',
                                 height: '200px',
@@ -324,7 +369,10 @@ const CameraCaptureWithMask = () => {
                                 cursor: 'pointer',
                                 border: '1.5px solid #121212',
                               }}
-                              onClick={() => setPreviewPhoto({ url: imgUrl, name: photo.name, sim: simPercent })}
+                              onClick={() => {
+                                setPreviewPhoto({ url: imgUrl, name: photo.name, sim: simPercent });
+                                setIsZoomed(false);
+                              }}
                             />
                             {/* Similarity Score Pill */}
                             <span
@@ -345,7 +393,10 @@ const CameraCaptureWithMask = () => {
                             <button
                               type="button"
                               className="btn btn-sm p-0 text-dark fw-bold text-decoration-none"
-                              onClick={() => setPreviewPhoto({ url: imgUrl, name: photo.name, sim: simPercent })}
+                              onClick={() => {
+                                setPreviewPhoto({ url: imgUrl, name: photo.name, sim: simPercent });
+                                setIsZoomed(false);
+                              }}
                             >
                               🔍 View Full
                             </button>
@@ -370,32 +421,76 @@ const CameraCaptureWithMask = () => {
         {/* Fullscreen Photo Preview Modal */}
         <NeoModal
           open={Boolean(previewPhoto)}
-          onClose={() => setPreviewPhoto(null)}
-          title={`PHOTO PREVIEW (${previewPhoto?.sim || 95}% MATCH)`}
+          onClose={() => {
+            setPreviewPhoto(null);
+            setIsZoomed(false);
+          }}
+          title={`PHOTO PREVIEW (${previewPhoto?.sim ?? 95}% MATCH)`}
           accent="yellow"
-          maxWidth="820px"
+          maxWidth="850px"
         >
           {previewPhoto && (
             <div className="text-center">
-              <img
-                src={previewPhoto.url}
-                alt="Full preview"
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '70vh',
-                  objectFit: 'contain',
-                  borderRadius: '8px',
-                  border: '2px solid #121212',
-                }}
-              />
-              <div className="mt-3 d-flex justify-content-center gap-2">
-                <NeoButton
-                  variant="yellow"
-                  size="md"
-                  onClick={() => downloadImage(previewPhoto.url, previewPhoto.name)}
+              <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '50%',
+                  }}
+                  title={previewPhoto.name}
                 >
-                  💾 Download Original High-Res Photo
-                </NeoButton>
+                  📄 {previewPhoto.name ? previewPhoto.name.replace(/^\d+-/, '') : 'Photo'}
+                </div>
+                <div className="d-flex gap-2">
+                  <NeoButton
+                    variant="white"
+                    size="sm"
+                    onClick={() => setIsZoomed((prev) => !prev)}
+                  >
+                    {isZoomed ? '🔍 Fit to Screen' : '🔍 Zoom 100%'}
+                  </NeoButton>
+                  <NeoButton
+                    variant="yellow"
+                    size="sm"
+                    onClick={() => downloadImage(previewPhoto.url, previewPhoto.name)}
+                  >
+                    💾 Download Photo
+                  </NeoButton>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  overflow: isZoomed ? 'auto' : 'hidden',
+                  maxHeight: '65vh',
+                  border: '2px solid #121212',
+                  borderRadius: '8px',
+                  backgroundColor: '#1E1E1E',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: isZoomed ? 'flex-start' : 'center',
+                }}
+              >
+                <img
+                  src={previewPhoto.url}
+                  alt="Full preview"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = fallbackPlaceholder;
+                  }}
+                  style={{
+                    maxWidth: isZoomed ? 'none' : '100%',
+                    maxHeight: isZoomed ? 'none' : '65vh',
+                    objectFit: isZoomed ? 'none' : 'contain',
+                    cursor: isZoomed ? 'zoom-out' : 'zoom-in',
+                    display: 'block',
+                  }}
+                  onClick={() => setIsZoomed((prev) => !prev)}
+                />
               </div>
             </div>
           )}

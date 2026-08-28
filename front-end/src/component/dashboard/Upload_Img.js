@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
@@ -8,19 +8,82 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const filesRef = useRef(selectedFiles);
+  filesRef.current = selectedFiles;
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const USER_ID = user._id || null;
 
+  const formatFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const addFiles = (files) => {
+    if (!files || files.length === 0) return;
+    const fileArray = Array.from(files).filter((file) => file.type.startsWith('image/'));
+    const newItems = fileArray.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      id: `${file.name}-${file.size}-${Math.random().toString(36).substr(2, 9)}`,
+    }));
+    setSelectedFiles((prev) => [...prev, ...newItems]);
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setSelectedFiles((prev) => [...prev, ...filesArray]);
+      addFiles(e.target.files);
+      e.target.value = ''; // Reset input to allow re-selecting the same file
     }
   };
 
-  const removeFile = (index) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeFile = (id) => {
+    setSelectedFiles((prev) => {
+      const item = prev.find((f) => f.id === id);
+      if (item && item.preview) {
+        URL.revokeObjectURL(item.preview);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  const clearAll = () => {
+    selectedFiles.forEach((f) => {
+      if (f.preview) URL.revokeObjectURL(f.preview);
+    });
+    setSelectedFiles([]);
+  };
+
+  useEffect(() => {
+    return () => {
+      filesRef.current.forEach((f) => {
+        if (f.preview) URL.revokeObjectURL(f.preview);
+      });
+    };
+  }, []);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
+    }
   };
 
   const handleUpload = async () => {
@@ -34,11 +97,12 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
     setProgress(0);
 
     let successCount = 0;
+    const failedFiles = [];
 
     for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i];
+      const item = selectedFiles[i];
       const formData = new FormData();
-      formData.append('name', file);
+      formData.append('name', item.file);
       formData.append('event_id', event_id);
       formData.append('upload_by', USER_ID);
 
@@ -50,20 +114,28 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
           timeout: 60000,
         });
 
-        if (response.status === 200 || response.status === 207) {
+        const result = Array.isArray(response.data) ? response.data[0] : response.data;
+        if (!result?.error && result?.status !== 'failed') {
           successCount++;
+          if (item.preview) URL.revokeObjectURL(item.preview);
+        } else {
+          failedFiles.push(item);
         }
       } catch (error) {
-        // continue to next file
+        failedFiles.push(item);
       }
 
       setProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
     }
 
     setLoading(false);
-    if (successCount > 0) {
+    setSelectedFiles(failedFiles);
+
+    if (successCount > 0 && failedFiles.length === 0) {
       setUploadStatus(`✓ Successfully uploaded ${successCount} photo${successCount > 1 ? 's' : ''}!`);
-      setSelectedFiles([]);
+      if (inevent && typeof d_ref === 'function') d_ref();
+    } else if (successCount > 0 && failedFiles.length > 0) {
+      setUploadStatus(`⚠️ Uploaded ${successCount} photos, but ${failedFiles.length} failed. You can retry the remaining queued files.`);
       if (inevent && typeof d_ref === 'function') d_ref();
     } else {
       setUploadStatus(`❌ Failed to upload photos. Please try again.`);
@@ -89,12 +161,18 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
       <div
         className="p-4 text-center mb-3"
         style={{
-          border: '2.5px dashed var(--neo-black)',
+          border: isDragging ? '3px dashed #121212' : '2.5px dashed var(--neo-black)',
           borderRadius: '10px',
-          backgroundColor: 'var(--neo-canvas)',
+          backgroundColor: isDragging ? '#FEF08A' : 'var(--neo-canvas)',
           cursor: 'pointer',
+          transform: isDragging ? 'scale(1.01)' : 'scale(1)',
+          transition: 'all 0.15s ease-in-out',
+          boxShadow: isDragging ? '4px 4px 0px #121212' : 'none',
         }}
         onClick={() => document.getElementById('album-file-input')?.click()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <input
           id="album-file-input"
@@ -104,65 +182,111 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />
-        <span className="fs-1 d-block mb-2">📁</span>
+        <span className="fs-1 d-block mb-2">{isDragging ? '📥' : '📁'}</span>
         <span style={{ fontWeight: 800, fontSize: '1rem', textTransform: 'uppercase' }}>
-          Click to Select Photos or Drag & Drop Here
+          {isDragging ? 'Drop Photos Here to Queue' : 'Click to Select Photos or Drag & Drop Here'}
         </span>
         <small className="d-block mt-1" style={{ color: '#6B7280', fontWeight: 600 }}>
           Supports JPG, PNG, WEBP — Multi-select up to 100 photos at a time
         </small>
       </div>
 
-      {/* Selected Files Count & List Preview */}
+      {/* Selected Files Count & Visual Thumbnail Preview Grid */}
       {selectedFiles.length > 0 && (
         <div className="mb-3">
           <div className="d-flex justify-content-between align-items-center mb-2">
             <span style={{ fontWeight: 800 }}>
-              {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} queued for upload
+              {selectedFiles.length} photo{selectedFiles.length > 1 ? 's' : ''} queued for upload
             </span>
             <button
               type="button"
               className="btn btn-sm p-0 text-danger"
               style={{ fontWeight: 800 }}
-              onClick={() => setSelectedFiles([])}
+              onClick={clearAll}
             >
               Clear All
             </button>
           </div>
 
           <div
-            className="d-flex gap-2 flex-wrap p-2"
+            className="d-flex gap-3 flex-wrap p-2"
             style={{
-              maxHeight: '120px',
+              maxHeight: '260px',
               overflowY: 'auto',
-              border: '2px solid #E5E7EB',
+              border: '2px solid var(--neo-black)',
               borderRadius: '8px',
+              backgroundColor: '#F9FAFB',
             }}
           >
-            {selectedFiles.map((file, idx) => (
-              <span
-                key={idx}
-                className="neo-badge neo-badge-yellow d-inline-flex align-items-center gap-1"
-                style={{ fontSize: '0.75rem' }}
+            {selectedFiles.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  position: 'relative',
+                  width: '100px',
+                  border: '2px solid #121212',
+                  borderRadius: '6px',
+                  backgroundColor: '#FFF',
+                  overflow: 'hidden',
+                  boxShadow: '2px 2px 0px #121212',
+                }}
               >
-                {file.name.slice(0, 16)}...
+                <img
+                  src={item.preview}
+                  alt={item.file.name}
+                  style={{
+                    width: '100%',
+                    height: '75px',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+                <div className="p-1 text-center" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>
+                  <div
+                    style={{
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      fontWeight: 700,
+                    }}
+                    title={item.file.name}
+                  >
+                    {item.file.name}
+                  </div>
+                  <div style={{ color: '#6B7280', fontWeight: 600, fontSize: '0.65rem' }}>
+                    {formatFileSize(item.file.size)}
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeFile(idx);
+                    removeFile(item.id);
                   }}
+                  title="Remove photo"
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
+                    position: 'absolute',
+                    top: '3px',
+                    right: '3px',
+                    backgroundColor: '#FF4D4D',
+                    color: '#FFF',
+                    border: '1.5px solid #121212',
+                    borderRadius: '50%',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     cursor: 'pointer',
                     fontWeight: 900,
+                    fontSize: '11px',
+                    padding: 0,
+                    lineHeight: 1,
                   }}
                 >
                   ✕
                 </button>
-              </span>
+              </div>
             ))}
           </div>
         </div>
