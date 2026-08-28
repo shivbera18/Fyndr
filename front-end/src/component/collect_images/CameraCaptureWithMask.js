@@ -338,8 +338,8 @@ const CameraCaptureWithMask = () => {
                 <h4 className="fw-black mb-3">YOUR MATCHED PHOTOS ({matchedPhotos.length})</h4>
                 <div className="row g-3">
                   {matchedPhotos.map((photo, idx) => {
-                    const imgUrl = `http://localhost:5000/uploads/${photo.name}`;
-                    const simPercent = Math.round((photo.similarity || 0.9) * 100);
+                    const imgUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                    const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
 
                     return (
                       <div key={photo.id || idx} className="col-6 col-md-4 col-lg-3">

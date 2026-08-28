@@ -63,7 +63,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
     }
   };
 
-  const guestUrl = `http://localhost:3000/collect/${eventID}`;
+  const guestUrl = `${window.location.origin}/collect/${eventID}`;
 
   const fetchImages = async () => {
     try {
@@ -227,7 +227,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
         ) : (
           <div className="row g-3">
             {images.map((photo, index) => {
-              const photoUrl = `http://localhost:5000/uploads/${photo.name}`;
+              const photoUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
               return (
                 <div key={photo._id || index} className="col-6 col-md-4 col-lg-3">
                   <div
@@ -255,14 +255,15 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
                         border: '1.5px solid #121212',
                         cursor: 'pointer',
                       }}
-                      onClick={() =>
+                      onClick={() => {
+                        setIsZoomed(false);
                         setPreviewImage({
                           url: photoUrl,
                           name: photo.name,
                           index: index + 1,
                           createdAt: photo.createdAt,
-                        })
-                      }
+                        });
+                      }}
                     />
                     <div className="d-flex justify-content-between align-items-center mt-2 px-1">
                       <small style={{ fontWeight: 700, color: '#6B7280' }}>
