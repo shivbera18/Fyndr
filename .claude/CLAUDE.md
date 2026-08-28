@@ -53,7 +53,12 @@ Ports: `5000 API`, `5001 ML`, `3000 WEB`, `27017 MONGO`. All `pnpm dev` via `con
 - Run `node --check` / `python -m py_compile` before push.
 - `pm2 restart` on Oracle after `git pull` (see `DEPLOYMENT.md`).
 - Never commit `*.key`, `*.pem`, `.env`, `venv/`, `node_modules/`, `build/`.
-- One-command dev must stay working (`pnpm dev`).
+- **One-command dev must stay working (`pnpm dev`)**.
+
+## Worktree / Side-Agent Policy (strict opt-in)
+- `pi-git-worktrees` (`wt_new`/`wt_send`/`wt_wait`/`wt_gather`) and `pi-side-agents` (`/agent`) are installed globally (`~/.omp/agent/config.yml` → `extensions-src/pi-git-worktrees`) but are **strictly opt-in**.
+- Only use worktrees when the user explicitly says so in this turn (`use worktrees`, `/wt-new`, `/agent`, `worktree`, `side-agent`, `parallel worktrees` etc.). Otherwise use normal `task` + `hub` sub-agents (scout, interactive-worker, researcher) which already run in parallel without creating git worktrees.
+- If you think worktrees would help but user didn’t ask, *ask* first via `ask` tool. Do not auto-create worktrees/branches.
 
 ## Current Branch
 
