@@ -12,7 +12,37 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   const [showQrModal, setShowQrModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [isZoomed, setIsZoomed] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const fallbackPlaceholder =
+    'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E';
+
+  const downloadImage = async (url, filename) => {
+    const safeFilename = filename || (url ? url.split('/').pop() : 'photo.jpg');
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Fetch failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = safeFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (_) {
+      const downloadEndpoint = `http://localhost:5000/download/${encodeURIComponent(safeFilename)}`;
+      const a = document.createElement('a');
+      a.href = downloadEndpoint;
+      a.download = safeFilename;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
 
   const guestUrl = `http://localhost:3000/collect/${eventID}`;
 
@@ -194,6 +224,10 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
                     <img
                       src={photoUrl}
                       alt={`Event item ${index + 1}`}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = fallbackPlaceholder;
+                      }}
                       style={{
                         width: '100%',
                         height: '180px',
@@ -202,21 +236,39 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
                         border: '1.5px solid #121212',
                         cursor: 'pointer',
                       }}
-                      onClick={() => setPreviewImage(photoUrl)}
+                      onClick={() =>
+                        setPreviewImage({
+                          url: photoUrl,
+                          name: photo.name,
+                          index: index + 1,
+                          createdAt: photo.createdAt,
+                        })
+                      }
                     />
                     <div className="d-flex justify-content-between align-items-center mt-2 px-1">
                       <small style={{ fontWeight: 700, color: '#6B7280' }}>
                         #{index + 1}
                       </small>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePhoto(photo._id)}
-                        className="btn btn-sm text-danger p-0"
-                        style={{ fontWeight: 800 }}
-                        title="Delete photo"
-                      >
-                        🗑️
-                      </button>
+                      <div className="d-flex gap-1 align-items-center">
+                        <button
+                          type="button"
+                          onClick={() => downloadImage(photoUrl, photo.name)}
+                          className="btn btn-sm p-0 text-dark"
+                          style={{ fontWeight: 800, fontSize: '0.9rem' }}
+                          title="Download photo"
+                        >
+                          💾
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePhoto(photo._id)}
+                          className="btn btn-sm text-danger p-0 ms-1"
+                          style={{ fontWeight: 800, fontSize: '0.9rem' }}
+                          title="Delete photo"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -264,34 +316,84 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
       {/* Photo Preview Modal */}
       <NeoModal
         open={Boolean(previewImage)}
-        onClose={() => setPreviewImage(null)}
-        title="PHOTO PREVIEW"
+        onClose={() => {
+          setPreviewImage(null);
+          setIsZoomed(false);
+        }}
+        title={`PHOTO PREVIEW ${previewImage?.index ? `— #${previewImage.index}` : ''}`}
         accent="yellow"
-        maxWidth="800px"
+        maxWidth="850px"
       >
         {previewImage && (
           <div className="text-center">
-            <img
-              src={previewImage}
-              alt="Preview"
+            {/* Controls Bar */}
+            <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <div className="text-start" style={{ maxWidth: '60%' }}>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={previewImage.name}
+                >
+                  📄 {previewImage.name ? previewImage.name.replace(/^\d+-/, '') : 'Photo'}
+                </div>
+                {previewImage.createdAt && (
+                  <small style={{ color: '#6B7280', fontWeight: 600 }}>
+                    Uploaded: {new Date(previewImage.createdAt).toLocaleString()}
+                  </small>
+                )}
+              </div>
+              <div className="d-flex gap-2">
+                <NeoButton
+                  variant="white"
+                  size="sm"
+                  onClick={() => setIsZoomed((prev) => !prev)}
+                >
+                  {isZoomed ? '🔍 Fit to Screen' : '🔍 Zoom 100%'}
+                </NeoButton>
+                <NeoButton
+                  variant="yellow"
+                  size="sm"
+                  onClick={() => downloadImage(previewImage.url, previewImage.name)}
+                >
+                  💾 Download Original
+                </NeoButton>
+              </div>
+            </div>
+
+            {/* High-Res Image Display */}
+            <div
               style={{
-                maxWidth: '100%',
-                maxHeight: '70vh',
-                objectFit: 'contain',
-                borderRadius: '8px',
+                overflow: isZoomed ? 'auto' : 'hidden',
+                maxHeight: '65vh',
                 border: '2px solid #121212',
+                borderRadius: '8px',
+                backgroundColor: '#1E1E1E',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: isZoomed ? 'flex-start' : 'center',
               }}
-            />
-            <div className="mt-3">
-              <a
-                href={previewImage}
-                download
-                target="_blank"
-                rel="noreferrer"
-                className="neo-btn neo-btn-yellow neo-btn-sm"
-              >
-                💾 Download High-Res File
-              </a>
+            >
+              <img
+                src={previewImage.url}
+                alt="Preview"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = fallbackPlaceholder;
+                }}
+                style={{
+                  maxWidth: isZoomed ? 'none' : '100%',
+                  maxHeight: isZoomed ? 'none' : '65vh',
+                  objectFit: isZoomed ? 'none' : 'contain',
+                  cursor: isZoomed ? 'zoom-out' : 'zoom-in',
+                  display: 'block',
+                }}
+                onClick={() => setIsZoomed((prev) => !prev)}
+              />
             </div>
           </div>
         )}

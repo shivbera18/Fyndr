@@ -117,6 +117,31 @@ const event_profile_up = multer({
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/event_profile', express.static(EVENT_PROFILE_DIR));
 
+app.get('/download/:filename', (req, res) => {
+    try {
+        const filename = req.params.filename;
+        if (!filename) {
+            return res.status(400).json({ error: 'Filename is required' });
+        }
+        const safePath = path.resolve(UPLOAD_DIR, path.basename(filename));
+        if (!safePath.startsWith(path.resolve(UPLOAD_DIR))) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        if (!fs.existsSync(safePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        let originalName = path.basename(filename);
+        const match = originalName.match(/^\d+-(.+)$/);
+        if (match && match[1]) {
+            originalName = match[1];
+        }
+        res.download(safePath, originalName);
+    } catch (err) {
+        logger.error('Download error', err);
+        res.status(500).json({ error: 'Failed to download file' });
+    }
+});
+
 app.post("/register", async (req, resp) => {
     try {
         const { name, email, password } = req.body;
