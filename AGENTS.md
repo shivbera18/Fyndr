@@ -50,11 +50,12 @@ See `docker-compose.dev.yml` / `prod.yml` and `DEPLOYMENT.md`.
 pnpm test # tests/e2e.test.js → register→event→photo→metrics→faiss→match
 ```
 
-## Git
+## Git & PR Review Workflow
 
-- Author must be `shivbera18 <164228363+shivbera18@users.noreply.github.com>` to count (see `git config`).
-- Squashed `init commit` — don't reintroduce `azeem` history.
-- Push to `shivbera18/Fyndr` `main` — Oracle `ssh fyndr "cd ~/pic-share && git pull && pm2 restart all"`.
+- **Author:** Must be `shivbera18 <164228363+shivbera18@users.noreply.github.com>` to count (see `git config`).
+- **PRs & Review:** Follow the mandatory PR review loop defined in [`pr-review-guidelines.md`](pr-review-guidelines.md) (Granular commits → PR → Independent Sub-Agent Review → `gh pr comment` → Fix Loop → Merge).
+- **History:** Squashed `init commit` — don't reintroduce `azeem` history.
+- **Deployment:** Push to `shivbera18/Fyndr` `main` — Oracle `ssh fyndr "cd ~/pic-share && git pull && pm2 restart all"`.
 
 ## ML Model
 
