@@ -4,9 +4,6 @@ import Header from '../navbar/Header';
 import Footer from '../Footer';
 import Slider from './Slider';
 import Goal from './Goal';
-import NeoButton from '../ui/NeoButton';
-import NeoCard from '../ui/NeoCard';
-import NeoBadge from '../ui/NeoBadge';
 import NeoMarquee from '../ui/NeoMarquee';
 import NeoAccordion from '../ui/NeoAccordion';
 
