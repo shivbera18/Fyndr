@@ -4,65 +4,44 @@ import { Link } from 'react-router-dom';
 const Footer = () => {
   return (
     <footer className="neo-footer">
-      <div className="container">
-        <div className="row g-4">
-          <div className="col-12 col-md-5">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{
-                width: 20, height: 20, borderRadius: 6,
-                background: 'hsl(var(--primary))',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: 'hsl(var(--primary-foreground))', fontSize: 10, fontWeight: 700,
-              }}>◆</span>
-              <span style={{ fontWeight: 700, letterSpacing: '-0.02em', color: 'hsl(var(--foreground))' }}>FYNDR</span>
-              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', letterSpacing: '0.08em' }}>ACTORS EDITION</span>
-            </div>
-            <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem', lineHeight: 1.6, maxWidth: 420 }}>
-              Event photo platform inspired by Rivet Actors — durable, serverless, and instant. Upload once, guests find themselves via on-device face search.
-            </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-              <span className="neo-badge">Private</span>
-              <span className="neo-badge neo-badge-yellow">FAISS</span>
-              <span className="neo-badge">No app</span>
-            </div>
-          </div>
+      <div className="container" style={{ maxWidth: 1240, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 30, height: 30, borderRadius: 8, background: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dark)', fontWeight: 700, transform: 'rotate(14deg)' }}>✦</span>
+            <span style={{ fontWeight: 700, fontSize: 20, color: 'white' }}>Positivus</span>
+            <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.6)', borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: 8 }}>FYNDR</span>
+          </span>
+          <nav style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <Link to="/" style={{ color: 'white', textDecoration: 'underline', fontSize: 16 }}>Overview</Link>
+            <Link to="/about" style={{ color: 'white', textDecoration: 'underline', fontSize: 16 }}>How it works</Link>
+            <Link to="/dashboard" style={{ color: 'white', textDecoration: 'underline', fontSize: 16 }}>Dashboard</Link>
+            <Link to="/login" style={{ color: 'white', textDecoration: 'underline', fontSize: 16 }}>Sign in</Link>
+          </nav>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Contact: shiv@fyndr.in</span>
+        </div>
 
-          <div className="col-6 col-md-3">
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: 'hsl(var(--muted-foreground))', marginBottom: 12, textTransform: 'uppercase' }}>Navigation</div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <li><Link to="/" style={{ color: 'hsl(var(--muted-foreground))', textDecoration: 'none', fontSize: 14 }}>Overview</Link></li>
-              <li><Link to="/about" style={{ color: 'hsl(var(--muted-foreground))', textDecoration: 'none', fontSize: 14 }}>About</Link></li>
-              <li><Link to="/login" style={{ color: 'hsl(var(--muted-foreground))', textDecoration: 'none', fontSize: 14 }}>Sign in</Link></li>
-              <li><Link to="/dashboard" style={{ color: 'hsl(var(--muted-foreground))', textDecoration: 'none', fontSize: 14 }}>Dashboard</Link></li>
-            </ul>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'center', background: '#292A32', borderRadius: 14, padding: 24, border: '1px solid #3A3A44' }}>
+          <div style={{ color: 'white' }}>
+            <div style={{ fontWeight: 500, marginBottom: 6 }}>Built for photographers — zero friction.</div>
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.5 }}>Guests scan QR → selfie → instant FAISS match. No app, no password. Selfies purged in 60s.</div>
           </div>
-
-          <div className="col-6 col-md-4">
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: 'hsl(var(--muted-foreground))', marginBottom: 12, textTransform: 'uppercase' }}>Contact</div>
-            <div style={{
-              background: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 8,
-              padding: 12,
-              maxWidth: 300,
-            }}>
-              <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email</div>
-              <div style={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: 14 }}>shiv@fyndr.in</div>
-              <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>Crafted by Shiv Bera</div>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+            <span className="neo-badge" style={{ background: 'var(--green)', color: 'var(--dark)', borderColor: 'var(--dark)' }}>FAISS 512-D</span>
+            <span className="neo-badge" style={{ background: 'white', color: 'var(--dark)' }}>Private</span>
+            <span className="neo-badge" style={{ background: 'white', color: 'var(--dark)' }}>No App</span>
           </div>
         </div>
 
-        <div className="neo-footer-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <span>© {new Date().getFullYear()} FYNDR — Rivet-inspired serverless photos.</span>
+        <div className="neo-footer-bottom" style={{ borderTop: '1px solid rgba(255,255,255,0.12)', marginTop: 24, paddingTop: 16, display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+          <span>© {new Date().getFullYear()} FYNDR — Crafted by Shiv Bera</span>
           <span style={{ display: 'flex', gap: 8 }}>
-            <span className="neo-badge">v1 · actors</span>
-            <span className="neo-badge">dark</span>
+            <Link to="/" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'underline' }}>Privacy Policy</Link>
+            <span>•</span>
+            <span>v1 • Positivus edition</span>
           </span>
         </div>
       </div>
     </footer>
   );
 };
-
 export default Footer;

@@ -23,10 +23,10 @@ describe('Fyndr Web App Routing & Landing', () => {
 
   test('renders features and FAQ section', () => {
     render(<App />);
-    const faqHeading = screen.getByText(/EVERYTHING YOU NEED TO KNOW/i);
+    const faqHeading = screen.getByText(/FAQ/i);
     expect(faqHeading).toBeInTheDocument();
 
-    const subSecondSearch = screen.getByText(/SUB-SECOND SEARCH/i);
-    expect(subSecondSearch).toBeInTheDocument();
+    const servicesHeadings = screen.getAllByText(/Services/i);
+    expect(servicesHeadings.length).toBeGreaterThan(0);
   });
 });

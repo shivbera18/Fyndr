@@ -1,403 +1,358 @@
 /* ==========================================================================
-   FYNDR — RIVET ACTORS INSPIRED DESIGN SYSTEM
-   Adapted from rivet-dev/actors (frontend/packages/components/public/theme.css
-   + frontend/src/index.css). Dark zinc + vivid orange primary, glass, muted.
-   Legacy neo-* classnames are preserved but re-skinned to Rivet's language
-   so existing JSX continues to work without a full rewrite.
+   FYNDR — POSITIVUS INSPIRED DESIGN SYSTEM
+   Adapted from Ivanna-Kutsovol/Positivus
+   White / Dark #191A23 / Green #B9FF66 / Grey #F3F3F3, Space Grotesk,
+   45px radius, 1px #191A23 border + 5px shadow, clean B2B.
+   Legacy neo-* classnames preserved but re-skinned to Positivus.
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --background: 240 6% 4%;
-  --foreground: 0 0% 100%;
-  --card: 240 7% 5%;
-  --card-foreground: 0 0% 100%;
-  --popover: 240 7% 5%;
-  --popover-foreground: 0 0% 100%;
-  --primary: 18.5 100% 50%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 240 5% 7%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 240 5% 9%;
-  --muted-foreground: 240 5% 65%;
-  --accent: 240 5% 9%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 72.2% 50.6%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 240 5% 14%;
-  --input: 240 5% 14%;
-  --ring: 18.5 100% 50%;
-  --radius: 0.625rem;
-  --chart-1: 18.5 100% 50%;
-  --chart-2: 160 60% 45%;
+  --green: #B9FF66;
+  --dark: #191A23;
+  --grey: #F3F3F3;
+  --background: #FFFFFF;
+  --foreground: #191A23;
+  --card: #FFFFFF;
+  --card-foreground: #191A23;
+  --border: #191A23;
+  --input: #191A23;
+  --ring: #B9FF66;
+  --radius: 45px;
 
-  /* Legacy neo tokens mapped to Rivet */
-  --neo-bg: hsl(var(--background));
-  --neo-canvas: hsl(var(--card));
-  --neo-black: hsl(var(--border));
-  --neo-white: hsl(var(--card));
-  --neo-yellow: hsl(var(--primary));
-  --neo-yellow-light: hsl(var(--primary) / 0.12);
-  --neo-lime: hsl(var(--secondary));
-  --neo-lime-light: hsl(var(--muted));
-  --neo-cyan: hsl(var(--muted));
-  --neo-cyan-light: hsl(var(--muted));
-  --neo-coral: hsl(var(--destructive));
-  --neo-coral-light: hsl(var(--destructive) / 0.12);
-  --neo-purple: 262 83% 58%;
-  --neo-purple-light: 270 100% 98%;
-  --neo-orange: hsl(var(--primary));
-  --neo-orange-light: hsl(var(--primary) / 0.12);
-  --neo-gray: hsl(var(--muted));
-  --neo-gray-dark: hsl(var(--muted-foreground));
-  --neo-muted: hsl(var(--muted-foreground));
+  /* hsl fallbacks for legacy components expecting hsl(var(--...)) */
+  --background-hsl: 0 0% 100%;
+  --foreground-hsl: 240 6% 10%;
+  --card-hsl: 0 0% 100%;
+  --border-hsl: 240 6% 10%;
+  --primary-hsl: 84 100% 70%;
+  --primary: 84 100% 70%;
+  --primary-foreground: 240 6% 10%;
 
-  --neo-font-main: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --neo-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Legacy neo tokens mapped to Positivus */
+  --neo-bg: #FFFFFF;
+  --neo-canvas: #F3F3F3;
+  --neo-black: #191A23;
+  --neo-white: #FFFFFF;
+  --neo-yellow: #B9FF66;
+  --neo-yellow-light: #E8FFCC;
+  --neo-lime: #B9FF66;
+  --neo-lime-light: #F3F3F3;
+  --neo-cyan: #F3F3F3;
+  --neo-cyan-light: #FFFFFF;
+  --neo-coral: #191A23;
+  --neo-coral-light: #F3F3F3;
+  --neo-purple: #191A23;
+  --neo-purple-light: #F3F3F3;
+  --neo-orange: #B9FF66;
+  --neo-orange-light: #E8FFCC;
+  --neo-gray: #F3F3F3;
+  --neo-gray-dark: #191A23;
+  --neo-muted: #676767;
 
-  --neo-border-thick: 1px solid hsl(var(--border));
-  --neo-border-regular: 1px solid hsl(var(--border));
-  --neo-border-thin: 1px solid hsl(var(--border));
+  --neo-font-main: 'Space Grotesk', system-ui, sans-serif;
+  --neo-font-mono: 'Space Grotesk', monospace;
+
+  --neo-border-thick: 1px solid #191A23;
+  --neo-border-regular: 1px solid #191A23;
+  --neo-border-thin: 1px solid #191A23;
   --neo-radius-none: 0px;
-  --neo-radius-sm: 6px;
-  --neo-radius-md: 8px;
-  --neo-radius-lg: 12px;
+  --neo-radius-sm: 14px;
+  --neo-radius-md: 14px;
+  --neo-radius-lg: 45px;
   --neo-radius-full: 9999px;
 
-  --neo-shadow-sm: 0 1px 2px hsl(240 6% 4% / 0.06);
-  --neo-shadow-md: 0 1px 3px hsl(240 6% 4% / 0.08), 0 1px 2px hsl(240 6% 4% / 0.06);
-  --neo-shadow-lg: 0 4px 12px hsl(240 6% 4% / 0.12);
-  --neo-shadow-xl: 0 8px 24px hsl(240 6% 4% / 0.16);
-  --neo-shadow-2xl: 0 16px 40px hsl(240 6% 4% / 0.24);
+  --neo-shadow-sm: 0px 2px 0px #191A23;
+  --neo-shadow-md: 0px 5px 0px #191A23;
+  --neo-shadow-lg: 0px 5px 0px #191A23;
+  --neo-shadow-xl: 0px 8px 0px #191A23;
+  --neo-shadow-2xl: 0px 10px 0px #191A23;
 }
 
-/* Base */
-* { box-sizing: border-box; border-color: hsl(var(--border)); }
-html { color-scheme: dark; }
+* { box-sizing: border-box; }
+html { color-scheme: light; scroll-behavior: smooth; }
 body {
   margin: 0;
   padding: 0;
   font-family: var(--neo-font-main);
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--background);
+  color: var(--foreground);
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
   background-image: none;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 60px 20px 0 20px;
 }
+@media (max-width: 1440px) { body { max-width: 100%; padding: 60px 40px 0 40px; } }
+@media (max-width: 800px) { body { padding: 30px 20px 0 20px; } }
+
 #root { min-height: 100vh; }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--neo-font-main);
-  font-weight: 600;
-  color: hsl(var(--foreground));
+  font-weight: 500;
+  color: var(--foreground);
   letter-spacing: -0.02em;
   margin-top: 0;
+  line-height: 1.1;
 }
-h1 { font-size: 2.25rem; line-height: 1.15; font-weight: 700; }
-h2 { font-size: 1.875rem; line-height: 1.2; }
-h3 { font-size: 1.5rem; line-height: 1.25; }
-h4 { font-size: 1.2rem; line-height: 1.3; }
-h5 { font-size: 1rem; line-height: 1.4; }
-p { font-weight: 400; line-height: 1.6; color: hsl(var(--muted-foreground)); }
-a { color: hsl(var(--primary)); }
+h1 { font-size: 60px; font-weight: 500; }
+h2 { font-size: 40px; font-weight: 500; }
+h3 { font-size: 30px; font-weight: 500; }
+h4 { font-size: 20px; }
+@media (max-width: 1024px) { h1 { font-size: 43px; } h2 { font-size: 36px; } h3 { font-size: 26px; } }
+@media (max-width: 800px) { h1 { font-size: 34px; } h2 { font-size: 28px; } }
 
-/* Rivet primitives ported from actors */
-.glass {
-  background: hsl(var(--card) / 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid hsl(0 0% 100% / 0.08);
-}
-.glass-strong {
-  background: hsl(var(--card) / 0.92);
-  backdrop-filter: blur(16px);
-  border: 1px solid hsl(0 0% 100% / 0.08);
-}
-.glow-accent {
-  box-shadow: 0 0 24px hsl(var(--primary) / 0.28);
-}
-.shine-top { position: relative; }
-.shine-top::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(255,255,255,0.12), transparent);
-  pointer-events: none;
-}
-.text-gradient-accent {
-  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--primary) / 0.68));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+p { font-weight: 400; line-height: 1.6; color: #191A23; font-size: 18px; }
+@media (max-width: 800px) { p { font-size: 16px; line-height: 24px; } }
+a { color: inherit; text-decoration: none; }
 
-/* NeoButton -> Rivet Button */
+/* Positivus Button */
 .neo-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-family: var(--neo-font-main);
-  font-weight: 500;
-  font-size: 0.875rem;
-  letter-spacing: -0.01em;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 28px;
   text-decoration: none;
-  padding: 8px 16px;
-  height: 36px;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid transparent;
-  background: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
+  padding: 18px 32px;
+  border-radius: 14px;
+  border: 1px solid var(--dark);
+  background: var(--dark);
+  color: #FFFFFF;
   box-shadow: none;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
   user-select: none;
   text-transform: none;
+  height: auto;
 }
-.neo-btn:hover {
-  transform: none;
-  box-shadow: none;
-  background: hsl(var(--secondary) / 0.9);
-  color: hsl(var(--secondary-foreground));
-}
-.neo-btn:active { transform: none; box-shadow: none; }
-.neo-btn:disabled, .neo-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+.neo-btn:hover { transform: translateY(-1px); box-shadow: none; }
+.neo-btn:active { transform: translateY(0); }
+.neo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.neo-btn-yellow { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
-.neo-btn-yellow:hover { background: hsl(var(--primary) / 0.92); color: hsl(var(--primary-foreground)); }
-.neo-btn-dark { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
-.neo-btn-dark:hover { background: hsl(var(--primary) / 0.92); color: hsl(var(--primary-foreground)); }
-.neo-btn-lime, .neo-btn-cyan, .neo-btn-purple, .neo-btn-orange { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border-color: hsl(var(--border)); }
-.neo-btn-lime:hover, .neo-btn-cyan:hover, .neo-btn-purple:hover, .neo-btn-orange:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
-.neo-btn-coral { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); border-color: hsl(var(--destructive)); }
-.neo-btn-coral:hover { background: hsl(var(--destructive) / 0.9); color: hsl(var(--destructive-foreground)); }
-.neo-btn-white { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border-color: hsl(var(--border)); }
-.neo-btn-white:hover { background: hsl(var(--accent)); }
+.neo-btn-yellow { background: var(--green); color: var(--dark); border-color: var(--dark); }
+.neo-btn-yellow:hover { background: #a8eb5c; color: var(--dark); }
+.neo-btn-dark { background: var(--dark); color: #FFFFFF; border-color: var(--dark); }
+.neo-btn-dark:hover { background: #23243a; }
+.neo-btn-white { background: #FFFFFF; color: var(--dark); border-color: var(--dark); }
+.neo-btn-white:hover { background: var(--grey); }
+.neo-btn-lime { background: var(--green); color: var(--dark); border-color: var(--dark); }
+.neo-btn-cyan { background: var(--grey); color: var(--dark); border-color: var(--dark); }
+.neo-btn-coral { background: var(--dark); color: #FFFFFF; border-color: var(--dark); }
+.neo-btn-purple { background: var(--dark); color: #FFFFFF; border-color: var(--dark); }
+.neo-btn-orange { background: var(--green); color: var(--dark); border-color: var(--dark); }
 
-.neo-btn-sm { font-size: 0.8125rem; padding: 6px 12px; height: 32px; border: 1px solid hsl(var(--border)); box-shadow: none; }
-.neo-btn-lg { font-size: 0.9375rem; padding: 10px 20px; height: 40px; border-radius: var(--radius); }
+.neo-btn-sm { font-size: 16px; padding: 12px 20px; border-radius: 14px; }
+.neo-btn-lg { font-size: 20px; padding: 20px 35px; border-radius: 14px; }
 .neo-btn-full { width: 100%; }
 
-/* NeoCard -> Rivet Card */
+/* Positivus Card — 45px radius, 1px border + 5px shadow */
 .neo-card {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: 12px;
-  box-shadow: 0 1px 2px hsl(240 6% 4% / 0.06);
-  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--dark);
+  border-radius: 45px;
+  box-shadow: 0px 5px 0px var(--dark);
+  padding: 50px;
   position: relative;
-  transition: border-color 0.15s, background 0.15s;
+  transition: transform 0.12s;
   overflow: hidden;
 }
-.neo-card-hover:hover {
-  transform: none;
-  box-shadow: 0 4px 12px hsl(240 6% 4% / 0.12);
-  border-color: hsl(var(--border) / 0.9);
-}
+@media (max-width: 800px) { .neo-card { padding: 30px; border-radius: 30px; } }
+.neo-card-hover:hover { transform: translateY(-2px); box-shadow: 0px 8px 0px var(--dark); }
 .neo-card-header-bar {
-  margin: -20px -20px 16px -20px;
-  padding: 12px 16px;
-  border-bottom: 1px solid hsl(var(--border));
-  font-weight: 600;
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  margin: -50px -50px 24px -50px;
+  padding: 18px 50px;
+  border-bottom: 1px solid var(--dark);
+  font-weight: 500;
+  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-radius: 45px 45px 0 0;
 }
-.neo-card-header-yellow { background: hsl(var(--card)); color: hsl(var(--foreground)); }
-.neo-card-header-cyan { background: hsl(var(--card)); color: hsl(var(--foreground)); }
-.neo-card-header-lime { background: hsl(var(--card)); color: hsl(var(--foreground)); }
-.neo-card-header-coral { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
-.neo-card-header-purple { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
-.neo-card-header-dark { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+@media (max-width: 800px) { .neo-card-header-bar { margin: -30px -30px 20px -30px; padding: 16px 30px; border-radius: 30px 30px 0 0; } }
+.neo-card-header-yellow { background: var(--green); color: var(--dark); }
+.neo-card-header-cyan { background: var(--grey); color: var(--dark); }
+.neo-card-header-lime { background: var(--green); color: var(--dark); }
+.neo-card-header-coral { background: var(--dark); color: #FFFFFF; }
+.neo-card-header-purple { background: var(--dark); color: #FFFFFF; }
+.neo-card-header-dark { background: var(--dark); color: #FFFFFF; }
 
-/* NeoBadge -> Rivet Badge */
+/* Positivus Badge — small pill with border */
 .neo-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-family: var(--neo-font-main);
-  font-weight: 500;
-  font-size: 0.6875rem;
+  font-weight: 400;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 8px;
-  height: 20px;
-  border-radius: 9999px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--dark);
+  background: var(--green);
+  color: var(--dark);
   box-shadow: none;
 }
-.neo-badge-lime { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
-.neo-badge-cyan { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
-.neo-badge-coral { background: hsl(var(--destructive) / 0.14); color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.2); }
-.neo-badge-purple { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
-.neo-badge-dark { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
-.neo-badge-white { background: hsl(var(--secondary)); }
-.neo-badge-yellow { background: hsl(var(--primary) / 0.14); color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.22); }
+.neo-badge-lime { background: var(--green); color: var(--dark); }
+.neo-badge-cyan { background: var(--grey); color: var(--dark); }
+.neo-badge-coral { background: var(--dark); color: #FFFFFF; }
+.neo-badge-purple { background: var(--dark); color: #FFFFFF; }
+.neo-badge-dark { background: var(--dark); color: #FFFFFF; }
+.neo-badge-white { background: #FFFFFF; color: var(--dark); }
+.neo-badge-yellow { background: var(--green); color: var(--dark); }
 
-/* Inputs -> Rivet Input */
-.neo-input-group { margin-bottom: 14px; text-align: left; }
-.neo-label {
-  display: block;
-  font-weight: 500;
-  font-size: 0.8125rem;
-  margin-bottom: 6px;
-  color: hsl(var(--foreground));
-  text-transform: none;
-  letter-spacing: -0.01em;
-}
+/* Inputs — Positivus style: 1px border, 14px radius, 18px padding */
+.neo-input-group { margin-bottom: 16px; text-align: left; }
+.neo-label { display: block; font-weight: 400; font-size: 14px; margin-bottom: 8px; color: var(--dark); text-transform: none; letter-spacing: 0; }
 .neo-input, .neo-textarea, .neo-select {
   width: 100%;
   font-family: var(--neo-font-main);
-  font-size: 0.875rem;
+  font-size: 16px;
   font-weight: 400;
-  padding: 8px 12px;
-  height: 36px;
-  background: hsl(var(--background));
-  border: 1px solid hsl(var(--input));
-  border-radius: calc(var(--radius) - 2px);
-  color: hsl(var(--foreground));
+  padding: 16px 20px;
+  height: 56px;
+  background: #FFFFFF;
+  border: 1px solid var(--dark);
+  border-radius: 14px;
+  color: var(--dark);
   outline: none;
   box-shadow: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.neo-textarea { height: auto; min-height: 80px; padding: 10px 12px; }
+.neo-textarea { height: auto; min-height: 100px; }
 .neo-input:focus, .neo-textarea:focus, .neo-select:focus {
   transform: none;
-  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.22);
-  border-color: hsl(var(--ring));
-  background: hsl(var(--background));
+  box-shadow: 0 0 0 2px rgba(185,255,102,0.4);
+  border-color: var(--dark);
 }
-.neo-input::placeholder, .neo-textarea::placeholder { color: hsl(var(--muted-foreground)); font-weight: 400; }
+.neo-input::placeholder { color: #898989; }
 
-/* Modal */
+/* Modal — Positivus card style */
 .neo-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: hsl(240 6% 4% / 0.72);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1050;
-  padding: 16px;
+  position: fixed; inset: 0;
+  background: rgba(25,26,35,0.55);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1050; padding: 16px;
 }
 .neo-modal-content {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: 12px;
-  box-shadow: 0 16px 40px hsl(240 6% 4% / 0.32);
-  max-width: 520px;
-  width: 100%;
-  overflow: hidden;
+  background: #FFFFFF;
+  border: 1px solid var(--dark);
+  border-radius: 45px;
+  box-shadow: 0px 5px 0px var(--dark);
+  max-width: 520px; width: 100%; overflow: hidden;
   animation: neoModalPop 0.18s ease;
 }
-@keyframes neoModalPop { 0% { transform: scale(0.98) translateY(4px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
-.neo-modal-header {
-  background: hsl(var(--card));
-  padding: 14px 16px;
-  border-bottom: 1px solid hsl(var(--border));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-.neo-modal-body { padding: 20px; }
-.neo-modal-footer {
-  padding: 14px 16px;
-  background: hsl(var(--muted) / 0.5);
-  border-top: 1px solid hsl(var(--border));
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
+@keyframes neoModalPop { 0% { transform: scale(0.98) translateY(6px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+.neo-modal-header { background: var(--green); padding: 18px 24px; border-bottom: 1px solid var(--dark); display: flex; align-items: center; justify-content: space-between; font-weight: 500; }
+.neo-modal-body { padding: 24px; }
+.neo-modal-footer { padding: 16px 24px; background: var(--grey); border-top: 1px solid var(--dark); display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 
-/* Marquee - more subtle, rivet dark */
-.neo-marquee-container:hover .neo-marquee-track { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) {
-  .neo-marquee-track { animation: none !important; }
-}
+/* Marquee — Positivus grey strip */
+.neo-marquee-container { background: var(--grey) !important; border-top: 1px solid var(--dark) !important; border-bottom: 1px solid var(--dark) !important; }
 @keyframes neoMarqueeScroll { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); background-clip: padding-box; }
+.neo-marquee-container:hover .neo-marquee-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .neo-marquee-track { animation: none !important; } }
 
-/* Navbar -> Rivet dark top bar */
+/* Scrollbar — Positivus minimal */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #FFFFFF; }
+::-webkit-scrollbar-thumb { background: var(--dark); border-radius: 9999px; }
+
+/* Navbar — Positivus fixed white header */
 .neo-nav {
-  background: hsl(var(--background) / 0.8);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid hsl(var(--border));
+  background: var(--background);
+  border-bottom: none;
   box-shadow: none;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  padding: 10px 0;
-  height: 56px;
+  position: fixed;
+  top: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 1240px;
+  padding: 32px 0 16px 0;
+  height: auto;
+  z-index: 20;
+  display: grid;
 }
-.neo-nav-container { display: flex; align-items: center; justify-content: space-between; max-width: 1280px; margin: 0 auto; padding: 0 16px; height: 100%; }
-.neo-brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-size: 1rem; font-weight: 700; color: hsl(var(--foreground)); letter-spacing: -0.02em; }
+@media (max-width: 1440px) { .neo-nav { padding: 32px 40px 16px 40px; max-width: 100%; } }
+@media (max-width: 800px) { .neo-nav { padding: 20px 20px 12px 20px; } }
+.neo-nav-container { display: grid; grid-template-columns: 1fr 2fr; align-items: center; max-width: 1240px; margin: 0 auto; padding: 0; width: 100%; }
+.neo-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-size: 1.5rem; font-weight: 700; color: var(--dark); letter-spacing: -0.02em; }
 .neo-brand-badge {
-  background: hsl(var(--primary));
-  border: 1px solid hsl(var(--primary));
-  box-shadow: none;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: hsl(var(--primary-foreground));
-  transform: none;
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--dark);
+  border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--green); font-size: 16px; font-weight: 700;
+  transform: none; box-shadow: none; padding: 0;
 }
-.neo-nav-links { display: flex; align-items: center; gap: 4px; }
-.neo-nav-link {
-  font-weight: 500;
-  font-size: 0.875rem;
-  color: hsl(var(--muted-foreground));
-  text-decoration: none;
-  position: relative;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-.neo-nav-link:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); text-decoration: none; }
+.neo-nav-links { display: flex; align-items: center; gap: 32px; justify-content: flex-end; }
+.neo-nav-link { font-weight: 400; font-size: 18px; color: var(--dark); text-decoration: none; padding: 8px 12px; border-radius: 8px; transition: background 0.15s; }
+.neo-nav-link:hover { background: var(--green); color: var(--dark); text-decoration: none; }
 
-/* Footer -> Rivet muted footer */
+/* Footer — Positivus dark block */
 .neo-footer {
-  background: hsl(var(--card));
-  color: hsl(var(--muted-foreground));
-  border-top: 1px solid hsl(var(--border));
-  padding: 32px 0 20px 0;
-  margin-top: 64px;
+  background: var(--dark);
+  color: #FFFFFF;
+  border-top: none;
+  padding: 55px 60px 30px 60px;
+  margin-top: 80px;
+  border-radius: 45px 45px 0 0;
 }
+@media (max-width: 800px) { .neo-footer { padding: 40px 20px 20px 20px; border-radius: 30px 30px 0 0; } }
 .neo-footer-bottom {
-  border-top: 1px solid hsl(var(--border));
-  margin-top: 24px;
-  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  margin-top: 32px; padding-top: 20px;
   text-align: center;
-  font-weight: 400;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.8125rem;
+  font-weight: 400; color: #FFFFFF; font-size: 14px;
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
 }
 
-/* Rivet card image tweaks */
-.neo-image-card { border: 1px solid hsl(var(--border)) !important; box-shadow: none !important; }
-.neo-image-card figcaption { border-top: 1px solid hsl(var(--border)) !important; }
+.neo-highlight { display: inline; background: var(--green); padding: 2px 8px; border-radius: 7px; border: none; box-shadow: none; transform: none; }
+.neo-image-card { border: 1px solid var(--dark) !important; border-radius: 45px !important; box-shadow: 0px 5px 0px var(--dark) !important; overflow: hidden; }
+.neo-image-card figcaption { border-top: 1px solid var(--dark) !important; background: #FFFFFF !important; }
 
-/* Utility */
-.container { max-width: 1280px; }
+.container { max-width: 1240px; padding-left: 0; padding-right: 0; }
 
-/* Responsive */
-@media (max-width: 768px) {
-  h1 { font-size: 1.875rem; }
-  h2 { font-size: 1.5rem; }
-  h3 { font-size: 1.25rem; }
-  .neo-nav-links { gap: 4px; }
-  .neo-btn { padding: 8px 14px; font-size: 0.8125rem; height: 36px; }
+/* Positivus grey hero variant */
+.positivus-hero {
+  display: flex;
+  gap: 80px;
+  align-items: center;
+  background: var(--grey);
+  border: 1px solid var(--dark);
+  border-radius: 45px;
+  padding: 50px 60px;
+  box-shadow: 0px 5px 0px var(--dark);
+  margin: 40px 0;
 }
+@media (max-width: 1024px) { .positivus-hero { gap: 40px; padding: 40px; } }
+@media (max-width: 800px) { .positivus-hero { flex-direction: column; padding: 30px 20px; gap: 24px; } }
+
+/* Service cards — Positivus 2-col grid with color variants */
+.service-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+@media (max-width: 800px) { .service-grid { grid-template-columns: 1fr; gap: 20px; } }
+.service-card {
+  border: 1px solid var(--dark);
+  border-radius: 45px;
+  box-shadow: 0px 5px 0px var(--dark);
+  padding: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 310px;
+  position: relative;
+  overflow: hidden;
+}
+.service-card.white { background: #FFFFFF; }
+.service-card.green { background: var(--green); }
+.service-card.dark { background: var(--dark); color: #FFFFFF; }
+.service-card.dark p, .service-card.dark h3 { color: #FFFFFF; }
+
+@media (max-width: 800px) { .service-card { padding: 30px; min-height: auto; flex-direction: column; gap: 20px; } }
