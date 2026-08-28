@@ -1,8 +1,6 @@
-
 import './App.css';
-import './component/Style-css/Footer-Header.css'
-import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min';
+
 
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import CollectEvent from './component/collect_images/Collect_event';

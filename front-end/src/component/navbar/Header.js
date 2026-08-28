@@ -50,7 +50,7 @@ const Header = () => {
         <Link to="/" style={{ textDecoration: 'none' }}><Logo /></Link>
 
         {!isMobile ? (
-          <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
             <nav className="neo-nav-links">
               <Link to="/" className="neo-nav-link">Overview</Link>
               <Link to="/about" className="neo-nav-link">How it works</Link>
@@ -62,7 +62,7 @@ const Header = () => {
                 <>
                   <span style={{ fontSize: 13, color: '#676767' }}>{user.name || user.email?.split('@')[0]}</span>
                   <button className="neo-btn neo-btn-yellow" style={{ padding: '12px 20px', fontSize: 16 }} onClick={() => navigate('/dashboard')}>Dashboard</button>
-                  <button className="neo-btn neo-btn-white" style={{ padding: '12px 20px', fontSize: 16 }} onClick={logout}>Sign out</button>
+                  <button className="neo-btn neo-btn-white" style={{ padding: '12px 20px', fontSize: 16 }} onClick={logout}>Logout</button>
                 </>
               ) : (
                 <>
@@ -71,7 +71,7 @@ const Header = () => {
                 </>
               )}
             </div>
-          </>
+          </div>
         ) : (
           <div style={{ display: 'grid', justifyContent: 'end' }}>
             <button

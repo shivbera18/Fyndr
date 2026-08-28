@@ -20,7 +20,7 @@ const Footer = () => {
           <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Contact: shiv@fyndr.in</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'center', background: '#292A32', borderRadius: 14, padding: 24, border: '1px solid #3A3A44' }}>
+        <div className="footer-mid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'center', background: '#292A32', borderRadius: 14, padding: 24, border: '1px solid #3A3A44' }}>
           <div style={{ color: 'white' }}>
             <div style={{ fontWeight: 500, marginBottom: 6 }}>Built for photographers — zero friction.</div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.5 }}>Guests scan QR → selfie → instant FAISS match. No app, no password. Selfies purged in 60s.</div>

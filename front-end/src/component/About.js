@@ -14,7 +14,7 @@ const About = () => {
           <p style={{ maxWidth: 580, fontSize: 16, lineHeight: 1.5 }}>Zero-friction event photos — built for photographers who want durability without the complexity. Inspired by Rivet Actors and Positivus clarity.</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, marginBottom: 32 }}>
+        <div className="about-two-col">
           <div className="neo-card">
             <div style={{ fontSize: 11, letterSpacing: '0.08em', color: '#676767', fontWeight: 600 }}>PROBLEM</div>
             <h3 style={{ marginTop: 8 }}>The 5,000 photo nightmare</h3>
@@ -37,7 +37,7 @@ const About = () => {
 
         <div className="neo-card" style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 11, letterSpacing: '0.08em', color: '#676767', fontWeight: 600, marginBottom: 12 }}>STACK • POSITIVUS GRADE</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+          <div className="about-four-col">
             {[
               ['FRONTEND', 'React 18 • Positivus'],
               ['API', 'Node 20 • Express'],

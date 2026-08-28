@@ -103,13 +103,8 @@ width: 700px;
 
 .App {
   display: flex;
-  text-align: center;
   flex-direction: column;
   min-height: 100vh;
-  
-  
-  
-  
 }
 
 

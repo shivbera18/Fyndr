@@ -12,7 +12,7 @@ const Home = () => {
 
       {/* HERO — Positivus style: split text / illustration */}
       <section style={{ padding: '40px 0 0 0' }}>
-        <div className="container" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 40, alignItems: 'center' }}>
+        <div className="container hero-grid">
           <div>
             <h1 style={{ fontSize: 58, lineHeight: 1, fontWeight: 500, letterSpacing: '-0.02em' }}>
               Find yourself in <span style={{ background: 'var(--green)', padding: '2px 10px', borderRadius: 7 }}>every</span> event photo
@@ -49,7 +49,7 @@ const Home = () => {
 
       {/* Trust strip — Positivus logoSlider */}
       <section style={{ marginTop: 32, borderTop: '1px solid #DDDDDD', borderBottom: '1px solid #DDDDDD', padding: '18px 0', overflow: 'hidden' }}>
-        <div className="container" style={{ display: 'flex', gap: 32, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', color: '#676767', fontSize: 13, fontWeight: 500 }}>
+        <div className="container trust-strip-inner" style={{ color: '#676767', fontSize: 13, fontWeight: 500 }}>
           <span>Trusted by studios</span>
           <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontWeight: 600, color: '#191A23' }}>
             <span>◆ APEX STUDIO</span><span>● MOMENT FRAME</span><span>⬢ LUMEN WEDDINGS</span><span>⬣ SHUTTER CO.</span>
@@ -121,7 +121,7 @@ const Home = () => {
       {/* CTA — Positivus Article style */}
       <section style={{ padding: '20px 0' }}>
         <div className="container">
-          <div style={{ background: 'var(--grey)', border: '1px solid var(--dark)', borderRadius: 45, padding: '50px 60px', display: 'flex', gap: 40, alignItems: 'center', boxShadow: '0px 5px 0px var(--dark)', flexWrap: 'wrap' }}>
+          <div className="cta-flex">
             <div style={{ flex: 1, minWidth: 280 }}>
               <h3 style={{ fontSize: 30 }}>Let’s make things happen</h3>
               <p style={{ marginTop: 12, color: '#191A23', maxWidth: 520 }}>Create your first event in 60 seconds. Upload high-res photos, share a QR, and let guests find themselves — durable, serverless, private.</p>
@@ -153,7 +153,7 @@ const Home = () => {
       {/* Final CTA — dark block like Positivus contact */}
       <section style={{ padding: '20px 0 40px 0' }}>
         <div className="container">
-          <div style={{ background: 'var(--dark)', borderRadius: 45, padding: 50, display: 'grid', gridTemplateColumns: '1fr 340px', gap: 32, alignItems: 'center', color: 'white', border: '1px solid var(--dark)' }}>
+          <div className="final-cta-grid" style={{ border: '1px solid var(--dark)', background: 'var(--dark)', borderRadius: 45 }}>
             <div>
               <h2 style={{ color: 'white' }}>Ready to deliver photos at Positivus speed?</h2>
               <p style={{ color: 'rgba(255,255,255,0.8)', marginTop: 12, maxWidth: 560 }}>Free for 5 events. No card. Cancel anytime. Your studio, your brand — zero friction.</p>
