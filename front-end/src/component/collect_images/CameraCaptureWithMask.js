@@ -94,8 +94,26 @@ const CameraCaptureWithMask = () => {
     setErrorMessage('');
   };
 
+  const getApiBase = () => {
+    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      return `${window.location.protocol}//${window.location.hostname}:5000`;
+    }
+    return 'http://localhost:5000';
+  };
+
   const downloadImage = async (url, filename) => {
-    const safeFilename = filename || (url ? url.split('/').pop() : 'matched_photo.jpg');
+    let diskName = filename;
+    if (!diskName && url) {
+      try {
+        diskName = new URL(url, window.location.origin).pathname.split('/').pop();
+      } catch (_) {
+        diskName = 'matched_photo.jpg';
+      }
+    }
+    diskName = diskName || 'matched_photo.jpg';
+    const displayFilename = diskName.replace(/^\d+-/, '');
+
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error('Fetch failed');
@@ -103,16 +121,17 @@ const CameraCaptureWithMask = () => {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = safeFilename;
+      a.download = displayFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (_) {
-      const downloadEndpoint = `http://localhost:5000/download/${encodeURIComponent(safeFilename)}`;
+      const apiBase = getApiBase();
+      const downloadEndpoint = `${apiBase}/download/${encodeURIComponent(diskName)}`;
       const a = document.createElement('a');
       a.href = downloadEndpoint;
-      a.download = safeFilename;
+      a.download = displayFilename;
       a.target = '_blank';
       document.body.appendChild(a);
       a.click();
@@ -394,7 +413,7 @@ const CameraCaptureWithMask = () => {
             setPreviewPhoto(null);
             setIsZoomed(false);
           }}
-          title={`PHOTO PREVIEW (${previewPhoto?.sim || 95}% MATCH)`}
+          title={`PHOTO PREVIEW (${previewPhoto?.sim ?? 95}% MATCH)`}
           accent="yellow"
           maxWidth="850px"
         >

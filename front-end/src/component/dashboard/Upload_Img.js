@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
@@ -9,6 +9,8 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
   const [uploadStatus, setUploadStatus] = useState('');
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const filesRef = useRef(selectedFiles);
+  filesRef.current = selectedFiles;
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const USER_ID = user._id || null;
@@ -57,11 +59,11 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
 
   useEffect(() => {
     return () => {
-      selectedFiles.forEach((f) => {
+      filesRef.current.forEach((f) => {
         if (f.preview) URL.revokeObjectURL(f.preview);
       });
     };
-  }, [selectedFiles]);
+  }, []);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -95,11 +97,12 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
     setProgress(0);
 
     let successCount = 0;
+    const failedFiles = [];
 
     for (let i = 0; i < selectedFiles.length; i++) {
-      const { file } = selectedFiles[i];
+      const item = selectedFiles[i];
       const formData = new FormData();
-      formData.append('name', file);
+      formData.append('name', item.file);
       formData.append('event_id', event_id);
       formData.append('upload_by', USER_ID);
 
@@ -113,18 +116,25 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
 
         if (response.status === 200 || response.status === 207) {
           successCount++;
+          if (item.preview) URL.revokeObjectURL(item.preview);
+        } else {
+          failedFiles.push(item);
         }
       } catch (error) {
-        // continue to next file
+        failedFiles.push(item);
       }
 
       setProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
     }
 
     setLoading(false);
-    if (successCount > 0) {
+    setSelectedFiles(failedFiles);
+
+    if (successCount > 0 && failedFiles.length === 0) {
       setUploadStatus(`✓ Successfully uploaded ${successCount} photo${successCount > 1 ? 's' : ''}!`);
-      clearAll();
+      if (inevent && typeof d_ref === 'function') d_ref();
+    } else if (successCount > 0 && failedFiles.length > 0) {
+      setUploadStatus(`⚠️ Uploaded ${successCount} photos, but ${failedFiles.length} failed. You can retry the remaining queued files.`);
       if (inevent && typeof d_ref === 'function') d_ref();
     } else {
       setUploadStatus(`❌ Failed to upload photos. Please try again.`);

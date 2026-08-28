@@ -120,22 +120,30 @@ app.use('/event_profile', express.static(EVENT_PROFILE_DIR));
 app.get('/download/:filename', (req, res) => {
     try {
         const filename = req.params.filename;
-        if (!filename) {
+        if (!filename || typeof filename !== 'string') {
             return res.status(400).json({ error: 'Filename is required' });
         }
-        const safePath = path.resolve(UPLOAD_DIR, path.basename(filename));
-        if (!safePath.startsWith(path.resolve(UPLOAD_DIR))) {
+        const baseName = path.basename(filename);
+        const resolvedUploadDir = path.resolve(UPLOAD_DIR) + path.sep;
+        const safePath = path.resolve(UPLOAD_DIR, baseName);
+        if (!safePath.startsWith(resolvedUploadDir)) {
             return res.status(403).json({ error: 'Access denied' });
         }
         if (!fs.existsSync(safePath)) {
             return res.status(404).json({ error: 'File not found' });
         }
-        let originalName = path.basename(filename);
+        let originalName = baseName;
         const match = originalName.match(/^\d+-(.+)$/);
         if (match && match[1]) {
             originalName = match[1];
         }
-        res.download(safePath, originalName);
+        const sanitizedOriginalName = originalName.replace(/[\r\n"\x00-\x1f\\]/g, '_').slice(0, 255);
+        res.download(safePath, sanitizedOriginalName, (err) => {
+            if (err && !res.headersSent) {
+                logger.error('Download stream error', err);
+                res.status(500).json({ error: 'Failed to stream download' });
+            }
+        });
     } catch (err) {
         logger.error('Download error', err);
         res.status(500).json({ error: 'Failed to download file' });
