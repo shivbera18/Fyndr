@@ -1,41 +1,19 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Header from '../navbar/Header';
-import Footer from '../Footer';
-import NeoCard from '../ui/NeoCard';
-import NeoButton from '../ui/NeoButton';
-import NeoBadge from '../ui/NeoBadge';
 
 const EmailVerify = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const email = new URLSearchParams(location.search).get('email') || 'your email';
-
+  const loc = useLocation();
+  const email = new URLSearchParams(loc.search).get('email') || 'your email';
   return (
-    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
-      <Header />
-      <div className="container py-5">
-        <div className="row justify-content-center">
-          <div className="col-12 col-md-6 text-center">
-            <NeoCard header="EMAIL VERIFICATION" headerAccent="yellow">
-              <span className="fs-1 mb-3 d-inline-block">✉️</span>
-              <h3>Check Your Inbox!</h3>
-              <p style={{ fontWeight: 600, color: '#374151' }}>
-                We sent a verification link to <NeoBadge variant="dark">{email}</NeoBadge>.
-                Click the link in the email to activate your account.
-              </p>
-              <div className="mt-4 d-flex justify-content-center gap-2">
-                <NeoButton variant="yellow" onClick={() => navigate('/login')}>
-                  Proceed to Login →
-                </NeoButton>
-              </div>
-            </NeoCard>
-          </div>
-        </div>
+    <div style={{ minHeight: '100vh', background: 'hsl(var(--background))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="neo-card" style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
+        <div style={{ width: 36, height: 36, borderRadius: 9999, background: 'hsl(var(--primary) / 0.14)', border: '1px solid hsl(var(--primary) / 0.2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>✉️</div>
+        <h1 style={{ fontSize: 16, fontWeight: 600 }}>Check your inbox</h1>
+        <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13, marginTop: 6 }}>We sent a verification link to <span style={{ color: 'hsl(var(--foreground))', fontWeight: 500 }}>{email}</span>. Click it to activate your account.</p>
+        <button className="neo-btn neo-btn-yellow" style={{ marginTop: 16, width: '100%' }} onClick={() => navigate('/login')}>Continue to sign in →</button>
       </div>
-      <Footer />
     </div>
   );
 };
-
 export default EmailVerify;
