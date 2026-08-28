@@ -9,276 +9,127 @@ import NeoCard from '../ui/NeoCard';
 import NeoBadge from '../ui/NeoBadge';
 import NeoMarquee from '../ui/NeoMarquee';
 import NeoAccordion from '../ui/NeoAccordion';
+
 const Home = () => {
   const navigate = useNavigate();
-
   return (
-    <div style={{ backgroundColor: 'var(--neo-bg)', minHeight: '100vh' }}>
+    <div style={{ background: 'hsl(var(--background))', minHeight: '100vh' }}>
       <Header />
 
-      {/* ================= HERO SECTION ================= */}
-      <section className="py-5">
-        <div className="container py-3">
-          <div className="row align-items-center g-5">
-            {/* Hero Text */}
-            <div className="col-12 col-lg-7 text-center text-lg-start">
-              <div className="d-flex gap-2 justify-content-center justify-content-lg-start flex-wrap mb-3">
-                <NeoBadge variant="yellow" className="px-3 py-1 fs-6">
-                  📸 EVENT PHOTO SAAS
-                </NeoBadge>
-                <NeoBadge variant="lime" className="px-3 py-1 fs-6">
-                  ⚡ INSTANT FACE RECOGNITION
-                </NeoBadge>
+      {/* HERO - Rivet Actors style: dark, centered, subtle glow */}
+      <section style={{ position: 'relative', overflow: 'hidden', padding: '56px 0 32px' }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'radial-gradient(600px 300px at 50% -20%, hsl(var(--primary) / 0.18), transparent 70%), radial-gradient(800px 400px at 80% 0%, hsl(var(--primary) / 0.08), transparent 60%)',
+          pointerEvents: 'none',
+        }} />
+        <div className="container" style={{ position: 'relative' }}>
+          <div className="row align-items-center g-4">
+            <div className="col-12 col-lg-7">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                <span className="neo-badge neo-badge-yellow" style={{ fontSize: 11 }}>● ACTORS DURABLE</span>
+                <span className="neo-badge">SERVERLESS PHOTOS</span>
+                <span className="neo-badge">512-D VECTOR</span>
               </div>
-
-              <h1 className="display-4 fw-black mb-3">
-                FIND YOURSELF IN <span className="neo-highlight">EVERY EVENT</span> PHOTO.
+              <h1 style={{ fontSize: '2.6rem', lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 12 }}>
+                Find yourself in <span className="text-gradient-accent">every event</span> photo.
               </h1>
-
-              <p className="lead mb-4" style={{ fontWeight: 600, color: '#374151', fontSize: '1.25rem' }}>
-                No scrolling through 5,000 photos. No app download. No password for guests.
-                Photographers upload once — guests snap a selfie and get their matched photos in seconds.
+              <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 560, marginBottom: 20 }}>
+                Photographers upload once. Guests scan a QR, take a 1s selfie, and get every photo they appear in — no app, no password, sub-second FAISS search.
               </p>
-
-              {/* Hero CTA Actions */}
-              <div className="d-flex gap-3 justify-content-center justify-content-lg-start flex-wrap">
-                <NeoButton
-                  variant="yellow"
-                  size="lg"
-                  onClick={() => navigate('/login')}
-                >
-                  🚀 Launch Your Event
-                </NeoButton>
-                <NeoButton
-                  variant="white"
-                  size="lg"
-                  onClick={() => {
-                    const el = document.getElementById('how-it-works');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                >
-                  Explore How It Works ↓
-                </NeoButton>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="neo-btn neo-btn-yellow glow-accent" style={{ height: 40, padding: '0 18px' }} onClick={() => navigate('/login')}>Start free — create event</button>
+                <button className="neo-btn neo-btn-white" style={{ height: 40 }} onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>How it works</button>
               </div>
-
-              {/* Mini Social Proof */}
-              <div className="mt-4 pt-2 d-flex align-items-center gap-3 justify-content-center justify-content-lg-start">
-                <div className="d-flex -space-x-2">
-                  <span className="neo-badge neo-badge-dark px-3 py-1">🔒 Private Selfies (Tmp 60s)</span>
-                  <span className="neo-badge neo-badge-cyan px-3 py-1">⚡ 512-d ArcFace + FAISS</span>
-                </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
+                <span className="neo-badge">Tmp 60s selfies</span>
+                <span className="neo-badge">On-device match</span>
+                <span className="neo-badge neo-badge-yellow">FAISS 20ms</span>
               </div>
             </div>
-
-            {/* Hero Visual Card */}
             <div className="col-12 col-lg-5">
-              <NeoCard
-                header="LIVE MATCH SIMULATION"
-                headerAccent="cyan"
-                style={{ backgroundColor: '#FFFFFF' }}
-              >
-                <div className="text-center p-2">
-                  <img
-                    src="/images/wedding.jpg"
-                    alt="Wedding Match"
-                    style={{
-                      width: '100%',
-                      height: '240px',
-                      objectFit: 'cover',
-                      borderRadius: '8px',
-                      border: '2px solid #121212',
-                    }}
-                  />
-                  <div
-                    className="p-3 mt-3 text-start"
-                    style={{
-                      backgroundColor: 'var(--neo-lime-light)',
-                      border: '2px solid #121212',
-                      borderRadius: '8px',
-                    }}
-                  >
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                      <span style={{ fontWeight: 800 }}>GUEST MATCH STATUS</span>
-                      <NeoBadge variant="lime">94.5% MATCH</NeoBadge>
-                    </div>
-                    <small style={{ fontWeight: 600 }}>
-                      ✓ 10 Photos found featuring this guest in Event #6a8f
-                    </small>
-                  </div>
+              <div className="neo-card glass shine-top" style={{ padding: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 4px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: 'hsl(var(--muted-foreground))' }}>LIVE MATCH • 512-D</span>
+                  <span className="neo-badge neo-badge-yellow">94.5% match</span>
                 </div>
-              </NeoCard>
+                <img src="/images/wedding.jpg" alt="preview" style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid hsl(var(--border))' }} />
+                <div style={{ marginTop: 10, background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Guest found in 10 photos</span>
+                  <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Event #6a8f • FAISS</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= NEOBRUTALISM MARQUEE BANNER ================= */}
       <NeoMarquee
-        items={[
-          '⚡ SUB-SECOND FACE RECOGNITION',
-          '📸 50,000+ PHOTOS PER EVENT',
-          '🔒 100% PRIVATE ZERO GUEST PASSWORDS',
-          '🚀 FAISS VECTOR SEARCH',
-          '🤳 1-SECOND SELFIE SCAN',
-          '🎨 PHOTOGRAPHER STUDIO BRANDING',
-          '📱 ZERO APP INSTALLATION'
-        ]}
-        bgColor="var(--neo-yellow)"
+        items={['ACTORS DURABLE EXECUTION', 'FAISS VECTOR SEARCH', 'ZERO GUEST PASSWORDS', '1S SELFIE SCAN', 'STUDIO BRANDING', 'NO APP INSTALL']}
+        bgColor="hsl(var(--card))"
+        textColor="hsl(var(--muted-foreground))"
       />
 
-      {/* ================= INTERACTIVE PHOTO SLIDER ================= */}
-      <section className="container py-4">
+      <section className="container" style={{ padding: '24px 12px' }}>
         <Slider />
       </section>
 
-      {/* ================= HOW IT WORKS ================= */}
-      <div id="how-it-works">
-        <Goal />
-      </div>
+      <div id="how-it-works"><Goal /></div>
 
-      {/* ================= FEATURES GRID ================= */}
-      <section className="py-5" style={{ backgroundColor: 'var(--neo-canvas)', borderTop: '3px solid #121212', borderBottom: '3px solid #121212' }}>
+      <section style={{ borderTop: '1px solid hsl(var(--border))', borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--card) / 0.4)', padding: '40px 0' }}>
         <div className="container">
-          <div className="text-center mb-5">
-            <NeoBadge variant="purple" className="mb-2 px-3 py-1 fs-6">
-              ✨ BUILT FOR SCALE
-            </NeoBadge>
-            <h2 className="display-6 fw-black">WHY PHOTOGRAPHERS CHOOSE FYNDR</h2>
-            <p className="lead mx-auto" style={{ maxWidth: '600px', fontWeight: 600, color: '#4B5563' }}>
-              Everything wedding, sports, and festival photographers need to delight clients.
-            </p>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <span className="neo-badge neo-badge-yellow" style={{ marginBottom: 8 }}>BUILT FOR SCALE</span>
+            <h2 style={{ fontWeight: 700 }}>Why photographers choose Fyndr</h2>
+            <p style={{ color: 'hsl(var(--muted-foreground))', maxWidth: 560, margin: '8px auto 0' }}>Everything you need — from ingest to delivery — with Rivet-like durability.</p>
           </div>
-
-          <div className="row g-4">
-            <div className="col-12 col-md-4">
-              <NeoCard header="⚡ SUB-SECOND SEARCH" headerAccent="yellow" hoverable style={{ height: '100%' }}>
-                <h5>Per-Event FAISS Index</h5>
-                <p style={{ color: '#4B5563', fontWeight: 600 }}>
-                  Cosine similarity vector search against 50,000+ faces in under 20ms using optimized Inner-Product Indexing.
-                </p>
-              </NeoCard>
-            </div>
-
-            <div className="col-12 col-md-4">
-              <NeoCard header="📱 ZERO APP FRICTION" headerAccent="cyan" hoverable style={{ height: '100%' }}>
-                <h5>QR Code + Web Browser</h5>
-                <p style={{ color: '#4B5563', fontWeight: 600 }}>
-                  Guests scan the table QR code and open Fyndr in Safari or Chrome. No downloads, no passwords to forget.
-                </p>
-              </NeoCard>
-            </div>
-
-            <div className="col-12 col-md-4">
-              <NeoCard header="🎨 STUDIO BRANDING" headerAccent="lime" hoverable style={{ height: '100%' }}>
-                <h5>Your Studio, Front & Center</h5>
-                <p style={{ color: '#4B5563', fontWeight: 600 }}>
-                  Custom photographer profile, event banners, watermark-free high-res downloads, and contact links.
-                </p>
-              </NeoCard>
-            </div>
-
-            <div className="col-12 col-md-4">
-              <NeoCard header="🔒 PRIVACY FIRST" headerAccent="coral" hoverable style={{ height: '100%' }}>
-                <h5>Selfie Auto-Purge</h5>
-                <p style={{ color: '#4B5563', fontWeight: 600 }}>
-                  Guest selfie images are processed in-memory and discarded within 60s. Vector embeddings remain private to the event.
-                </p>
-              </NeoCard>
-            </div>
-
-            <div className="col-12 col-md-4">
-              <NeoCard header="📦 BATCH UPLOADER" headerAccent="purple" hoverable style={{ height: '100%' }}>
-                <h5>High-Volume Ingestion</h5>
-                <p style={{ color: '#4B5563', fontWeight: 600 }}>
-                  Streamlined multi-photo upload with non-blocking streaming SHA-256 hash deduplication and async queue processing.
-                </p>
-              </NeoCard>
-            </div>
-
-            <div className="col-12 col-md-4">
-              <NeoCard header="💰 100% FREE TIER READY" headerAccent="yellow" hoverable style={{ height: '100%' }}>
-                <h5>$0 Upfront Infrastructure</h5>
-                <p style={{ color: '#4B5563', fontWeight: 600 }}>
-                  Engineered to run seamlessly on Oracle Always Free + Cloudflare + R2 storage without bloated SaaS subscriptions.
-                </p>
-              </NeoCard>
-            </div>
+          <div className="row g-3">
+            {[
+              { t: 'Sub-second search', d: 'Per-event FAISS IndexFlatIP over 50k faces in <20ms.', icon: '◧' },
+              { t: 'Zero app friction', d: 'QR + browser. No downloads, no passwords.', icon: '⬔' },
+              { t: 'Studio branding', d: 'Custom profile, event cover, clean downloads.', icon: '⬢' },
+              { t: 'Privacy first', d: 'Selfies purged in 60s, embeddings per-event.', icon: '⬣' },
+              { t: 'Batch ingest', d: 'Streaming SHA-256 dedup + queue.', icon: '▭' },
+              { t: 'Free tier ready', d: 'Runs on Oracle Free + R2 — no lock-in.', icon: '⬔' },
+            ].map((f, i) => (
+              <div key={i} className="col-12 col-md-4">
+                <div className="neo-card" style={{ height: '100%' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: 'hsl(var(--primary) / 0.14)', border: '1px solid hsl(var(--primary) / 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--primary))', fontSize: 12, marginBottom: 10 }}>{f.icon}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{f.t}</div>
+                  <div style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13, lineHeight: 1.5 }}>{f.d}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ================= FAQ ACCORDION SECTION ================= */}
-      <section className="py-5">
-        <div className="container" style={{ maxWidth: '800px' }}>
-          <div className="text-center mb-4">
-            <NeoBadge variant="cyan" className="mb-2 px-3 py-1 fs-6">
-              ❓ FREQUENTLY ASKED QUESTIONS
-            </NeoBadge>
-            <h2 className="display-6 fw-black">EVERYTHING YOU NEED TO KNOW</h2>
+      <section style={{ padding: '40px 0' }}>
+        <div className="container" style={{ maxWidth: 800 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <span className="neo-badge">FAQ</span>
+            <h2 style={{ marginTop: 8 }}>Everything you need to know</h2>
           </div>
-
           <NeoAccordion
             items={[
-              {
-                title: '⚡ How fast is face search for wedding guests?',
-                content: 'Sub-second! Fyndr uses FAISS IndexFlatIP (512-d ArcFace vectors) on CPU, querying through 50,000 faces in under 20ms. Guests receive their photos instantly.',
-                accent: 'yellow'
-              },
-              {
-                title: '📱 Do guests need to download an app or create an account?',
-                content: 'No app or account is required. Guests simply scan the event QR code, open Fyndr in Safari or Chrome, enter the 6-digit PIN, and take a quick selfie to find their photos.',
-                accent: 'cyan'
-              },
-              {
-                title: '🔒 How is guest selfie privacy protected?',
-                content: 'Selfie images are processed ephemerally in-memory and permanently purged within 60 seconds. Facial embeddings are strictly isolated per event.',
-                accent: 'lime'
-              },
-              {
-                title: '📸 Can photographers upload high-resolution DSLR raw/jpg files?',
-                content: 'Yes! Fyndr supports high-res JPEG, PNG, and WebP images with streaming SHA-256 deduplication and auto-scaling to ensure fast processing.',
-                accent: 'coral'
-              }
+              { title: 'How fast is face search?', content: 'FAISS 512-d vectors on CPU — 50k faces in ~20ms. Guests get results instantly.', accent: 'yellow' },
+              { title: 'Do guests need an app?', content: 'No. QR → browser → PIN → selfie. Works in Safari/Chrome.', accent: 'cyan' },
+              { title: 'Is my selfie stored?', content: 'No. Selfies are processed in-memory and deleted in 60s. Embeddings are per-event isolated.', accent: 'lime' },
+              { title: 'Can you ingest DSLR 50MP?', content: 'Yes — streaming hash dedup, auto thumbnail, queue. JPEG/PNG/WebP.', accent: 'coral' },
             ]}
           />
         </div>
       </section>
-      {/* ================= FINAL CTA BANNER ================= */}
-      <section className="py-5 my-4">
+
+      <section style={{ padding: '24px 0 40px' }}>
         <div className="container">
-          <div
-            className="p-5 text-center"
-            style={{
-              backgroundColor: 'var(--neo-yellow)',
-              border: '4px solid #121212',
-              borderRadius: '20px',
-              boxShadow: '10px 10px 0px #121212',
-            }}
-          >
-            <NeoBadge variant="dark" className="mb-3 px-3 py-1 fs-6">
-              START SHARING TODAY
-            </NeoBadge>
-            <h2 className="display-5 fw-black mb-3">
-              READY TO DELIVER PHOTOS AT THE SPEED OF LIGHT?
-            </h2>
-            <p className="lead mb-4 mx-auto" style={{ maxWidth: '600px', fontWeight: 700, color: '#1F2937' }}>
-              Create your first event in under 60 seconds. Free for up to 5 events.
-            </p>
-            <div className="d-flex gap-3 justify-content-center flex-wrap">
-              <NeoButton
-                variant="dark"
-                size="lg"
-                onClick={() => navigate('/login')}
-              >
-                ⚡ Create Photographer Account
-              </NeoButton>
-              <NeoButton
-                variant="white"
-                size="lg"
-                onClick={() => navigate('/about')}
-              >
-                Learn More →
-              </NeoButton>
+          <div className="glass-strong" style={{ borderRadius: 16, padding: 24, textAlign: 'center', border: '1px solid hsl(var(--border))' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.08em', color: 'hsl(var(--muted-foreground))', fontWeight: 600, marginBottom: 8 }}>START SHARING TODAY</div>
+            <h2 style={{ fontWeight: 700 }}>Deliver photos at the speed of actors.</h2>
+            <p style={{ color: 'hsl(var(--muted-foreground))', maxWidth: 560, margin: '8px auto 16px' }}>Create your first event in 60s. Free for 5 events.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button className="neo-btn neo-btn-yellow" onClick={() => navigate('/login')}>Create photographer account</button>
+              <button className="neo-btn neo-btn-white" onClick={() => navigate('/about')}>Learn more →</button>
             </div>
           </div>
         </div>
@@ -288,5 +139,4 @@ const Home = () => {
     </div>
   );
 };
-
 export default Home;
