@@ -60,11 +60,11 @@ const Login_Register = () => {
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 500 }}>Email</span>
-                <input className="neo-input" type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                <input className="neo-input" type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 500, display: 'flex', justifyContent: 'space-between' }}>Password <Link to="/forgetpassword" style={{ color: 'hsl(var(--primary))', textDecoration: 'none', fontSize: 12 }}>Forgot?</Link></span>
-                <input className="neo-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+                <input className="neo-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
               </label>
               <button type="submit" className="neo-btn neo-btn-yellow" disabled={loading} style={{ height: 36, marginTop: 4 }}>{loading ? 'Signing in…' : 'Sign in →'}</button>
             </form>
@@ -72,15 +72,15 @@ const Login_Register = () => {
             <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 500 }}>Studio name</span>
-                <input className="neo-input" placeholder="Apex Visuals" value={name} onChange={e => setName(e.target.value)} required />
+                <input className="neo-input" placeholder="Apex Visuals" value={name} onChange={e => setName(e.target.value)} required autoComplete="organization" />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 500 }}>Email</span>
-                <input className="neo-input" type="email" placeholder="studio@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                <input className="neo-input" type="email" placeholder="studio@example.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 500 }}>Password</span>
-                <input className="neo-input" type="password" placeholder="At least 6 characters" value={password} onChange={e => setPassword(e.target.value)} required />
+                <input className="neo-input" type="password" placeholder="At least 6 characters" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="new-password" />
               </label>
               <button type="submit" className="neo-btn neo-btn-yellow" disabled={loading} style={{ height: 36 }}>{loading ? 'Creating…' : 'Create account →'}</button>
             </form>

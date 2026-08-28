@@ -44,13 +44,13 @@ const ForgetPass = () => {
 
           {step === 1 ? (
             <form onSubmit={sendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>Email</span><input className="neo-input" type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} required /></label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>Email</span><input className="neo-input" type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" /></label>
               <button className="neo-btn neo-btn-yellow" type="submit" disabled={loading} style={{ height: 36 }}>{loading ? 'Sending…' : 'Send code →'}</button>
             </form>
           ) : (
             <form onSubmit={verify} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>6-digit code</span><input className="neo-input" placeholder="123456" value={otp} onChange={e => setOtp(e.target.value)} required /></label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>New password</span><input className="neo-input" type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>6-digit code</span><input className="neo-input" placeholder="123456" value={otp} onChange={e => setOtp(e.target.value)} required autoComplete="one-time-code" inputMode="numeric" /></label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 500 }}>New password</span><input className="neo-input" type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} required autoComplete="new-password" /></label>
               <div style={{ display: 'flex', gap: 8 }}><button type="button" className="neo-btn neo-btn-white" onClick={() => setStep(1)} style={{ flex: 1 }}>Back</button><button className="neo-btn neo-btn-yellow" type="submit" disabled={loading} style={{ flex: 1 }}>{loading ? 'Updating…' : 'Update password'}</button></div>
             </form>
           )}
