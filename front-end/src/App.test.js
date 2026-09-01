@@ -17,16 +17,16 @@ describe('Fyndr Web App Routing & Landing', () => {
     const heroHeadline = screen.getByText(/FIND YOURSELF IN/i);
     expect(heroHeadline).toBeInTheDocument();
 
-    const ctaButton = screen.getByText(/Start free/i);
+    const ctaButton = screen.getByRole('button', { name: /Create Free Event/i });
     expect(ctaButton).toBeInTheDocument();
   });
 
   test('renders features and FAQ section', () => {
     render(<App />);
-    const faqHeading = screen.getByText(/FAQ/i);
+    const faqHeading = screen.getByText(/Frequently Asked Questions/i);
     expect(faqHeading).toBeInTheDocument();
 
-    const servicesHeadings = screen.getAllByText(/Services/i);
-    expect(servicesHeadings.length).toBeGreaterThan(0);
+    const featuresHeadings = screen.getAllByText(/Key Features/i);
+    expect(featuresHeadings.length).toBeGreaterThan(0);
   });
 });
