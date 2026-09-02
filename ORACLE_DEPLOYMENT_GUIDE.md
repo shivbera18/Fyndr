@@ -1,7 +1,7 @@
 # Complete Deployment Guide: Vercel (Frontend) + Oracle Cloud (Backend & OCI Storage)
 
-This guide provides an end-to-end walkthrough for deploying **Fyndr** without Docker using:
-- **Frontend:** Vercel (connected directly to the GitHub repository)
+This guide provides an end-to-end walkthrough for deploying **Fyndr** in production without Docker using:
+- **Frontend:** Vercel (connected directly to your GitHub repository)
 - **Backend (API & ML):** Oracle Cloud Always Free Compute VM (Native Node 20 + Python venv + MongoDB 8.0 + PM2)
 - **File Storage:** Oracle Cloud Infrastructure (OCI) Object Storage via S3-Compatible API
 
@@ -10,7 +10,7 @@ This guide provides an end-to-end walkthrough for deploying **Fyndr** without Do
 ## Architecture Overview
 
 ```
-[ Guest / Photographer Browser ]
+[ Guest / Photographer Browser (HTTPS) ]
            │
            ├── (1) https://fyndr-web.vercel.app (React Frontend on Vercel)
            │
@@ -19,40 +19,44 @@ This guide provides an end-to-end walkthrough for deploying **Fyndr** without Do
            │         ▼
            │   [ OCI Object Storage Bucket: fyndr-photos ]
            │
-           ▼
-[ Oracle Cloud Always Free VM (Ubuntu 22.04 / Oracle Linux) ]
- ├── Nginx Reverse Proxy (Port 80 / 443 + SSL)
+           ▼ (3) HTTPS API Requests
+[ Oracle Cloud VM (Ubuntu 22.04 LTS — Always Free) ]
+ ├── Nginx Reverse Proxy (Port 80 / 443 + Let's Encrypt SSL)
  │     │
- │     ├── /api/ -> Node.js Express API (Port 5000) [Managed via PM2]
- │     └── /ml/  -> Python Flask ML Service (Port 5001) [Managed via PM2]
- ├── Native MongoDB 8.0 (Port 27017) [Managed via systemd]
- └── Local FAISS Storage (/tmp/fyndr_faiss)
+ │     └── Proxy / -> Node.js Express API (127.0.0.1:5000) [Managed via PM2]
+ │                      │
+ │                      └── Internal HTTP -> Python Flask ML (127.0.0.1:5001) [Managed via PM2]
+ │
+ ├── Native MongoDB 8.0 (127.0.0.1:27017) [Managed via systemd]
+ └── Local FAISS Vector Storage (/tmp/fyndr_faiss)
 ```
+
+> **Security Note:** Ports `5000` (Node API), `5001` (Flask ML), and `27017` (MongoDB) remain strictly bound to `127.0.0.1` on the server and are **not** exposed to the public internet. External traffic only enters through Nginx on ports `80` and `443` (and SSH on port `22`).
 
 ---
 
 ## Part 1: OCI Object Storage Setup & Key Generation
 
-OCI Object Storage offers an Amazon S3-compatible API. Fyndr uses `@aws-sdk/client-s3` to interact with OCI buckets.
+OCI Object Storage provides an Amazon S3-compatible API. Fyndr uses `@aws-sdk/client-s3` to interact with OCI buckets.
 
 ### Step 1.1: Retrieve Your Object Storage Namespace
 1. Log in to the [Oracle Cloud Console](https://cloud.oracle.com/).
 2. In the top-right corner, click your **Profile Icon** &rarr; **Tenancy: `<your-tenancy-name>`**.
-3. Under **Tenancy Information**, copy the **Object Storage Namespace** (a string such as `ax9k1pq8z`).
+3. Under **Tenancy Information**, copy the **Object Storage Namespace** (a short alphanumeric string such as `ax9k1pq8z`).
 4. Note your **Region Identifier** (e.g., `us-ashburn-1`, `ap-mumbai-1`, `eu-frankfurt-1`).
 
 ---
 
 ### Step 1.2: Create an Object Storage Bucket
-1. Open the navigation menu &rarr; **Storage** &rarr; **Object Storage & Archive Storage** &rarr; **Buckets**.
-2. Select your **Compartment** (root or project compartment).
+1. Open the navigation menu (top-left hamburger icon) &rarr; **Storage** &rarr; **Object Storage & Archive Storage** &rarr; **Buckets**.
+2. Select your **Compartment** (root or your project compartment).
 3. Click **Create Bucket**:
    - **Bucket Name:** `fyndr-photos`
    - **Default Storage Tier:** `Standard`
-   - **Object Versioning:** Disabled (for free-tier storage optimization)
+   - **Object Versioning:** `Disabled` (free-tier cost optimization)
    - **Encryption:** `Encrypt using Oracle-managed keys`
 4. Click **Create**.
-5. Under bucket details, set **Visibility** to `Public` if you want direct image URLs, or leave it `Private` for presigned URL access.
+5. Under bucket details, set **Visibility** to `Public` if you want direct image URLs, or leave it `Private` for secure presigned URL access.
 
 ---
 
@@ -62,8 +66,8 @@ OCI Object Storage offers an Amazon S3-compatible API. Fyndr uses `@aws-sdk/clie
 3. Click **Generate Secret Key**:
    - **Name:** `fyndr-s3-key`
    - Click **Generate Secret Key**.
-4. **Copy the generated Secret Key immediately** and store it safely (Oracle will not display this secret key again).
-5. In the Customer Secret Keys table, copy the corresponding **Access Key**.
+4. **Copy the generated Secret Key immediately** and store it safely (Oracle will never display this secret key again).
+5. In the Customer Secret Keys table, copy the corresponding **Access Key** string.
 
 ---
 
@@ -78,30 +82,32 @@ R2_BUCKET=fyndr-photos
 R2_REGION=<your_region>
 ```
 
-*Example for Ashburn:*
+*Example for Ashburn region:*
 `R2_ENDPOINT=https://ax9k1pq8z.compat.objectstorage.us-ashburn-1.oraclecloud.com`
 
 ---
 
-## Part 2: Oracle Cloud VM Setup (Non-Docker Native Setup)
+## Part 2: Oracle Cloud VM Setup (Ubuntu 22.04 LTS)
 
 ### Step 2.1: Provision the Free Compute Instance
 1. Go to **Compute** &rarr; **Instances** &rarr; **Create Instance**.
-2. **Image:** Ubuntu 22.04 LTS or Oracle Linux 9 (x86_64 or Ampere A1 ARM 4 OCPU / 24GB RAM).
+2. **Image:** Select **Canonical Ubuntu 22.04 LTS** (available on both AMD x86 and Ampere A1 ARM 4 OCPU / 24GB RAM).
 3. **Networking:** Assign a Public IPv4 address.
 4. **SSH Keys:** Save the private key (`fyndr_oracle.key`) to your local machine (`~/.ssh/fyndr_oracle.key`).
 5. Click **Create** and note the assigned **Public IP** (e.g., `129.151.47.214`).
 
 ---
 
-### Step 2.2: Open Ingress Ports in Oracle Cloud Security List
+### Step 2.2: Open Public Ingress Ports in Oracle Cloud Security List
 1. In your Instance details, click the **Subnet** under Primary VNIC.
 2. Click **Default Security List for...**.
 3. Click **Add Ingress Rules**:
    - **Source CIDR:** `0.0.0.0/0`
    - **IP Protocol:** `TCP`
-   - **Destination Port Range:** `80, 443, 5000, 5001`
-4. Click **Add Ingress Rules**.
+   - **Destination Port Range:** `80, 443`
+4. Click **Add Ingress Rules**. (Port 22 SSH is open by default).
+
+> *Note: Do NOT add ports 5000, 5001, or 27017 to the public Ingress list. They are securely proxied through Nginx.*
 
 ---
 
@@ -152,8 +158,6 @@ mongosh --eval "db.adminCommand('ping')" # Should output { ok: 1 }
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw allow 5000/tcp
-sudo ufw allow 5001/tcp
 sudo ufw --force enable
 ```
 
@@ -228,7 +232,7 @@ python app.py
 ---
 
 ### Step 3.4: Configure PM2 for Process Management
-Create or update `/home/ubuntu/app/ecosystem.config.js`:
+Create `/home/ubuntu/app/ecosystem.config.js`:
 ```javascript
 module.exports = {
   apps: [
@@ -238,6 +242,7 @@ module.exports = {
       script: 'index.js',
       env: {
         NODE_ENV: 'production',
+        PORT: 5000,
       },
       restart_delay: 3000,
       max_memory_restart: '1G',
@@ -245,8 +250,8 @@ module.exports = {
     {
       name: 'fyndr-ml',
       cwd: '/home/ubuntu/app/flask-server-2',
-      script: '/home/ubuntu/app/flask-server-2/venv/bin/python',
-      args: 'app.py',
+      script: 'app.py',
+      interpreter: '/home/ubuntu/app/flask-server-2/venv/bin/python',
       env: {
         PYTHONUNBUFFERED: '1',
       },
@@ -283,7 +288,7 @@ Add configuration:
 ```nginx
 server {
     listen 80;
-    server_name api.yourdomain.com; # Or your server's Public IP
+    server_name api.yourdomain.com; # Replace with your domain or server public IP
 
     client_max_body_size 100M;
 
@@ -309,7 +314,7 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-*(Optional with a domain)* Set up free SSL with Let's Encrypt:
+Set up free SSL with Let's Encrypt (required for HTTPS Vercel integration):
 ```bash
 sudo certbot --nginx -d api.yourdomain.com
 ```
@@ -339,8 +344,9 @@ Under **Environment Variables**, add:
 
 | Variable | Value | Purpose |
 |---|---|---|
-| `REACT_APP_API_URL` | `https://api.yourdomain.com` *(or `http://<ORACLE_IP>:5000`)* | Oracle Cloud Backend API URL |
-| `REACT_APP_ML_URL` | `http://<ORACLE_IP>:5001` | Optional direct ML endpoint |
+| `REACT_APP_API_URL` | `https://api.yourdomain.com` *(or `http://<ORACLE_IP>`)* | Oracle Cloud Backend API URL |
+
+*(Note: The React frontend interacts solely with the API endpoint; the API proxies ML operations internally to Flask on port 5001, completely preventing browser Mixed Content errors).*
 
 Click **Deploy**.
 
@@ -348,16 +354,21 @@ Click **Deploy**.
 
 ## Part 5: Verification & Production Smoke Testing
 
-1. **Verify Backend Health:**
+1. **Verify Backend Health via Nginx:**
    ```bash
-   curl http://<ORACLE_IP>:5000/metrics
+   curl https://api.yourdomain.com/metrics
+   # Or for HTTP testing:
+   curl http://<ORACLE_IP>/metrics
    ```
-2. **Verify ML Endpoint:**
+
+2. **Verify ML Endpoint Internally on the Server:**
    ```bash
-   curl http://<ORACLE_IP>:5001/faiss_stats?event_id=test
+   curl http://127.0.0.1:5001/faiss_stats?event_id=test
    ```
+
 3. **Verify Vercel Web App:**
-   - Open your Vercel deployment URL (e.g. `https://fyndr-web.vercel.app`).
+   - Open your Vercel deployment URL (e.g., `https://fyndr-web.vercel.app`).
    - Register/Sign in as a photographer.
-   - Create an event, upload test photos, and verify they appear in your OCI Object Storage bucket.
-   - Scan the event QR code with a mobile device, take a selfie, and verify instant facial matching.
+   - Create an event and upload photos.
+   - Check your Oracle Object Storage bucket (`fyndr-photos`) to confirm uploaded files arrive.
+   - Scan the event QR code on a mobile phone, take a selfie, and verify instant face matching.
