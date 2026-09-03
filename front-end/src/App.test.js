@@ -26,7 +26,7 @@ describe('Fyndr Web App Routing & Landing', () => {
     const faqHeading = screen.getByText(/Frequently Asked Questions/i);
     expect(faqHeading).toBeInTheDocument();
 
-    const featuresHeadings = screen.getAllByText(/Key Features/i);
+    const featuresHeadings = screen.getAllByText(/Built for modern event photographers/i);
     expect(featuresHeadings.length).toBeGreaterThan(0);
   });
 });
