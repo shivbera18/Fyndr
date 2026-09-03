@@ -1,238 +1,235 @@
-# Complete Deployment Guide: Vercel (Frontend) + Oracle Cloud (Backend & OCI Storage)
+# Complete Deployment Guide: Vercel (Frontend) + Oracle Cloud (Backend Hybrid — Native + Docker Mongo)
 
-This guide provides an end-to-end walkthrough for deploying **Fyndr** in production without Docker using:
-- **Frontend:** Vercel (connected directly to your GitHub repository)
-- **Backend (API & ML):** Oracle Cloud Always Free Compute VM (Native Node 20 + Python venv + MongoDB 8.0 + PM2)
-- **File Storage:** Oracle Cloud Infrastructure (OCI) Object Storage via S3-Compatible API
+> **Goal:** Deploy **Fyndr** without heavy Docker builds. Frontend on **Vercel** (GitHub-connected), backend on a single **Oracle Always Free VM (Ubuntu 22.04 LTS)** using **native Node 20 + Python venv + PM2 / `pnpm dev`** for API & ML, and **Docker ONLY for MongoDB**. Storage via **OCI Object Storage (S3-compatible) — India West Mumbai (`ap-mumbai-1`)**.
 
 ---
 
-## Architecture Overview
+## 0. Architecture & Secret Map
 
+### Architecture
 ```
-[ Guest / Photographer Browser (HTTPS) ]
-           │
-           ├── (1) https://fyndr-web.vercel.app (React Frontend on Vercel)
-           │
-           ├── (2) Direct Upload / Download (Presigned S3 URLs)
-           │         │
-           │         ▼
-           │   [ OCI Object Storage Bucket: fyndr-photos ]
-           │
-           ▼ (3) HTTPS API Requests
-[ Oracle Cloud VM (Ubuntu 22.04 LTS — Always Free) ]
- ├── Nginx Reverse Proxy (Port 80 / 443 + Let's Encrypt SSL)
- │     │
- │     └── Proxy / -> Node.js Express API (127.0.0.1:5000) [Managed via PM2]
- │                      │
- │                      └── Internal HTTP -> Python Flask ML (127.0.0.1:5001) [Managed via PM2]
- │
- ├── Native MongoDB 8.0 (127.0.0.1:27017) [Managed via systemd]
- └── Local FAISS Vector Storage (/tmp/fyndr_faiss)
+[ Browser — Photographer / Guest (HTTPS) ]
+        │
+        ├─── (A) https://<your-app>.vercel.app  ──────────→  Vercel (React build from /front-end)
+        │         │  calls REACT_APP_API_URL + /match_faces via Nginx
+        │         ▼
+        │   Nginx 80/443 ── / → Node API 5000 ──┐
+        │                  └─ /ml/ → Flask ML 5001 │ (guest selfie matching)
+        │                                          ▼
+        ├─── (B) Presigned PUT/GET  ─────────────→  OCI Object Storage  bmtrutilfkey / fyndr-photos (ap-mumbai-1)
+        │              ▲  (S3 SDK via @aws-sdk/client-s3, forcePathStyle)
+        │              │
+[ Oracle VM — Ubuntu 22.04 LTS — Always Free ]
+  ┌─────────────────────────────────────────────────────┐
+  │ Nginx 80/443 (Let's Encrypt)                        │
+  │  Node API 5000 (PM2 or pnpm dev:api)                │
+  │  Flask ML 5001 (PM2 or pnpm dev:ml) ← via /ml/      │
+  │  MongoDB 27017 (Docker: mongo:8)                    │
+  │  FAISS /tmp/fyndr_faiss                             │
+  └─────────────────────────────────────────────────────┘
+  only 22/80/443 public — 5000/5001/27017 = 127.0.0.1
 ```
+> **Current frontend note:** `front-end/src/component/collect_images/CameraCaptureWithMask.js` currently hardcodes `http://127.0.0.1:5001/match_faces` for local dev. For Vercel production the browser can't reach `127.0.0.1` — you **must** expose ML via Nginx `/ml/` (see §3.7) and set `REACT_APP_ML_URL=https://api.yourdomain.com/ml` on Vercel (or patch the frontend to call `/api/match_faces` proxied by Node).
 
-> **Security Note:** Ports `5000` (Node API), `5001` (Flask ML), and `27017` (MongoDB) remain strictly bound to `127.0.0.1` on the server and are **not** exposed to the public internet. External traffic only enters through Nginx on ports `80` and `443` (and SSH on port `22`).
+### Where Secrets Live — Cheat Sheet
 
----
+| Platform | File / Location | Variables — copy exactly |
+|---|---|---|
+| **Vercel** → Project → Settings → Environment Variables | Vercel Dashboard only | `REACT_APP_API_URL` |
+| **Oracle VPS** → `/home/ubuntu/app/node-server-1/.env` | On the VM, gitignored | `PORT`, `NODE_ENV`, `MONGO_URI`, `JWT_SECRET`, `FLASK_URL`, `CORS_ORIGIN`, `EMAIL_USER`, `EMAIL_PASS`, `R2_ENDPOINT`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION` |
+| **Oracle VPS** → `/home/ubuntu/app/flask-server-2/.env` | On the VM, gitignored | `PORT`, `MONGO_URI`, `FAISS_BASE` |
+| **Local dev** → `/.env` (root) | Gitignored, for `scripts/test-oci.js` | Same OCI keys as above, but never committed — see `.env.example` for template |
 
-## Part 1: OCI Object Storage Setup & Key Generation
-
-OCI Object Storage provides an Amazon S3-compatible API. Fyndr uses `@aws-sdk/client-s3` to interact with OCI buckets.
-
-### Step 1.1: Retrieve Your Object Storage Namespace
-1. Log in to the [Oracle Cloud Console](https://cloud.oracle.com/).
-2. In the top-right corner, click your **Profile Icon** &rarr; **Tenancy: `<your-tenancy-name>`**.
-3. Under **Tenancy Information**, copy the **Object Storage Namespace** (a short alphanumeric string such as `ax9k1pq8z`).
-4. Note your **Region Identifier** (e.g., `us-ashburn-1`, `ap-mumbai-1`, `eu-frankfurt-1`).
+> The top-level `.env.example` (India West Mumbai `ap-mumbai-1` pre-configured) is the **template**. The real `.env` files are **never committed** — `.gitignore` already covers `.env`, `node-server-1/.env`, `front-end/.env`, `flask-server-2/.env`.
 
 ---
 
-### Step 1.2: Create an Object Storage Bucket
-1. Open the navigation menu (top-left hamburger icon) &rarr; **Storage** &rarr; **Object Storage & Archive Storage** &rarr; **Buckets**.
-2. Select your **Compartment** (root or your project compartment).
-3. Click **Create Bucket**:
-   - **Bucket Name:** `fyndr-photos`
-   - **Default Storage Tier:** `Standard`
-   - **Object Versioning:** `Disabled` (free-tier cost optimization)
-   - **Encryption:** `Encrypt using Oracle-managed keys`
-4. Click **Create**.
-5. Under bucket details, set **Visibility** to `Public` if you want direct image URLs, or leave it `Private` for secure presigned URL access.
+## Part 1 — OCI Object Storage (Mumbai) — Get Your Keys
 
----
+You already created `fyndr-photos` — this confirms your values:
 
-### Step 1.3: Generate Customer Secret Keys (S3 Access & Secret Keys)
-1. In the top-right corner, click your **Profile Icon** &rarr; **User Settings** (or click your username).
-2. On the left sidebar under **Resources**, click **Customer Secret Keys**.
-3. Click **Generate Secret Key**:
-   - **Name:** `fyndr-s3-key`
-   - Click **Generate Secret Key**.
-4. **Copy the generated Secret Key immediately** and store it safely (Oracle will never display this secret key again).
-5. In the Customer Secret Keys table, copy the corresponding **Access Key** string.
+- **Namespace:** `bmtrutilfkey` (from Buckets → General → Namespace)
+- **Bucket:** `fyndr-photos` (Public, Standard, `ap-mumbai-1`)
+- **Bucket OCID:** `ocid1.bucket.oc1.ap-mumbai-1...` ✅ confirms region `ap-mumbai-1`
+- **Correct S3 endpoint for your tenancy:**
+  ```
+  https://bmtrutilfkey.compat.objectstorage.ap-mumbai-1.oraclecloud.com
+  ```
 
----
+### 1.1 Generate / Re-use Customer Secret Keys
+1. OCI Console → top-right **Profile icon → My profile** (or **Identity → Domains → Default → Users → Shiv Ratan**).
+2. Left sidebar → **Resources → Customer Secret Keys** → **Generate Secret Key** (name: `fyndr-s3-key`).
+3. **Secret Key** (base64 with `=`) appears **once** → copy to `R2_SECRET_KEY`.
+4. **Access Key** (alphanumeric, **no** `=`, stays in table) → copy to `R2_ACCESS_KEY`.
 
-### Step 1.4: Formulate Your Storage Environment Variables
+> **Previous test failed** with `AuthorizationHeaderMalformed` because both keys were set to the same Secret. They must be different values.
 
+### 1.2 Final OCI env block (for the VPS — Mumbai)
 ```env
-# OCI Object Storage (S3-Compatible)
-R2_ENDPOINT=https://<your_namespace>.compat.objectstorage.<your_region>.oraclecloud.com
-R2_ACCESS_KEY=<your_customer_access_key>
-R2_SECRET_KEY=<your_customer_secret_key>
+R2_ENDPOINT=https://bmtrutilfkey.compat.objectstorage.ap-mumbai-1.oraclecloud.com
+R2_ACCESS_KEY=<paste Access Key from table>
+R2_SECRET_KEY=<paste Secret Key shown once>
 R2_BUCKET=fyndr-photos
-R2_REGION=<your_region>
+R2_REGION=ap-mumbai-1
+```
+Test locally before deploying:
+```bash
+node scripts/test-oci.js
+# expect: ✅ HeadBucket 200, ✅ ListObjects count=0, ✅ PutObject OK
 ```
 
-*Example for Ashburn region:*
-`R2_ENDPOINT=https://ax9k1pq8z.compat.objectstorage.us-ashburn-1.oraclecloud.com`
-
 ---
 
-## Part 2: Oracle Cloud VM Setup (Ubuntu 22.04 LTS)
+## Part 2 — Oracle VM — Provision (Ubuntu 22.04 LTS)
 
-### Step 2.1: Provision the Free Compute Instance
-1. Go to **Compute** &rarr; **Instances** &rarr; **Create Instance**.
-2. **Image:** Select **Canonical Ubuntu 22.04 LTS** (available on both AMD x86 and Ampere A1 ARM 4 OCPU / 24GB RAM).
-3. **Networking:** Assign a Public IPv4 address.
-4. **SSH Keys:** Save the private key (`fyndr_oracle.key`) to your local machine (`~/.ssh/fyndr_oracle.key`).
-5. Click **Create** and note the assigned **Public IP** (e.g., `129.151.47.214`).
+### 2.1 Create the Instance
+- **Compute → Instances → Create Instance**
+- Image: **Canonical Ubuntu 22.04 LTS** (AMD or Ampere A1 — 4 OCPU / 24 GB works)
+- Shape: VM.Standard.E4.Flex or VM.Standard.A1.Flex
+- Network: **Assign public IPv4**
+- SSH: upload your public key → save private key as `~/.ssh/fyndr_oracle.key` (`chmod 600`)
 
----
+Note the **Public IP** (e.g. `129.151.47.214`).
 
-### Step 2.2: Open Public Ingress Ports in Oracle Cloud Security List
-1. In your Instance details, click the **Subnet** under Primary VNIC.
-2. Click **Default Security List for...**.
-3. Click **Add Ingress Rules**:
-   - **Source CIDR:** `0.0.0.0/0`
-   - **IP Protocol:** `TCP`
-   - **Destination Port Range:** `80, 443`
-4. Click **Add Ingress Rules**. (Port 22 SSH is open by default).
+### 2.2 Open Only Web Ports (Security List — no 5000/5001)
+- Instance → **Subnet** → **Default Security List** → **Add Ingress Rules**
+  - `0.0.0.0/0` TCP `80, 443` (22/SSH already open)
+- **Do NOT open** `5000`, `5001`, `27017` — they stay on `127.0.0.1` behind Nginx.
 
-> *Note: Do NOT add ports 5000, 5001, or 27017 to the public Ingress list. They are securely proxied through Nginx.*
-
----
-
-### Step 2.3: SSH into the Server & Install System Dependencies
-From your local terminal:
+### 2.3 SSH In
 ```bash
 chmod 600 ~/.ssh/fyndr_oracle.key
 ssh -i ~/.ssh/fyndr_oracle.key ubuntu@<YOUR_PUBLIC_IP>
 ```
 
-Update system packages and install base dependencies:
+---
+
+## Part 3 — Hybrid Stack on the Oracle VM (Native + Docker Mongo Only)
+
+> No heavy `docker build` for Node/Python. Only Mongo runs in Docker — lightweight `mongo:8` image.
+
+### 3.1 System Dependencies (Node, Python, Nginx, Docker, Certbot)
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y git curl build-essential python3 python3-pip python3-venv nginx certbot python3-certbot-nginx libgl1 libglib2.0-0
-```
 
----
-
-### Step 2.4: Install Node.js 20 & PM2
-```bash
+# Node 20 + pnpm + PM2
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
-sudo npm install -g pm2
+sudo npm install -g pnpm pm2
+node -v && pnpm -v && pm2 -v
+
+# Docker (for Mongo only)
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker $USER
+# re-login or: newgrp docker
+sudo systemctl enable --now docker
+docker --version && docker compose version
 ```
 
----
+### 3.2 MongoDB via Docker (lightweight — no native Mongo install)
+The repo already has a `mongo` service in `docker-compose.dev.yml`. Use **only** that service:
 
-### Step 2.5: Install & Start Native MongoDB 8.0
-```bash
-curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
-  sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
-
-echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | \
-  sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
-
-sudo apt update
-sudo apt install -y mongodb-org
-sudo systemctl enable --now mongod
-
-# Verify MongoDB is running:
-mongosh --eval "db.adminCommand('ping')" # Should output { ok: 1 }
-```
-
----
-
-### Step 2.6: Configure Firewall on the VM (UFW)
-```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw --force enable
-```
-
----
-
-## Part 3: Deploy Backend & ML Services
-
-### Step 3.1: Clone the Repository
 ```bash
 cd /home/ubuntu
 git clone https://github.com/shivbera18/Fyndr.git app
+cd app
+
+# Start only Mongo (healthy check built-in)
+docker compose -f docker-compose.dev.yml up -d mongo --wait
+docker ps  # → fyndr-mongo-dev healthy, 0.0.0.0:27017->27017
+
+# Verify
+docker exec fyndr-mongo-dev mongosh --eval "db.adminCommand('ping')"  # → { ok: 1 }
+
+# For pnpm dev convenience, the repo includes scripts/ensure-mongo.js which auto-starts this if needed
+```
+
+> No `compose:dev` full build — that would pull api/ml/web images. Only `mongo` is used.
+
+### 3.3 App Code & Native Deps
+```bash
 cd /home/ubuntu/app
-```
 
----
+# Node deps (root + backend) — use pnpm consistently (repo uses pnpm@9)
+pnpm install
+pnpm --prefix node-server-1 install --prod
+# front-end not needed on VPS (built on Vercel) — skip `pnpm --prefix front-end install`
 
-### Step 3.2: Set Up Node.js Backend (`node-server-1`)
-```bash
-cd /home/ubuntu/app/node-server-1
-npm install --production
-```
-
-Create `/home/ubuntu/app/node-server-1/.env`:
-```bash
-nano .env
-```
-
-Paste your production environment variables:
-```env
-PORT=5000
-NODE_ENV=production
-MONGO_URI=mongodb://127.0.0.1:27017/photo_sharing_db
-JWT_SECRET=your_super_strong_random_jwt_secret_here
-FLASK_URL=http://127.0.0.1:5001
-CORS_ORIGIN=*
-
-# Email credentials (for account verification)
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_gmail_app_password
-
-# Oracle Object Storage (S3-Compatible)
-R2_ENDPOINT=https://<your_namespace>.compat.objectstorage.<your_region>.oraclecloud.com
-R2_ACCESS_KEY=<your_customer_access_key>
-R2_SECRET_KEY=<your_customer_secret_key>
-R2_BUCKET=fyndr-photos
-R2_REGION=<your_region>
-```
-
----
-
-### Step 3.3: Set Up Python ML Service (`flask-server-2`)
-```bash
-cd /home/ubuntu/app/flask-server-2
+# Python venv for ML
+cd flask-server-2
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+deactivate
+cd ..
 ```
 
-Create `/home/ubuntu/app/flask-server-2/.env`:
+### 3.4 Environment Files — What Goes Where
+
+**A. Oracle VPS — `/home/ubuntu/app/node-server-1/.env` (Backend API):**
+```bash
+nano node-server-1/.env
+```
 ```env
+PORT=5000
+NODE_ENV=production
+MONGO_URI=mongodb://127.0.0.1:27017/photo_sharing_db
+JWT_SECRET=<generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+FLASK_URL=http://127.0.0.1:5001
+CORS_ORIGIN=https://<your-app>.vercel.app
+# or during testing: CORS_ORIGIN=*
+
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_16_char_gmail_app_password
+
+R2_ENDPOINT=https://bmtrutilfkey.compat.objectstorage.ap-mumbai-1.oraclecloud.com
+R2_ACCESS_KEY=<paste Access Key from Customer Secret Keys table>
+R2_SECRET_KEY=<paste Secret Key shown once>
+R2_BUCKET=fyndr-photos
+R2_REGION=ap-mumbai-1
+```
+> **Note — current code hardcodes:** `CORS_ORIGIN` is not yet read (code uses `app.use(cors())` → open to all origins) and `FLASK_URL`/`MONGO_URI` are hardcoded to `127.0.0.1` in `node-server-1/index.js` and `flask-server-2/app.py`. The env values above are the *intended* contract; if you change them, also patch those files or open a follow-up PR to honor `process.env.*`.
+
+**B. Oracle VPS — `/home/ubuntu/app/flask-server-2/.env` (ML service):**
+```bash
+nano flask-server-2/.env
+```
+```env
+PORT=5001
 MONGO_URI=mongodb://127.0.0.1:27017/photo_sharing_db
 FAISS_BASE=/tmp/fyndr_faiss
-PORT=5001
 ```
+> `MONGO_URI` in `flask-server-2/app.py` is currently hardcoded to `mongodb://localhost:27017/...` — env is ignored unless patched. Keep `127.0.0.1` / `localhost` for now.
 
-Test ML server warmup (press Ctrl+C once loaded):
+**C. Local / Root `.env` (optional, for `scripts/test-oci.js` only):**
+Already on your laptop at `/.env` — keep it gitignored. Use the same OCI block as above for testing. Never commit it.
+
+### 3.5 Run & Verify — Two Modes
+
+**Quick dev test (uses `pnpm dev` — includes auto port-clean + mongo check):**
 ```bash
-python app.py
+cd /home/ubuntu/app
+pnpm dev
+# → scripts/clean-ports.js frees 5000/5001/3000 from zombies
+# → scripts/ensure-mongo.js checks 27017, auto `docker compose up -d mongo` if needed
+# → concurrently: api 5000, ml 5001, web 3000
+# On VPS you don't need web (Vercel builds it) — stop web with Ctrl+C and run API/ML only:
+```
+For VPS production, run only API + ML (skip web):
+```bash
+# Option A — two terminals or background:
+pnpm run dev:api &
+pnpm run dev:ml &
+# (no `pnpm --filter` — repo has no pnpm-workspace.yaml)
 ```
 
----
-
-### Step 3.4: Configure PM2 for Process Management
-Create `/home/ubuntu/app/ecosystem.config.js`:
+**Production (PM2 — survives reboot, no Docker builds):**
+Repo now includes `ecosystem.config.js` at root — just start it (or copy the block below if you need to recreate it on the VM):
 ```javascript
 module.exports = {
   apps: [
@@ -240,10 +237,7 @@ module.exports = {
       name: 'fyndr-api',
       cwd: '/home/ubuntu/app/node-server-1',
       script: 'index.js',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 5000,
-      },
+      env: { NODE_ENV: 'production', PORT: 5000 },
       restart_delay: 3000,
       max_memory_restart: '1G',
     },
@@ -252,47 +246,43 @@ module.exports = {
       cwd: '/home/ubuntu/app/flask-server-2',
       script: 'app.py',
       interpreter: '/home/ubuntu/app/flask-server-2/venv/bin/python',
-      env: {
-        PYTHONUNBUFFERED: '1',
-      },
+      env: { PYTHONUNBUFFERED: '1' },
       restart_delay: 3000,
       max_memory_restart: '3G',
     },
   ],
 };
 ```
-
-Start and persist PM2 processes across reboots:
 ```bash
-cd /home/ubuntu/app
 pm2 start ecosystem.config.js
 pm2 save
 sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u ubuntu --hp /home/ubuntu
+pm2 status  # → fyndr-api online, fyndr-ml online
+pm2 logs --lines 50
+# Mongo stays via Docker: docker ps → fyndr-mongo-dev Up (healthy)
 ```
 
-Check process status:
+### 3.6 Firewall on the VM (UFW — web only)
 ```bash
-pm2 status
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw --force enable
+sudo ufw status
 ```
 
----
-
-### Step 3.5: Configure Nginx (Reverse Proxy & HTTPS)
-
-Create `/etc/nginx/sites-available/fyndr`:
+### 3.7 Nginx Reverse Proxy (TLS terminates here — API & ML stay private)
 ```bash
 sudo nano /etc/nginx/sites-available/fyndr
 ```
-
-Add configuration:
 ```nginx
 server {
     listen 80;
-    server_name api.yourdomain.com; # Replace with your domain or server public IP
+    server_name api.yourdomain.com;  # or <YOUR_PUBLIC_IP> for IP-only testing
 
     client_max_body_size 100M;
 
-    # Node.js API Proxy
+    # Node API — all /api/* and /metrics etc.
     location / {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
@@ -304,71 +294,104 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # Flask ML — guest selfie matching (required because frontend hardcodes 5001 for now)
+    location /ml/ {
+        proxy_pass http://127.0.0.1:5001/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 20M;
+    }
 }
 ```
-
-Enable site and test Nginx:
+> If you patch `CameraCaptureWithMask.js` to call `REACT_APP_API_URL/match_faces` proxied by Node instead, the `/ml/` block is optional. Until then, keep it.
 ```bash
 sudo ln -s /etc/nginx/sites-available/fyndr /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
-```
 
-Set up free SSL with Let's Encrypt (required for HTTPS Vercel integration):
-```bash
+# With a domain — HTTPS (required for Vercel HTTPS → no mixed-content):
 sudo certbot --nginx -d api.yourdomain.com
+# Without a domain (IP testing): keep http://<IP> and set REACT_APP_API_URL to http://<IP> (Vercel will warn mixed-content if Vercel is https — use domain for prod)
+```
+
+---
+### 4.2 Environment Variables (Vercel → Project → Settings → Environment Variables)
+
+**Required for the frontend:**
+
+| Variable | Value (Production) | Notes |
+|---|---|---|
+| `REACT_APP_API_URL` | `https://api.yourdomain.com` | **With domain + certbot** — recommended. Node API via Nginx. |
+| `REACT_APP_API_URL` | `http://<ORACLE_PUBLIC_IP>` | **IP-only testing** — Vercel HTTPS → HTTP triggers mixed-content warning. |
+| `REACT_APP_ML_URL` | `https://api.yourdomain.com/ml` | **Required until frontend is patched** — `CameraCaptureWithMask.js` hardcodes `127.0.0.1:5001` for local dev. On Vercel set this to the Nginx `/ml/` proxy above. If you patch it to use `REACT_APP_API_URL`, this can be omitted. |
+
+> **Do not** add backend secrets (`R2_*`, `MONGO_URI`, `JWT_SECRET`, `EMAIL_*`) to Vercel — they are VPS-only (`node-server-1/.env`) and would leak to the browser. The `REACT_APP_` prefix is the only thing Vercel bakes into the React build.
+
+Add only if you need them:
+- `CI` = `false` (if build fails on warnings as errors)
+
+Click **Deploy**. Vercel will build `front-end` and give you `https://<your-app>.vercel.app`.
+
+After deploy, on the VPS update `node-server-1/.env` if you want to lock CORS (currently open — see §3.4 note):
+```env
+CORS_ORIGIN=https://<your-app>.vercel.app
+```
+Then `pm2 restart fyndr-api` (has no effect until `index.js` honors `CORS_ORIGIN` — otherwise it stays `*`).
+
+---
+
+## Part 5 — Smoke Test & Ongoing Ops
+
+### 5.1 Verify Each Layer
+```bash
+# On the VPS
+curl http://127.0.0.1:5000/metrics                 # → JSON metrics
+curl http://127.0.0.1:5001/faiss_stats?event_id=test  # → ML alive
+docker ps | grep fyndr-mongo-dev                  # → Up (healthy)
+pm2 status                                        # → both online
+
+# Via Nginx (public)
+curl http://<YOUR_PUBLIC_IP>/metrics
+curl https://api.yourdomain.com/metrics           # after certbot
+
+# Via Vercel
+open https://<your-app>.vercel.app
+# → Home → Sign in → Create Event → Upload wedding.jpg → QR → phone selfie → matches
+```
+
+Check OCI bucket after upload:
+- Console → **Storage → Buckets → fyndr-photos → Objects** → you should see `uploads/<eventId>/...`
+
+### 5.2 Updating After `git push`
+```bash
+ssh ubuntu@<YOUR_PUBLIC_IP>
+cd /home/ubuntu/app
+git pull origin main
+npm install --prefix node-server-1 --production
+# if ML deps changed: source flask-server-2/venv/bin/activate && pip install -r flask-server-2/requirements.txt && deactivate
+pm2 restart ecosystem.config.js   # or pm2 restart fyndr-api fyndr-ml
+sudo nginx -t && sudo systemctl reload nginx  # only if nginx changed
+```
+
+### 5.3 Useful Commands
+```bash
+pm2 logs fyndr-api --lines 100
+pm2 logs fyndr-ml --lines 100
+docker logs fyndr-mongo-dev --tail 50
+docker compose -f docker-compose.dev.yml logs mongo
+node scripts/test-oci.js           # re-verify OCI from the VM (copy .env there temporarily or set env inline)
 ```
 
 ---
 
-## Part 4: Frontend Deployment on Vercel
+## Appendix — Why This Hybrid Is Light
 
-### Step 4.1: Connect GitHub to Vercel
-1. Log in to [Vercel](https://vercel.com).
-2. Click **Add New...** &rarr; **Project**.
-3. Import your `shivbera18/Fyndr` GitHub repository.
+- **No `docker build` for Node/Python** — avoids 1–2 GB images, slow ARM builds, and registry pushes. `pnpm install` + `venv` is seconds.
+- **Only `mongo:8` is containerized** — tiny, official, health-checked, and already wired in `docker-compose.dev.yml` (just `up -d mongo`).
+- **`pnpm dev` stays usable** on the VM via `scripts/clean-ports.js` + `scripts/ensure-mongo.js` (auto-frees 5000/5001, auto-starts Mongo). PM2 wraps the same `node`/`python` commands for production persistence.
 
----
-
-### Step 4.2: Configure Project Settings in Vercel
-1. **Framework Preset:** `Create React App` (or `Other`).
-2. **Root Directory:** Click **Edit** and choose **`front-end`**.
-3. **Build Command:** `npm run build`
-4. **Output Directory:** `build`
-5. **Install Command:** `npm install`
-
----
-
-### Step 4.3: Configure Vercel Environment Variables
-Under **Environment Variables**, add:
-
-| Variable | Value | Purpose |
-|---|---|---|
-| `REACT_APP_API_URL` | `https://api.yourdomain.com` *(or `http://<ORACLE_IP>`)* | Oracle Cloud Backend API URL |
-
-*(Note: The React frontend interacts solely with the API endpoint; the API proxies ML operations internally to Flask on port 5001, completely preventing browser Mixed Content errors).*
-
-Click **Deploy**.
-
----
-
-## Part 5: Verification & Production Smoke Testing
-
-1. **Verify Backend Health via Nginx:**
-   ```bash
-   curl https://api.yourdomain.com/metrics
-   # Or for HTTP testing:
-   curl http://<ORACLE_IP>/metrics
-   ```
-
-2. **Verify ML Endpoint Internally on the Server:**
-   ```bash
-   curl http://127.0.0.1:5001/faiss_stats?event_id=test
-   ```
-
-3. **Verify Vercel Web App:**
-   - Open your Vercel deployment URL (e.g., `https://fyndr-web.vercel.app`).
-   - Register/Sign in as a photographer.
-   - Create an event and upload photos.
-   - Check your Oracle Object Storage bucket (`fyndr-photos`) to confirm uploaded files arrive.
-   - Scan the event QR code on a mobile phone, take a selfie, and verify instant face matching.
+> If you ever need full Docker again: `pnpm compose:dev` still works, but this guide is the lighter path you asked for.
