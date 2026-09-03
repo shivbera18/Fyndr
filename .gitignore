@@ -34,3 +34,5 @@ benchmark/data/
 /tmp/fyndr_faiss/
 nul
 .vercel
+# local git worktrees (machine-specific checkouts)
+.worktrees/
