@@ -13,7 +13,8 @@ flask-server-2/flask.log
 node-server-1/node.log
 front-end/frontend.log
 front-end/build/
-# env
+# env — root and service-level (never commit real secrets)
+.env
 node-server-1/.env
 front-end/.env
 flask-server-2/.env
