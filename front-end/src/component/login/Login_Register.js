@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_URL } from '../../utils/api';
 
 const Login_Register = () => {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ const Login_Register = () => {
   const handleLogin = async (e) => {
     e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const r = await fetch('http://localhost:5000/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password }) });
+      const r = await fetch(`${API_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password }) });
       const d = await r.json();
       if (r.ok && d._id) { localStorage.setItem('user', JSON.stringify(d)); setOk('Signed in — redirecting…'); setTimeout(() => navigate('/dashboard'), 500); }
       else setErr(d.message || d.error || 'Invalid email or password.');
@@ -27,7 +28,7 @@ const Login_Register = () => {
   const handleRegister = async (e) => {
     e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const r = await fetch('http://localhost:5000/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password }) });
+      const r = await fetch(`${API_URL}/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password }) });
       const d = await r.json();
       if (r.ok) { setOk(d.message || 'Account created — sign in now.'); setMode('login'); }
       else setErr(d.message || d.error || 'Registration failed.');

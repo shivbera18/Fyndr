@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { API_URL } from '../../utils/api';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoInput from '../ui/NeoInput';
-
 const Photographer_detail = () => {
   const [studioName, setStudioName] = useState('');
   const [phoneNo, setPhoneNo] = useState('');
@@ -18,7 +18,7 @@ const Photographer_detail = () => {
     const fetchStudio = async () => {
       if (!user._id) return;
       try {
-        const res = await fetch('http://localhost:5000/find_studio', {
+        const res = await fetch(`${API_URL}/find_studio`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ create_by: user._id }),
@@ -43,7 +43,7 @@ const Photographer_detail = () => {
     setStatusMessage('');
 
     try {
-      const res = await fetch('http://localhost:5000/studio', {
+      const res = await fetch(`${API_URL}/studio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

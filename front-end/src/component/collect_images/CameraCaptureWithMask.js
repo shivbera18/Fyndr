@@ -8,6 +8,7 @@ import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
 import NeoModal from '../ui/NeoModal';
+import { API_URL, ML_URL } from '../../utils/api';
 
 const CameraCaptureWithMask = () => {
   const location = useLocation();
@@ -67,7 +68,7 @@ const CameraCaptureWithMask = () => {
       formData.append('image', file);
       formData.append('event_id', event_id);
 
-      const response = await axios.post('http://127.0.0.1:5001/match_faces', formData, {
+      const response = await axios.post(`${ML_URL}/match_faces`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 30000,
       });
@@ -103,13 +104,7 @@ const CameraCaptureWithMask = () => {
     if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
   }, []);
 
-  const getApiBase = () => {
-    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
-    if (typeof window !== 'undefined' && window.location.hostname) {
-      return `${window.location.protocol}//${window.location.hostname}:5000`;
-    }
-    return 'http://localhost:5000';
-  };
+  const getApiBase = () => API_URL;
 
   const downloadImage = async (url, filename) => {
     let diskName = filename;

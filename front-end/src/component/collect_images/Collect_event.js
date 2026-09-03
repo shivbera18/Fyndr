@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_URL } from '../../utils/api';
 import Header from '../navbar/Header';
 import Footer from '../Footer';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
-
 const Collect_event = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ const Collect_event = () => {
   const fetchEvent = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/collect_event', {
+      const res = await fetch(`${API_URL}/collect_event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ _id: eventId }),
@@ -56,7 +56,7 @@ const Collect_event = () => {
     setErrorMessage('');
 
     try {
-      const res = await fetch('http://localhost:5000/confirm_pin', {
+      const res = await fetch(`${API_URL}/confirm_pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ _id: eventId, pin: pin.trim() }),
@@ -97,7 +97,7 @@ const Collect_event = () => {
                 <div className="text-center mb-4">
                   {eventData.event_photo && (
                     <img
-                      src={`http://localhost:5000/event_profile/${eventData.event_photo}`}
+                      src={`${API_URL}/event_profile/${eventData.event_photo}`}
                       alt={eventData.event_name}
                       style={{
                         width: '100%',

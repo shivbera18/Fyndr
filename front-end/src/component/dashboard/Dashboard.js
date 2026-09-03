@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../../utils/api';
 import Header from '../navbar/Header';
 import Footer from '../Footer';
 import DisplayEvent from './Display_event';
@@ -71,7 +72,7 @@ const Dashboard = () => {
         formData.append('name', coverFile);
       }
 
-      const res = await fetch('http://localhost:5000/event', {
+      const res = await fetch(`${API_URL}/event`, {
         method: 'POST',
         body: formData,
       });

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_URL } from '../../utils/api';
 import NeoCard from '../ui/NeoCard';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
@@ -15,7 +16,7 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
       const user = JSON.parse(userString);
       setLoading(true);
       setFetchError('');
-      const res = await fetch('http://localhost:5000/display_event', {
+      const res = await fetch(`${API_URL}/display_event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user._id }),
@@ -89,7 +90,7 @@ const Display_event = ({ refresh, onclick, onQrClick }) => {
       <div className="row g-4">
         {events.map((event, index) => {
           const coverUrl = event.event_photo
-            ? `http://localhost:5000/event_profile/${event.event_photo}`
+            ? `${API_URL}/event_profile/${event.event_photo}`
             : '/images/wedding.jpg';
 
           return (

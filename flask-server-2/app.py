@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify
 import numpy as np
 from PIL import Image, ImageOps
@@ -48,7 +49,7 @@ except Exception as e:
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-app.config["MONGO_URI"] = "mongodb://localhost:27017/photo_sharing_db"  # Replace with your MongoDB URI
+app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/photo_sharing_db")  # Replace with your MongoDB URI
 mongo = PyMongo(app)
 CORS(app)
 
@@ -308,4 +309,4 @@ def faiss_delete_event_route():
         return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
-     socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)
+     socketio.run(app, host='0.0.0.0', port=int(os.getenv("PORT", "5001")), debug=False, allow_unsafe_werkzeug=True)
