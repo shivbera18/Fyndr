@@ -1,6 +1,9 @@
-
 require('dotenv').config();
 
+const FLASK_URL = process.env.FLASK_URL || 'http://127.0.0.1:5001';
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+const API_PUBLIC_URL = (process.env.API_PUBLIC_URL || process.env.API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const mongoose = require("mongoose")
 
 const express = require("express");
@@ -26,13 +29,10 @@ require("./Config_db")
 
 
 
-
-
 const app = express();
 
 app.use(express.json());
-app.use(cors());
-// P2: metrics middleware – normalized route, no high-cardinality req.path, with duration histogram
+app.use(cors({ origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map(s=>s.trim()), credentials: CORS_ORIGIN !== '*' }));
 app.use((req,res,next)=>{
   const start = Date.now();
   const origEnd = res.end;
@@ -165,7 +165,7 @@ app.post("/register", async (req, resp) => {
         const token = jwt.sign({ userId: result._id }, JWT_SECRET, { expiresIn: '1h' });
 
         // Send verification email (skip if dummy)
-        const verificationLink = `http://localhost:5000/verify/${token}`;
+        const verificationLink = `${API_PUBLIC_URL}/verify/${token}`;
         try {
             await transporter.sendMail({
                 from: process.env.EMAIL_USER,
@@ -197,12 +197,12 @@ app.get('/verify/:token', async (req, res) => {
         const user = await User.findByIdAndUpdate(decoded.userId, { isVerified: true }, { new: true });
 
         if (user) {
-            res.redirect('http://localhost:3000/confirmed?status=success');
+            res.redirect(`${FRONTEND_URL}/confirmed?status=success`);
         } else {
-            res.redirect('http://localhost:3000/confirmed?status=failed');
+            res.redirect(`${FRONTEND_URL}/confirmed?status=failed`);
         }
     } catch (error) {
-        res.redirect('http://localhost:3000/confirmed?status=failed');
+        res.redirect(`${FRONTEND_URL}/confirmed?status=failed`);
     }
 });
 //-----------------------------------------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ app.post('/resend-verification', async (req, resp) => {
 
         const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '1h' });
 
-        const verificationLink = `http://localhost:3000/verify/${token}?email=${email}`;
+        const verificationLink = `${API_PUBLIC_URL}/verify/${token}?email=${email}`;
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: email,
@@ -412,7 +412,7 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
 
                 let embeddings = [];
                 try {
-                    const response = await axios.post('http://127.0.0.1:5001/get_embedding', formData, {
+                    const response = await axios.post(`${FLASK_URL}/get_embedding`, formData, {
                         headers: { ...formData.getHeaders() },
                         maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000
                     });
@@ -443,13 +443,13 @@ app.post('/photo', upload.array('name', 100), async (req, res) => {
                     if (e.code === 11000) {
                         // race: another worker saved same hash — clean orphan FAISS vector
                         try { fs.unlinkSync(file.path); } catch(_){}
-                        try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
+                        try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
                         const dup = await Photo.findOne({ event_id, hash });
                         await queueMod.markDone(event_id, hash).catch(()=>{});
                         return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
                     }
                     // on generic save failure, also try to clean orphan FAISS
-                    try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
+                    try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
                     await queueMod.markFailed(event_id, hash, e.message).catch(()=>{});
                     return { file: file.originalname, hash, error: e.message, status: 'failed' };
                 }
@@ -492,7 +492,7 @@ app.delete('/delete-event', async (req, res) => {
         await Photo.deleteMany({ event_id: _id });
         // cleanup jobs + faiss
         try { await require('./queue/mongoQueue').Job.deleteMany({ event_id: _id }); } catch(_){}
-        try { await axios.post('http://127.0.0.1:5001/faiss_delete_event', { event_id: _id }, { timeout: 5000 }); } catch(e){ logger.info('[faiss] delete_event failed', e.message); }
+        try { await axios.post(`${FLASK_URL}/faiss_delete_event`, { event_id: _id }, { timeout: 5000 }); } catch(e){ logger.info('[faiss] delete_event failed', e.message); }
 
         photos.forEach((photo) => {
             const photoPath = path.join(__dirname, 'uploads', photo.name);
@@ -525,7 +525,7 @@ const deleteImageHandler = async (req, res) => {
             if (result.hash) {
                 try { await require('./queue/mongoQueue').Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }).catch(()=>{}); } catch(_){}
             }
-            try { await axios.post('http://127.0.0.1:5001/faiss_remove', { event_id: result.event_id, photo_id: _id }, { timeout: 5000 }).catch(()=>{}); } catch(_){}
+            try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id: result.event_id, photo_id: _id }, { timeout: 5000 }).catch(()=>{}); } catch(_){}
         }
 
         const fileName = result.name || name;

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../utils/api';
 import NeoButton from '../ui/NeoButton';
 import NeoBadge from '../ui/NeoBadge';
-
 const Upload_Img = ({ event_id, d_ref, inevent }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -107,7 +107,7 @@ const Upload_Img = ({ event_id, d_ref, inevent }) => {
       formData.append('upload_by', USER_ID);
 
       try {
-        const response = await axios.post('http://localhost:5000/photo', formData, {
+        const response = await axios.post(`${API_URL}/photo`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           maxContentLength: Infinity,
           maxBodyLength: Infinity,

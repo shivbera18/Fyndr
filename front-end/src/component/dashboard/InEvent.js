@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { API_URL } from '../../utils/api';
 import UploadImg from './Upload_Img';
 import Qrcode from './Qrcode';
 import NeoButton from '../ui/NeoButton';
 import NeoCard from '../ui/NeoCard';
 import NeoBadge from '../ui/NeoBadge';
 import NeoModal from '../ui/NeoModal';
-
 const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,13 +18,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   const fallbackPlaceholder =
     'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E';
 
-  const getApiBase = () => {
-    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
-    if (typeof window !== 'undefined' && window.location.hostname) {
-      return `${window.location.protocol}//${window.location.hostname}:5000`;
-    }
-    return 'http://localhost:5000';
-  };
+  const getApiBase = () => API_URL;
 
   const downloadImage = async (url, filename) => {
     let diskName = filename;
@@ -68,7 +62,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   const fetchImages = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/in-event', {
+      const res = await fetch(`${API_URL}/in-event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ _id: eventID }),
@@ -94,7 +88,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
   }, [eventID]);
   const handleDeleteEvent = async () => {
     try {
-      const res = await fetch('http://localhost:5000/delete-event', {
+      const res = await fetch(`${API_URL}/delete-event`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ _id: eventID }),
@@ -108,7 +102,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }) => {
 
   const handleDeletePhoto = async (photoId) => {
     try {
-      const res = await fetch('http://localhost:5000/delete-img', {
+      const res = await fetch(`${API_URL}/delete-img`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ _id: photoId }),

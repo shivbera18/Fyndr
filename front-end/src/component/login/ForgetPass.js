@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-
+import { API_URL } from '../../utils/api';
 const ForgetPass = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -14,7 +14,7 @@ const ForgetPass = () => {
   const sendOtp = async (e) => {
     e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const r = await fetch('http://localhost:5000/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }) });
+      const r = await fetch(`${API_URL}/send-otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }) });
       const d = await r.json();
       if (r.ok) { setOk('OTP sent to your email.'); setStep(2); } else setErr(d.message || d.error || 'Failed to send OTP.');
     } catch { setErr('Cannot reach server.'); } finally { setLoading(false); }
@@ -22,7 +22,7 @@ const ForgetPass = () => {
   const verify = async (e) => {
     e.preventDefault(); setErr(''); setOk(''); setLoading(true);
     try {
-      const r = await fetch('http://localhost:5000/newPassword-verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), otp: otp.trim(), newpassword: newPassword }) });
+      const r = await fetch(`${API_URL}/newPassword-verify-otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), otp: otp.trim(), newpassword: newPassword }) });
       const d = await r.json();
       if (r.ok) { setOk('Password updated — redirecting…'); setTimeout(() => navigate('/login'), 1000); } else setErr(d.message || d.error || 'Invalid OTP.');
     } catch { setErr('Cannot reach server.'); } finally { setLoading(false); }
