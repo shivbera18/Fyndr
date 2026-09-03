@@ -70,6 +70,12 @@
 }
 
 /* Type */
+.fy h1,
+.fy h2,
+.fy h3 {
+  color: var(--fy-foreground);
+}
+
 .fy-eyebrow {
   display: inline-flex;
   align-items: center;
