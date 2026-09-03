@@ -155,10 +155,10 @@ export default function Header(): React.JSX.Element {
             </>
           )}
           <button
+            className="fy-btn fy-btn-outline fy-btn-sm fy-menu-btn"
             onClick={() => setMobileOpen((v: boolean) => !v)}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((v) => !v)}
           >
             {mobileOpen ? "✕" : "☰"}
           </button>
