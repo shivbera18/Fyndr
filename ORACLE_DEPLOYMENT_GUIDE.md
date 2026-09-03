@@ -11,22 +11,25 @@
 [ Browser — Photographer / Guest (HTTPS) ]
         │
         ├─── (A) https://<your-app>.vercel.app  ──────────→  Vercel (React build from /front-end)
-        │
-        ├─── (B) Presigned PUT/GET  ─────────────────────→  OCI Object Storage  bmtrutilfkey / fyndr-photos (ap-mumbai-1)
-        │              ▲
-        │              │ (S3 SDK via @aws-sdk/client-s3, forcePathStyle)
-        ▼              │
+        │         │  calls REACT_APP_API_URL + /match_faces via Nginx
+        │         ▼
+        │   Nginx 80/443 ── / → Node API 5000 ──┐
+        │                  └─ /ml/ → Flask ML 5001 │ (guest selfie matching)
+        │                                          ▼
+        ├─── (B) Presigned PUT/GET  ─────────────→  OCI Object Storage  bmtrutilfkey / fyndr-photos (ap-mumbai-1)
+        │              ▲  (S3 SDK via @aws-sdk/client-s3, forcePathStyle)
+        │              │
 [ Oracle VM — Ubuntu 22.04 LTS — Always Free ]
   ┌─────────────────────────────────────────────────────┐
-  │ Nginx 80/443 (Let's Encrypt)  ──proxy / → 127.0.0.1:5000 │
-  │    Node API 5000 (PM2 or pnpm dev:api) ─┐           │
-  │         │ internal FLASK_URL             ├──→ Flask ML 5001 (PM2 or pnpm dev:ml)
-  │         ▼                                │         │
-  │    MongoDB 27017 ◄───────────────────────┘     FAISS /tmp/fyndr_faiss
-  │    ▲  (Docker: mongo:8, volume mongo_dev)               ▲
-  └────┼────────────────────────────────────────────────────┘
-       │  only 22/80/443 public — 5000/5001/27017 = 127.0.0.1
+  │ Nginx 80/443 (Let's Encrypt)                        │
+  │  Node API 5000 (PM2 or pnpm dev:api)                │
+  │  Flask ML 5001 (PM2 or pnpm dev:ml) ← via /ml/      │
+  │  MongoDB 27017 (Docker: mongo:8)                    │
+  │  FAISS /tmp/fyndr_faiss                             │
+  └─────────────────────────────────────────────────────┘
+  only 22/80/443 public — 5000/5001/27017 = 127.0.0.1
 ```
+> **Current frontend note:** `front-end/src/component/collect_images/CameraCaptureWithMask.js` currently hardcodes `http://127.0.0.1:5001/match_faces` for local dev. For Vercel production the browser can't reach `127.0.0.1` — you **must** expose ML via Nginx `/ml/` (see §3.7) and set `REACT_APP_ML_URL=https://api.yourdomain.com/ml` on Vercel (or patch the frontend to call `/api/match_faces` proxied by Node).
 
 ### Where Secrets Live — Cheat Sheet
 
@@ -108,7 +111,7 @@ ssh -i ~/.ssh/fyndr_oracle.key ubuntu@<YOUR_PUBLIC_IP>
 ### 3.1 System Dependencies (Node, Python, Nginx, Docker, Certbot)
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl build-essential python3 python3-pip python3-venv nginx certbot python3-certbot-nginx libgl1 libglib2.0-0 ca-certificates gnupg lsb-release
+sudo apt install -y git curl build-essential python3 python3-pip python3-venv nginx certbot python3-certbot-nginx libgl1 libglib2.0-0
 
 # Node 20 + pnpm + PM2
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -151,10 +154,10 @@ docker exec fyndr-mongo-dev mongosh --eval "db.adminCommand('ping')"  # → { ok
 ```bash
 cd /home/ubuntu/app
 
-# Node deps (root + backend)
-pnpm install          # or npm install at root
-npm install --prefix node-server-1 --production
-npm install --prefix front-end   # only if you ever build frontend on the VM (not needed for Vercel)
+# Node deps (root + backend) — use pnpm consistently (repo uses pnpm@9)
+pnpm install
+pnpm --prefix node-server-1 install --prod
+# front-end not needed on VPS (built on Vercel) — skip `pnpm --prefix front-end install`
 
 # Python venv for ML
 cd flask-server-2
@@ -190,6 +193,7 @@ R2_SECRET_KEY=<paste Secret Key shown once>
 R2_BUCKET=fyndr-photos
 R2_REGION=ap-mumbai-1
 ```
+> **Note — current code hardcodes:** `CORS_ORIGIN` is not yet read (code uses `app.use(cors())` → open to all origins) and `FLASK_URL`/`MONGO_URI` are hardcoded to `127.0.0.1` in `node-server-1/index.js` and `flask-server-2/app.py`. The env values above are the *intended* contract; if you change them, also patch those files or open a follow-up PR to honor `process.env.*`.
 
 **B. Oracle VPS — `/home/ubuntu/app/flask-server-2/.env` (ML service):**
 ```bash
@@ -200,11 +204,10 @@ PORT=5001
 MONGO_URI=mongodb://127.0.0.1:27017/photo_sharing_db
 FAISS_BASE=/tmp/fyndr_faiss
 ```
+> `MONGO_URI` in `flask-server-2/app.py` is currently hardcoded to `mongodb://localhost:27017/...` — env is ignored unless patched. Keep `127.0.0.1` / `localhost` for now.
 
 **C. Local / Root `.env` (optional, for `scripts/test-oci.js` only):**
 Already on your laptop at `/.env` — keep it gitignored. Use the same OCI block as above for testing. Never commit it.
-
-> Template lives at `/.env.example` (Mumbai `ap-mumbai-1` pre-filled, with placeholders) — copy sections from there on the VM.
 
 ### 3.5 Run & Verify — Two Modes
 
@@ -214,16 +217,19 @@ cd /home/ubuntu/app
 pnpm dev
 # → scripts/clean-ports.js frees 5000/5001/3000 from zombies
 # → scripts/ensure-mongo.js checks 27017, auto `docker compose up -d mongo` if needed
-# → concurrently: api 5000, ml 5001 (web 3000 not needed on VPS — stop it with Ctrl+C or run pnpm dev:api + dev:ml separately)
+# → concurrently: api 5000, ml 5001, web 3000
+# On VPS you don't need web (Vercel builds it) — stop web with Ctrl+C and run API/ML only:
 ```
 For VPS production, run only API + ML (skip web):
 ```bash
-pnpm run dev:api & pnpm run dev:ml
-# or: pnpm --filter fyndr dev:api  (if using workspaces)
+# Option A — two terminals or background:
+pnpm run dev:api &
+pnpm run dev:ml &
+# (no `pnpm --filter` — repo has no pnpm-workspace.yaml)
 ```
 
 **Production (PM2 — survives reboot, no Docker builds):**
-Create `/home/ubuntu/app/ecosystem.config.js` (or keep the repo's):
+Repo now includes `ecosystem.config.js` at root — just start it (or copy the block below if you need to recreate it on the VM):
 ```javascript
 module.exports = {
   apps: [
@@ -276,6 +282,7 @@ server {
 
     client_max_body_size 100M;
 
+    # Node API — all /api/* and /metrics etc.
     location / {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
@@ -287,8 +294,20 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # Flask ML — guest selfie matching (required because frontend hardcodes 5001 for now)
+    location /ml/ {
+        proxy_pass http://127.0.0.1:5001/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 20M;
+    }
 }
 ```
+> If you patch `CameraCaptureWithMask.js` to call `REACT_APP_API_URL/match_faces` proxied by Node instead, the `/ml/` block is optional. Until then, keep it.
 ```bash
 sudo ln -s /etc/nginx/sites-available/fyndr /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
@@ -300,40 +319,28 @@ sudo certbot --nginx -d api.yourdomain.com
 ```
 
 ---
-
-## Part 4 — Frontend on Vercel (Manual GitHub Connect)
-
-You will connect manually — do this in the Vercel dashboard:
-
-### 4.1 Import
-1. https://vercel.com → **Add New… → Project** → **Import** `shivbera18/Fyndr`.
-2. **Root Directory:** click **Edit** → select **`front-end`**.
-3. **Framework Preset:** `Create React App` (or `Other` — auto-detected).
-4. **Build Command:** `npm run build` (or `CI=false npm run build` if you see warnings-treated-as-errors)
-5. **Output Directory:** `build`
-6. **Install Command:** `npm install`
-
 ### 4.2 Environment Variables (Vercel → Project → Settings → Environment Variables)
 
-**Only ONE variable is required for the frontend:**
+**Required for the frontend:**
 
-| Variable | Value (Production) | When to use which |
+| Variable | Value (Production) | Notes |
 |---|---|---|
-| `REACT_APP_API_URL` | `https://api.yourdomain.com` | **With domain + certbot** — recommended, no mixed-content |
-| `REACT_APP_API_URL` | `http://<ORACLE_PUBLIC_IP>` | **IP-only testing** — works but Vercel HTTPS → HTTP triggers browser mixed-content warning (add the VM IP to Vercel env as `http://...` and test via `http://` preview or add domain) |
+| `REACT_APP_API_URL` | `https://api.yourdomain.com` | **With domain + certbot** — recommended. Node API via Nginx. |
+| `REACT_APP_API_URL` | `http://<ORACLE_PUBLIC_IP>` | **IP-only testing** — Vercel HTTPS → HTTP triggers mixed-content warning. |
+| `REACT_APP_ML_URL` | `https://api.yourdomain.com/ml` | **Required until frontend is patched** — `CameraCaptureWithMask.js` hardcodes `127.0.0.1:5001` for local dev. On Vercel set this to the Nginx `/ml/` proxy above. If you patch it to use `REACT_APP_API_URL`, this can be omitted. |
 
-> Do **NOT** add `REACT_APP_ML_URL` on Vercel — the browser never talks to Flask directly. The Node API proxies to `FLASK_URL=http://127.0.0.1:5001` internally.
+> **Do not** add backend secrets (`R2_*`, `MONGO_URI`, `JWT_SECRET`, `EMAIL_*`) to Vercel — they are VPS-only (`node-server-1/.env`) and would leak to the browser. The `REACT_APP_` prefix is the only thing Vercel bakes into the React build.
 
-Add more only if you need them:
-- `CI` = `false` (if build fails on warnings)
+Add only if you need them:
+- `CI` = `false` (if build fails on warnings as errors)
 
 Click **Deploy**. Vercel will build `front-end` and give you `https://<your-app>.vercel.app`.
 
-After deploy, update the VPS `node-server-1/.env`:
+After deploy, on the VPS update `node-server-1/.env` if you want to lock CORS (currently open — see §3.4 note):
 ```env
 CORS_ORIGIN=https://<your-app>.vercel.app
 ```
-Then `pm2 restart fyndr-api`.
+Then `pm2 restart fyndr-api` (has no effect until `index.js` honors `CORS_ORIGIN` — otherwise it stays `*`).
 
 ---
 
