@@ -1,9 +1,9 @@
 require('dotenv').config();
 
 const FLASK_URL = process.env.FLASK_URL || 'http://127.0.0.1:5001';
-const FRONTEND_URL = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+const API_PUBLIC_URL = (process.env.API_PUBLIC_URL || process.env.API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
-
 const mongoose = require("mongoose")
 
 const express = require("express");
@@ -32,7 +32,7 @@ require("./Config_db")
 const app = express();
 
 app.use(express.json());
-app.use(cors({ origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map(s=>s.trim()), credentials: true }));
+app.use(cors({ origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map(s=>s.trim()), credentials: CORS_ORIGIN !== '*' }));
 app.use((req,res,next)=>{
   const start = Date.now();
   const origEnd = res.end;
@@ -165,7 +165,7 @@ app.post("/register", async (req, resp) => {
         const token = jwt.sign({ userId: result._id }, JWT_SECRET, { expiresIn: '1h' });
 
         // Send verification email (skip if dummy)
-        const verificationLink = `${FRONTEND_URL}/verify/${token}`;
+        const verificationLink = `${API_PUBLIC_URL}/verify/${token}`;
         try {
             await transporter.sendMail({
                 from: process.env.EMAIL_USER,
@@ -245,7 +245,7 @@ app.post('/resend-verification', async (req, resp) => {
 
         const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '1h' });
 
-        const verificationLink = `${FRONTEND_URL}/verify/${token}?email=${email}`;
+        const verificationLink = `${API_PUBLIC_URL}/verify/${token}?email=${email}`;
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: email,

@@ -309,4 +309,9 @@ def faiss_delete_event_route():
         return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
-     socketio.run(app, host='0.0.0.0', port=int(os.getenv("PORT", "5001")), debug=False, allow_unsafe_werkzeug=True)
+     def _get_port():
+         try:
+             return int(os.getenv("PORT", "5001"))
+         except ValueError:
+             return 5001
+     socketio.run(app, host='0.0.0.0', port=_get_port(), debug=False, allow_unsafe_werkzeug=True)
