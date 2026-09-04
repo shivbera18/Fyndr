@@ -3,11 +3,13 @@ import { API_URL } from "../../utils/api";
 import UploadImg from "./Upload_Img";
 import Qrcode from "./Qrcode";
 import { Card, CardContent } from "../../components/ui/card";
+import EventAnalyticsModal from "./EventAnalyticsModal";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import {
   ArrowLeft,
+  BarChart3,
   Check,
   Copy,
   Download,
@@ -54,6 +56,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [loading, setLoading] = useState<boolean>(true);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [showAnalytics, setShowAnalytics] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<Preview | null>(null);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
@@ -338,6 +341,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <Button variant="ghost" size="sm" onClick={backbtn} className="min-h-[44px] flex items-center gap-1.5">
             <ArrowLeft className="h-4 w-4" />
             Back to Events
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowAnalytics(true)} className="min-h-[44px] flex items-center gap-1.5">
+            <BarChart3 className="h-4 w-4" />
+            Guest Analytics
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[44px] flex items-center gap-1.5">
             <QrIcon className="h-4 w-4" />
@@ -644,6 +651,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
+        <Button variant="outline" size="default" onClick={() => setShowAnalytics(true)} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
+          <BarChart3 className="h-4 w-4" />
+          Analytics
+        </Button>
         <Button variant="secondary" size="default" onClick={() => setShowQrModal(true)} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
           <QrIcon className="h-4 w-4" />
           QR Code
@@ -670,6 +681,14 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <Qrcode url={guestUrl} eventName={name} />
         </div>
       </ResponsiveModal>
+      {/* Event Analytics & Guest Leads Modal */}
+      <EventAnalyticsModal
+        open={showAnalytics}
+        onOpenChange={setShowAnalytics}
+        eventId={eventID}
+        eventName={name}
+      />
+
 
       {/* Delete Event Confirmation Modal */}
       <ResponsiveModal

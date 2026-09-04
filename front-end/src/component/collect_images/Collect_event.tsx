@@ -8,6 +8,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { API_URL } from "../../utils/api";
+import { trackEvent, recordAccessAttempt } from "../../utils/analytics";
 import { KeyRound, Loader2 } from "lucide-react";
 
 type EventData = {
@@ -24,6 +25,8 @@ const CollectEvent = (): React.JSX.Element => {
   const navigate = useNavigate();
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [studioData, setStudioData] = useState<StudioData | null>(null);
+  const [guestName, setGuestName] = useState<string>(() => (typeof sessionStorage !== "undefined" && sessionStorage.getItem("fyndr_guest_name")) || "");
+  const [guestPhone, setGuestPhone] = useState<string>(() => (typeof sessionStorage !== "undefined" && sessionStorage.getItem("fyndr_guest_phone")) || "");
   const [pin, setPin] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [verifying, setVerifying] = useState<boolean>(false);
@@ -60,12 +63,22 @@ const CollectEvent = (): React.JSX.Element => {
   useEffect(() => {
     if (eventId) {
       void fetchEvent();
+      trackEvent(eventId, "page_view");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const handlePinSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
+    if (!eventId) return;
+    if (!guestName.trim()) {
+      setErrorMessage("Please enter your name.");
+      return;
+    }
+    if (!guestPhone.trim()) {
+      setErrorMessage("Please enter your mobile or WhatsApp number.");
+      return;
+    }
     if (!pin.trim()) {
       setErrorMessage("Please enter the 6-digit access PIN.");
       return;
@@ -75,21 +88,12 @@ const CollectEvent = (): React.JSX.Element => {
     setErrorMessage("");
 
     try {
-      const res = await fetch(`${API_URL}/confirm_pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: eventId, pin: pin.trim() }),
-      });
-
-      const data = await res.json();
-      if (res.ok && (data.pin !== undefined || data.result === "Pin confirmed")) {
-        // PIN Verified -> Navigate to Camera Selfie Matching screen
-        if (eventId) {
-          sessionStorage.setItem("fy-last-event", eventId);
-        }
+      const data = await recordAccessAttempt(eventId, guestName.trim(), guestPhone.trim(), pin.trim());
+      if (data.ok && data.verified) {
+        sessionStorage.setItem("fy-last-event", eventId);
         navigate("/camera", { state: eventId });
       } else {
-        setErrorMessage(data.result || data.message || "Incorrect PIN. Contact the photographer or host.");
+        setErrorMessage(data.message || "Incorrect PIN. Contact the photographer or host.");
       }
     } catch {
       setErrorMessage("Could not verify PIN. Please try again.");
@@ -139,6 +143,39 @@ const CollectEvent = (): React.JSX.Element => {
               )}
 
               <form onSubmit={handlePinSubmit} className="space-y-4">
+                <div className="space-y-1.5 text-left">
+                  <Label htmlFor="guestName" className="font-medium text-sm">
+                    Your Full Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="guestName"
+                    name="guestName"
+                    type="text"
+                    placeholder="e.g. Rahul Sharma"
+                    value={guestName}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGuestName(e.target.value)}
+                    required
+                    autoComplete="name"
+                    className="h-11 min-h-[44px]"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <Label htmlFor="guestPhone" className="font-medium text-sm">
+                    Mobile / WhatsApp Number <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="guestPhone"
+                    name="guestPhone"
+                    type="tel"
+                    placeholder="e.g. +91 98765 43210"
+                    value={guestPhone}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGuestPhone(e.target.value)}
+                    required
+                    autoComplete="tel"
+                    className="h-11 min-h-[44px]"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="fy-pin" className="block text-center font-medium">
                     6-digit event PIN <span className="text-destructive">*</span>
