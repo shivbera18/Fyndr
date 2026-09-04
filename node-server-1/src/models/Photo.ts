@@ -9,6 +9,11 @@ const photoSchema = new mongoose.Schema(
     // P2: idempotency + fast dedup per-event
     hash: { type: String, index: true },
     status: { type: String, enum: ["queued", "done", "failed"], default: "done", index: true },
+    // P0: sub-event folder — 'General' = unfiled, keeps old photos valid
+    folder_name: { type: String, default: "General", index: true },
+    // P0: client proofing selection
+    isSelected: { type: Boolean, default: false, index: true },
+    selectionNote: { type: String, default: "" },
   },
   { timestamps: true }
 );

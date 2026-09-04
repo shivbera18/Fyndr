@@ -84,19 +84,44 @@ router.post('/in-event', async (req: Request, resp: Response) => {
 
 router.put("/events/:id", async (req: Request, res: Response) => {
     const { id } = req.params; // Extract event ID from URL params
-    const { updateName, updatePin } = req.body; // Extract fields to update from request body
-    const event_name = updateName
-    const pin = updatePin
+    const { updateName, updatePin, folders, selectionLimit, selectionLocked, requireLead } = req.body || {};
+    const event_name = updateName ?? req.body?.event_name;
+    const pin = updatePin ?? req.body?.pin;
     try {
-        // Validate inputs
-        if (!event_name && !pin) {
+        const set: Record<string, unknown> = {};
+        if (event_name !== undefined) set.event_name = event_name;
+        if (pin !== undefined) set.pin = pin;
+        // ponytail: capped inline sanitize, separate folder route if this grows
+        if (folders !== undefined) {
+            if (!Array.isArray(folders)) return res.status(400).json({ message: "folders must be an array." });
+            const rawNames: unknown[] = folders.map((f: unknown) => {
+                if (typeof f === "string") return f;
+                if (f && typeof f === "object" && "name" in f) return f.name;
+                return undefined;
+            });
+            const names = rawNames
+                .filter((n: unknown): n is string => typeof n === "string")
+                .map((n: string) => n.trim().slice(0, 60))
+                .filter(Boolean)
+                .slice(0, 20);
+            const seen = new Set<string>();
+            set.folders = names.filter((n) => (seen.has(n.toLowerCase()) ? false : (seen.add(n.toLowerCase()), true))).map((name) => ({ name }));
+        }
+        if (selectionLimit !== undefined) {
+            const n = Number(selectionLimit);
+            if (!Number.isInteger(n) || n < 0 || n > 100000) return res.status(400).json({ message: "selectionLimit must be an integer 0-100000." });
+            set.selectionLimit = n;
+        }
+        if (selectionLocked !== undefined) set.selectionLocked = Boolean(selectionLocked);
+        if (requireLead !== undefined) set.requireLead = Boolean(requireLead);
+        if (Object.keys(set).length === 0) {
             return res.status(400).json({ message: "Not Provide event_name or pin to update." });
         }
 
         // Update the event
         const updatedEvent = await Event.findByIdAndUpdate(
             id,
-            { $set: { event_name, pin } },
+            { $set: set },
             { new: true, runValidators: true } // Return the updated document and run schema validators
         );
 

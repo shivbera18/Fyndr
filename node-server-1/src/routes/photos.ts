@@ -23,9 +23,13 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
     const endTimer = uploadDuration.startTimer();
     try {
         const files = (req.files as Express.Multer.File[] | undefined) || [];
-        const { event_id, upload_by } = req.body;
+        const body: unknown = req.body;
+        const event_id: unknown = body && typeof body === "object" && "event_id" in body ? body.event_id : undefined;
+        const upload_by: unknown = body && typeof body === "object" && "upload_by" in body ? body.upload_by : undefined;
+        const folderRaw: unknown = body && typeof body === "object" && "folder_name" in body ? body.folder_name : undefined;
+        const folder_name = typeof folderRaw === "string" && folderRaw.trim() ? folderRaw.trim().slice(0, 60) : "General";
         if (!event_id) return res.status(400).send({ error: 'event_id required' });
-        if (!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({ error: 'invalid event_id' });
+        if (typeof event_id !== "string" || !mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({ error: 'invalid event_id' });
         if (files.length === 0) return res.status(400).send({ error: 'no files uploaded' });
         const eventExists = await Event.findById(event_id).select('_id');
         if (!eventExists) return res.status(404).send({ error: 'event not found' });
@@ -96,7 +100,8 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
                         name: file.filename,
                         event_id, upload_by,
                         embedding: JSON.stringify(embeddings),
-                        hash, status: 'done'
+                        hash, status: 'done',
+                        folder_name,
                     });
                     await photo.save();
                     await markDone(event_id, hash).catch(()=>{});
