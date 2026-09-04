@@ -44,7 +44,10 @@ jobs:
             cd "$APP_DIR"
             git fetch origin
             git checkout main
-            git pull --ff-only origin main
+            # Deterministic sync: server checkouts must never drift. Reset
+            # touches tracked files only — .env/uploads (untracked/ignored)
+            # are preserved.
+            git reset --hard origin/main
             cd node-server-1
             npm ci --no-audit --no-fund
             npm run build

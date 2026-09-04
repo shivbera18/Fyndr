@@ -15,7 +15,7 @@ module.exports = {
       name: 'fyndr-ml',
       cwd: './flask-server-2',
       script: 'app.py',
-      interpreter: './venv/bin/python',
+      interpreter: 'python3', // VPS has no venv; system python3 carries Flask (local dev uses pnpm dev instead)
       env: {
         PYTHONUNBUFFERED: '1',
       },
