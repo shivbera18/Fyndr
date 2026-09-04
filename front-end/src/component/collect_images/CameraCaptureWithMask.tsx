@@ -7,6 +7,8 @@ import Footer from "../Footer";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { API_URL, ML_URL } from "../../utils/api";
 import {
@@ -47,9 +49,22 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [eventId] = useState<string | null>(initialEventId);
 
   useEffect(() => {
-    if (eventId) {
-      sessionStorage.setItem("fy-last-event", eventId);
-    }
+    if (!eventId) return;
+    sessionStorage.setItem("fy-last-event", eventId);
+    // Fail-closed + fresh: deep links hydrate the flag; owner toggles apply every mount.
+    fetch(`${API_URL}/collect_event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _id: eventId }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const ev: unknown =
+          data && typeof data === "object" && "event" in data ? data.event : data;
+        const gate = ev && typeof ev === "object" && "requireLead" in ev ? ev.requireLead === true : false;
+        sessionStorage.setItem(`fy-require-lead-${eventId}`, gate ? "1" : "0");
+      })
+      .catch(() => {});
   }, [eventId]);
 
   const webcamRef = useRef<Webcam>(null);
@@ -64,6 +79,12 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [previewPhoto, setPreviewPhoto] = useState<PreviewPhoto | null>(null);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [useUploadMode, setUseUploadMode] = useState<boolean>(false);
+  const [showLead, setShowLead] = useState<boolean>(false);
+  const [leadName, setLeadName] = useState<string>("");
+  const [leadPhone, setLeadPhone] = useState<string>("");
+  const [leadError, setLeadError] = useState<string>("");
+  const [leadBusy, setLeadBusy] = useState<boolean>(false);
+  const [pendingDl, setPendingDl] = useState<{ url: string; filename: string } | null>(null);
 
   const fallbackPlaceholder =
     "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -194,7 +215,71 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       window.open(url, "_blank", "noopener,noreferrer");
     }
   };
+  const leadKey = (id: string | null): string => (id ? `fy-lead-${id}` : "");
+  const gateOn = (id: string | null): boolean =>
+    !!id && sessionStorage.getItem(`fy-require-lead-${id}`) === "1" && sessionStorage.getItem(leadKey(id)) !== "1";
 
+  const requestDownload = (url: string, filename: string): void => {
+    if (gateOn(eventId)) {
+      setPendingDl({ url, filename });
+      setLeadError("");
+      setPreviewPhoto(null);
+      setIsZoomed(false);
+      setShowLead(true);
+      return;
+    }
+    void downloadImage(url, filename);
+  };
+
+  const submitLead = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    if (!eventId || leadBusy) return;
+    if (!leadName.trim() || !leadPhone.trim()) {
+      setLeadError("Please share your name and phone number to download.");
+      return;
+    }
+    setLeadBusy(true);
+    setLeadError("");
+    try {
+      const res = await fetch(`${API_URL}/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: eventId,
+          name: leadName.trim().slice(0, 100),
+          phone: leadPhone.trim().slice(0, 20),
+          photos_found: matchedPhotos.length,
+        }),
+      });
+      if (res.status === 429) {
+        setLeadError("Too many submissions for this event — please try again later.");
+        return;
+      }
+      if (res.status >= 500) {
+        setLeadError("Server busy — please try again in a moment.");
+        return;
+      }
+      if (res.status === 400 || res.status === 422) {
+        setLeadError("That phone number looks invalid — please check it.");
+        return;
+      }
+      if (res.status !== 201 && res.status !== 200) {
+        setLeadError("Could not submit — please try again in a moment.");
+        return;
+      }
+      sessionStorage.setItem(leadKey(eventId), "1");
+      setShowLead(false);
+      if (pendingDl) {
+        const dl = pendingDl;
+        setPendingDl(null);
+        await downloadImage(dl.url, dl.filename);
+      }
+    } catch {
+      setLeadError("Could not submit. Please check connection.");
+    } finally {
+      setLeadBusy(false);
+    }
+  };
   const handleUserMediaError = (): void => {
     setErrorMessage("Camera access denied or unavailable. Please grant permission or upload a photo.");
     setUseUploadMode(true);
@@ -496,7 +581,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void downloadImage(imgUrl, photo.name)}
+                            onClick={() => requestDownload(imgUrl, photo.name)}
                             className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
                             title="Download photo"
                             aria-label="Download photo"
@@ -543,7 +628,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => void downloadImage(previewPhoto.url, previewPhoto.name)}
+                    onClick={() => requestDownload(previewPhoto.url, previewPhoto.name)}
                     className="min-h-[40px] flex items-center gap-1.5"
                   >
                     <Download className="h-4 w-4" />
@@ -573,6 +658,53 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
               </div>
             </div>
           )}
+        </ResponsiveModal>
+        <ResponsiveModal
+          open={showLead}
+          onOpenChange={setShowLead}
+          title="Get your photos"
+        >
+          <form
+            onSubmit={(e) => void submitLead(e)}
+            className="space-y-4 pt-2"
+          >
+            <p className="text-sm text-muted-foreground">
+              The photographer would love to share more with you — leave your name and number to download.
+            </p>
+            {leadError ? (
+              <div role="alert" className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
+                {leadError}
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="fy-lead-name">Name</Label>
+              <Input
+                id="fy-lead-name"
+                value={leadName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLeadName(e.target.value)}
+                maxLength={100}
+                autoComplete="name"
+                placeholder="Your name"
+                className="min-h-[44px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fy-lead-phone">Phone / WhatsApp</Label>
+              <Input
+                id="fy-lead-phone"
+                type="tel"
+                value={leadPhone}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLeadPhone(e.target.value)}
+                maxLength={20}
+                autoComplete="tel"
+                placeholder="+91 …"
+                className="min-h-[44px]"
+              />
+            </div>
+            <Button type="submit" disabled={leadBusy} className="w-full min-h-[48px]">
+              {leadBusy ? "Submitting…" : "Submit & download →"}
+            </Button>
+          </form>
         </ResponsiveModal>
       </main>
 

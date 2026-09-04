@@ -65,6 +65,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [showPickedOnly, setShowPickedOnly] = useState<boolean>(false);
   const [studioName, setStudioName] = useState<string>("");
   const [wmOn, setWmOn] = useState<boolean>(true);
+  const [insights, setInsights] = useState<{ scans: number; selfies: number; downloads: number; gate: boolean } | null>(null);
   const [savingFolders, setSavingFolders] = useState<boolean>(false);
   const [selectionLimit, setSelectionLimit] = useState<string>(initialLimit > 0 ? String(initialLimit) : "");
   const [selectionLocked, setSelectionLocked] = useState<boolean>(initialLocked || false);
@@ -93,6 +94,31 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       })
       .catch(() => {});
   }, [ownerId]);
+
+  useEffect(() => {
+    if (!ownerId || !eventID) return;
+    fetch(`${getApiBase()}/display_event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: ownerId, create_by: ownerId }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list: unknown = Array.isArray(data) ? data : data && typeof data === "object" && "events" in data ? data.events : [];
+        if (!Array.isArray(list)) return;
+        const found: unknown = list.find((e: unknown) => e && typeof e === "object" && "_id" in e && e._id === eventID);
+        if (found && typeof found === "object") {
+          const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+          setInsights({
+            scans: num("scanCount" in found ? found.scanCount : 0),
+            selfies: num("selfieCount" in found ? found.selfieCount : 0),
+            downloads: num("downloadCount" in found ? found.downloadCount : 0),
+            gate: "requireLead" in found ? found.requireLead === true : false,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [ownerId, eventID]);
 
   const fallbackPlaceholder =
     "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -265,6 +291,75 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       setProofMsg(lockedNow ? "Selection locked — clients can no longer change picks." : "Selection unlocked.");
     } catch {
       setProofMsg("Could not change lock. Please check connection.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
+  const toggleGate = async (): Promise<void> => {
+    const next = !(insights?.gate || false);
+    setProofBusy(true);
+    setProofMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId, requireLead: next }),
+      });
+      if (!res.ok) throw new Error("gate failed");
+      setInsights((prev) => (prev ? { ...prev, gate: next } : { scans: 0, selfies: 0, downloads: 0, gate: next }));
+      setProofMsg(next ? "Lead gate on — guests share name & phone before downloading." : "Lead gate off.");
+    } catch {
+      setProofMsg("Could not change gate. Please check connection.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
+  const csvCell = (v: unknown): string => {
+    const s = String(v ?? "");
+    // Formula-injection guard: Excel/Sheets execute =-+@-leading cells
+    const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+
+  const downloadLeadsCsv = async (): Promise<void> => {
+    setProofBusy(true);
+    setProofMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !Array.isArray(data.leads)) {
+        setProofMsg("Could not load leads.");
+        return;
+      }
+      const rows: string[] = ["name,phone,photos_found,captured_at"];
+      for (const lead of data.leads) {
+        if (!lead || typeof lead !== "object") continue;
+        const row = [
+          "name" in lead ? lead.name : "",
+          "phone" in lead ? lead.phone : "",
+          "photos_found" in lead ? lead.photos_found : 0,
+          "createdAt" in lead ? lead.createdAt : "",
+        ].map(csvCell);
+        rows.push(row.join(","));
+      }
+      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `leads-${eventID}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setProofMsg(`Downloaded ${rows.length - 1} guest lead${rows.length === 2 ? "" : "s"}.`);
+    } catch {
+      setProofMsg("Could not load leads. Please check connection.");
     } finally {
       setProofBusy(false);
     }
@@ -583,6 +678,53 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           {proofMsg ? <p role="status" className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
         </CardContent>
       </Card>
+      {/* Guest insights & leads */}
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold tracking-tight">Guest insights</h2>
+            {insights?.gate ? <Badge variant="brand">Lead gate on</Badge> : null}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "QR scans", value: insights?.scans ?? "—" },
+              { label: "Selfies", value: insights?.selfies ?? "—" },
+              { label: "Downloads", value: insights?.downloads ?? "—" },
+              { label: "Album picks", value: selectedCount },
+            ].map((m) => (
+              <div key={m.label} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
+                <p className="text-2xl font-bold">{m.value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{m.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant={insights?.gate ? "default" : "outline"}
+              size="sm"
+              aria-pressed={insights?.gate || false}
+              onClick={() => void toggleGate()}
+              disabled={proofBusy}
+              title="Ask guests for name & phone before they download"
+              className="min-h-[44px]"
+            >
+              Lead gate {insights?.gate ? "on" : "off"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void downloadLeadsCsv()}
+              disabled={proofBusy}
+              className="min-h-[44px] flex items-center gap-1.5"
+            >
+              <Download className="h-4 w-4" /> Download leads (CSV)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
 
 
       {/* Upload Photos Section */}
