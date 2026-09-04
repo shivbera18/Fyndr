@@ -477,6 +477,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   fallbackCopy(selectUrl, done);
                 }
               }}
+              className="min-h-[44px]"
             >
               <Copy className="h-4 w-4" /> Copy selection link
             </Button>
