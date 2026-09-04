@@ -13,6 +13,7 @@ import { KeyRound, Loader2 } from "lucide-react";
 type EventData = {
   event_name: string;
   event_photo?: string;
+  requireLead?: boolean;
 };
 
 type StudioData = {
@@ -63,7 +64,6 @@ const CollectEvent = (): React.JSX.Element => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
-
   const handlePinSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!pin.trim()) {
@@ -86,6 +86,7 @@ const CollectEvent = (): React.JSX.Element => {
         // PIN Verified -> Navigate to Camera Selfie Matching screen
         if (eventId) {
           sessionStorage.setItem("fy-last-event", eventId);
+          sessionStorage.setItem(`fy-require-lead-${eventId}`, eventData?.requireLead ? "1" : "0");
         }
         navigate("/camera", { state: eventId });
       } else {
