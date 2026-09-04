@@ -154,6 +154,7 @@ async function run() {
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.data.event.event_name, 'Grand Mumbai Wedding');
   assert(!('created_id' in res.data.event), 'Guest response must not leak owner id');
+  assert.strictEqual(res.data.event.pin, 1, 'Guest response must scrub real PIN pre-auth');
   if (res.data.studio) {
     assert(!('create_by' in res.data.studio), 'Guest studio must not leak owner id');
   }

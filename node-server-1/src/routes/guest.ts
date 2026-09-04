@@ -22,8 +22,10 @@ router.post("/collect_event", async (req: Request, resp: Response) => {
       // ROI counter — fire-and-forget so analytics never slows the guest portal
       Event.updateOne({ _id: objectId }, { $inc: { scanCount: 1 } }).catch(() => {});
       const studio = await Studio.findOne({ create_by: event.created_id }).select("-create_by");
-      // Owner id + ROI counters must never reach guests (requireLead stays: guest UI needs it)
+      // Owner id + ROI counters must never reach guests (requireLead stays: guest UI needs it).
+      // pin is scrubbed to 1: the UI gates on confirm_pin, and the real PIN must not leak pre-auth.
       const eventObj: Record<string, unknown> = event.toObject();
+      eventObj.pin = 1;
       delete eventObj.created_id;
       delete eventObj.scanCount;
       delete eventObj.selfieCount;
