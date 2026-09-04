@@ -25,7 +25,7 @@ async function getPresignedPut(key, contentType = 'image/jpeg') {
   const { PutObjectCommand } = require('@aws-sdk/client-s3');
   const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
   const cmd = new PutObjectCommand({
-    Bucket: process.env.R2_BUCKET || 'fyndr',
+    Bucket: process.env.R2_BUCKET || 'fyndr-photos',
     Key: key,
     ContentType: contentType,
     // P2: prevent abuse – limit to images, 10MB hint (actual enforcement at upload)
@@ -33,4 +33,17 @@ async function getPresignedPut(key, contentType = 'image/jpeg') {
   return getSignedUrl(s3, cmd, { expiresIn: 3600 });
 }
 
-module.exports = { getPresignedPut, hasR2: () => !!s3 };
+async function deleteObject(key) {
+  if (!s3 || !key || typeof key !== 'string') return;
+  try {
+    const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    await s3.send(new DeleteObjectCommand({
+      Bucket: process.env.R2_BUCKET || 'fyndr-photos',
+      Key: key,
+    }));
+  } catch (err) {
+    console.warn('[r2] DeleteObject failed for key', key, err.message);
+  }
+}
+
+module.exports = { getPresignedPut, deleteObject, hasR2: () => !!s3 };

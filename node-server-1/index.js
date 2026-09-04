@@ -22,7 +22,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { client: promClient, httpRequests, uploadDuration, faceSearchDuration } = require('./metrics');
 const { enqueue, stats: queueStats } = require('./queue/mongoQueue');
-const { getPresignedPut } = require('./utils/r2');
+const { getPresignedPut, deleteObject } = require('./utils/r2');
 const pLimit = require('p-limit');
 const logger = require('./utils/logger');
 require("./Config_db")
@@ -500,6 +500,7 @@ app.delete('/delete-event', async (req, res) => {
                 if (err) logger.error(`Failed to delete file: ${photoPath}`, err);
                 else logger.info(`Deleted file: ${photoPath}`);
             });
+            deleteObject(photo.name).catch(() => {});
         });
 
         return res.status(200).send(event);
@@ -534,6 +535,7 @@ const deleteImageHandler = async (req, res) => {
             if (fs.existsSync(imagePath)) {
                 try { fs.unlinkSync(imagePath); } catch (err) { logger.warn('[delete-image] unlink error', err); }
             }
+            deleteObject(fileName).catch(() => {});
         }
         return res.json({ success: true, message: "Image deleted successfully" });
     } catch (error) {
