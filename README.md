@@ -37,7 +37,7 @@ cd node-server-1 && npm install
 echo "JWT_SECRET=dev_secret
 EMAIL_USER=dummy@example.com
 EMAIL_PASS=dummy" > .env
-node index.js # → http://localhost:5000
+npm run build && node dist/server.js # → http://localhost:5000
 
 # 3. ML (mock, no C++ build needed)
 cd flask-server-2
