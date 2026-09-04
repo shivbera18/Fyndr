@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from './component/landing/Theme';
 import { Toaster } from './components/ui/sonner';
 import CollectEvent from './component/collect_images/Collect_event';
+import SelectEvent from './component/select/Select_event';
 import Home from './component/home/Home';
 import About from './component/About';
 import LoginRegister from './component/login/Login_Register';
@@ -35,6 +36,7 @@ function App() {
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
           <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/collect/:eventId' element={<CollectEvent />} />
+          <Route path='/select/:eventId' element={<SelectEvent />} />
           <Route path='/login' element={<LoginRegister />} />
           <Route path='/about' element={<About />} />
 
