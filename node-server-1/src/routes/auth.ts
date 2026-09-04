@@ -61,8 +61,16 @@ router.get("/verify/:token", async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
     const decoded = jwt.verify(token, JWT_SECRET);
-    // sign() above always stores the id under userId
-    const userId = typeof decoded === "string" ? decoded : (decoded as jwt.JwtPayload & { userId?: string }).userId;
+    // Object payloads only: a string payload has no userId field, so the
+    // original read decoded.userId === undefined and missed (failed redirect).
+    const userId =
+      typeof decoded === "object" && decoded !== null
+        ? (decoded as jwt.JwtPayload & { userId?: unknown }).userId
+        : undefined;
+    if (typeof userId !== "string") {
+      res.redirect(`${FRONTEND_URL}/confirmed?status=failed`);
+      return;
+    }
 
     // Mark the user as verified
     const user = await User.findByIdAndUpdate(userId, { isVerified: true }, { new: true });
