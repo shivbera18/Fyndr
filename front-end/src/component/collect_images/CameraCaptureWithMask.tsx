@@ -59,7 +59,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        const ev: unknown = data && typeof data === "object" && "event" in data ? data.event : null;
+        const ev: unknown =
+          data && typeof data === "object" && "event" in data ? data.event : data;
         const gate = ev && typeof ev === "object" && "requireLead" in ev ? ev.requireLead === true : false;
         sessionStorage.setItem(`fy-require-lead-${eventId}`, gate ? "1" : "0");
       })
@@ -214,7 +215,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       window.open(url, "_blank", "noopener,noreferrer");
     }
   };
-
   const leadKey = (id: string | null): string => (id ? `fy-lead-${id}` : "");
   const gateOn = (id: string | null): boolean =>
     !!id && sessionStorage.getItem(`fy-require-lead-${id}`) === "1" && sessionStorage.getItem(leadKey(id)) !== "1";
@@ -223,6 +223,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     if (gateOn(eventId)) {
       setPendingDl({ url, filename });
       setLeadError("");
+      setPreviewPhoto(null);
+      setIsZoomed(false);
       setShowLead(true);
       return;
     }
@@ -257,8 +259,12 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         setLeadError("Server busy — please try again in a moment.");
         return;
       }
-      if (res.status !== 201 && res.status !== 200) {
+      if (res.status === 400 || res.status === 422) {
         setLeadError("That phone number looks invalid — please check it.");
+        return;
+      }
+      if (res.status !== 201 && res.status !== 200) {
+        setLeadError("Could not submit — please try again in a moment.");
         return;
       }
       sessionStorage.setItem(leadKey(eventId), "1");
