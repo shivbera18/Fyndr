@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { API_URL } from "../../utils/api";
 import UploadImg from "./Upload_Img";
 import Qrcode from "./Qrcode";
+import { QRCodeCanvas } from "qrcode.react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -62,6 +63,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [newFolder, setNewFolder] = useState<string>("");
   const [folderError, setFolderError] = useState<string>("");
   const [showPickedOnly, setShowPickedOnly] = useState<boolean>(false);
+  const [studioName, setStudioName] = useState<string>("");
+  const [wmOn, setWmOn] = useState<boolean>(true);
   const [savingFolders, setSavingFolders] = useState<boolean>(false);
   const [selectionLimit, setSelectionLimit] = useState<string>(initialLimit > 0 ? String(initialLimit) : "");
   const [selectionLocked, setSelectionLocked] = useState<boolean>(initialLocked || false);
@@ -74,6 +77,22 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     setSelectionLimit(initialLimit > 0 ? String(initialLimit) : "");
     setSelectionLocked(initialLocked || false);
   }, [eventID, initialFolders, initialLimit, initialLocked]);
+
+  useEffect(() => {
+    if (!ownerId) return;
+    fetch(`${getApiBase()}/find_studio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ create_by: ownerId }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data === "object" && "studio_name" in data && typeof data.studio_name === "string") {
+          setStudioName(data.studio_name);
+        }
+      })
+      .catch(() => {});
+  }, [ownerId]);
 
   const fallbackPlaceholder =
     "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -260,6 +279,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ created_id: ownerId }),
       });
+
       const text = await res.text();
       if (!res.ok || !text) {
         setProofMsg("No picks yet — nothing to export.");
@@ -277,6 +297,53 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     } finally {
       setProofBusy(false);
     }
+  };
+
+  const downloadStandee = (): void => {
+    const qrEl = document.querySelector("#fyndr-standee-qr canvas");
+    if (!qrEl || !(qrEl instanceof HTMLCanvasElement)) {
+      setProofMsg("QR is still preparing — please try again in a second.");
+      return;
+    }
+    const W = 1240;
+    const H = 1754;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      setProofMsg("Could not generate standee in this browser.");
+      return;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#09090b";
+    ctx.textAlign = "center";
+    const brand = studioName.trim() || name;
+    ctx.font = "bold 72px system-ui, sans-serif";
+    ctx.fillText(brand.slice(0, 28), W / 2, 170, W - 160);
+    ctx.font = "500 40px system-ui, sans-serif";
+    ctx.fillStyle = "#52525b";
+    ctx.fillText("Scan to find your photos", W / 2, 240);
+    ctx.drawImage(qrEl, W / 2 - 300, 320, 600, 600);
+    ctx.fillStyle = "#09090b";
+    ctx.font = "bold 88px ui-monospace, monospace";
+    ctx.fillText(`PIN ${pin || "123456"}`, W / 2, 1050, W - 160);
+    ctx.font = "500 44px system-ui, sans-serif";
+    ctx.fillStyle = "#3f3f46";
+    ctx.fillText("1. Scan the QR code", W / 2, 1180);
+    ctx.fillText("2. Take a quick selfie", W / 2, 1250);
+    ctx.fillText("3. Get your photos instantly", W / 2, 1320);
+    ctx.font = "500 36px system-ui, sans-serif";
+    ctx.fillStyle = "#a1a1aa";
+    ctx.fillText("No app needed · Powered by Fyndr", W / 2, 1650);
+    const a = document.createElement("a");
+    a.download = `${name.replace(/\s+/g, "_")}_standee.png`;
+    a.href = canvas.toDataURL("image/png");
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setProofMsg("Standee downloaded — print A5/4×6 and place on tables.");
   };
 
   const guestCopied = (): void => {
@@ -322,6 +389,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
   return (
     <div className="space-y-8">
+      {/* Hidden high-res QR pixel source for the printable standee */}
+      <div id="fyndr-standee-qr" aria-hidden="true" style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
+        <QRCodeCanvas value={guestUrl} size={512} level="H" includeMargin bgColor="#FFFFFF" fgColor="#121212" />
+      </div>
       {/* Header bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-border">
         <div>
@@ -342,6 +413,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[44px] flex items-center gap-1.5">
             <QrIcon className="h-4 w-4" />
             Guest QR Code
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadStandee} title="Download printable table standee (PNG)" className="min-h-[44px] flex items-center gap-1.5">
+            <Download className="h-4 w-4" />
+            Table standee
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(true)} className="min-h-[44px] text-destructive hover:bg-destructive/10 border-destructive/30">
             <Trash2 className="h-4 w-4 mr-1.5" />
@@ -535,6 +610,16 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               ♥ Picked ({images.filter((p) => p.isSelected).length})
             </Button>
             <Button
+              variant={wmOn ? "default" : "outline"}
+              size="sm"
+              aria-pressed={wmOn}
+              onClick={() => setWmOn((v) => !v)}
+              title="Overlay studio watermark on web previews (downloads stay clean)"
+              className="min-h-[44px] flex items-center gap-1.5"
+            >
+              Watermark {wmOn ? "on" : "off"}
+            </Button>
+            <Button
               variant="outline"
               size="sm"
               onClick={fetchImages}
@@ -601,7 +686,13 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                     }}
                     className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
                   />
-                  {/* Photo actions overlay (always visible on touch / coarse, hover on desktop) */}
+                  {wmOn ? (
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+                      <span className="-rotate-[30deg] whitespace-nowrap text-lg font-bold text-white/25 select-none">
+                        {studioName.trim() || name} • {studioName.trim() || name}
+                      </span>
+                    </span>
+                  ) : null}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 flex items-center justify-between opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <span className="text-xs font-mono text-white/90">#{index + 1}</span>
                     <div className="flex items-center gap-1">
@@ -752,10 +843,17 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
             <div
               className={cn(
-                "rounded-xl border border-border bg-black/95 flex justify-center p-2 max-h-[65vh]",
+                "relative rounded-xl border border-border bg-black/95 flex justify-center p-2 max-h-[65vh]",
                 isZoomed ? "overflow-auto items-start" : "overflow-hidden items-center"
               )}
             >
+              {wmOn ? (
+                <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+                  <span className="-rotate-[30deg] whitespace-nowrap text-2xl font-bold text-white/25 select-none">
+                    {studioName.trim() || name}
+                  </span>
+                </span>
+              ) : null}
               <img
                 src={previewImage.url}
                 alt="Preview"
