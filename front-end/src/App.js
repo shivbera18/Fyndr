@@ -7,7 +7,6 @@ import Home from './component/home/Home';
 import About from './component/About';
 import LoginRegister from './component/login/Login_Register';
 import Dashboard from './component/dashboard/Dashboard';
-import InEvent from './component/dashboard/InEvent';
 import CameraCaptureWithMask from './component/collect_images/CameraCaptureWithMask';
 import EmailVerified from './component/login/EmailVerify';
 import ConfirmVerify from './component/login/ConfirmVerify';
@@ -35,7 +34,6 @@ function App() {
           <Route path="/emailverified" element={<EmailVerified />} />
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
           <Route path='/dashboard' element={<Dashboard />} />
-          <Route path='/in-event' element={<InEvent />} />
           <Route path='/collect/:eventId' element={<CollectEvent />} />
           <Route path='/login' element={<LoginRegister />} />
           <Route path='/about' element={<About />} />

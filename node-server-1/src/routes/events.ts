@@ -127,9 +127,8 @@ const sanitizeFolders = (input: unknown): FoldersResult => {
     const names = rawNames
         .filter((n: unknown): n is string => typeof n === "string")
         .map((n) => n.trim().slice(0, 60))
-        .filter((n) => n.length > 0);
+        .filter((n) => n.length > 0 && n.toLowerCase() !== "general");
     if (input.length > 0 && names.length === 0) return { ok: false, error: "folders has no valid names." };
-    if (names.length > 20) return { ok: false, error: "folders limited to 20." };
     const seen = new Set<string>();
     const deduped = names.filter((n) => {
         const k = n.toLowerCase();

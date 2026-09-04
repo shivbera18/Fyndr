@@ -60,6 +60,11 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
   const [folderError, setFolderError] = useState<string>("");
   const [savingFolders, setSavingFolders] = useState<boolean>(false);
 
+  useEffect(() => {
+    setFolders(initialFolders || []);
+    setActiveFolder("All");
+  }, [eventID, initialFolders]);
+
   const fallbackPlaceholder =
     "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E";
 
@@ -224,6 +229,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
     t.src = fallbackPlaceholder;
   };
 
+  const inFolder = (p: Photo, folder: string): boolean =>
+    folder === "All" || (p.folder_name || "General") === folder;
+  const visibleImages = images.filter((p) => inFolder(p, activeFolder));
+
   return (
     <div className="space-y-8">
       {/* Header bar */}
@@ -303,17 +312,16 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
         <CardContent className="p-6 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {["All", ...folders.map((f) => f.name)].map((folderTab) => {
-              const count =
-                folderTab === "All"
-                  ? images.length
-                  : images.filter((p) => (p.folder_name || "General") === folderTab).length;
+              const count = images.filter((p) => inFolder(p, folderTab)).length;
+              const isActive = activeFolder === folderTab;
               return (
                 <Button
                   key={folderTab}
                   type="button"
-                  variant={activeFolder === folderTab ? "default" : "outline"}
+                  variant={isActive ? "default" : "outline"}
                   size="sm"
                   onClick={() => setActiveFolder(folderTab)}
+                  aria-pressed={isActive}
                   className="min-h-[40px]"
                 >
                   {folderTab} ({count})
@@ -329,6 +337,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
                 if (e.key === "Enter") void handleAddFolder();
               }}
               placeholder="New sub-event (e.g. Mehendi)"
+              aria-label="New sub-event folder name"
               maxLength={60}
               className="flex-1 min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
             />
@@ -371,7 +380,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight text-foreground">
-            Event photo gallery ({activeFolder === "All" ? images.length : images.filter((p) => (p.folder_name || "General") === activeFolder).length}
+            Event photo gallery ({visibleImages.length}
             {activeFolder === "All" ? "" : ` in ${activeFolder}`})
           </h2>
           <Button
@@ -398,11 +407,17 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
               </p>
             </CardContent>
           </Card>
+        ) : visibleImages.length === 0 ? (
+          <Card className="text-center py-12 px-4">
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                No photos in {activeFolder} yet. Select this folder above and upload — new photos land here.
+              </p>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {images
-              .filter((p) => activeFolder === "All" || (p.folder_name || "General") === activeFolder)
-              .map((photo, index) => {
+            {visibleImages.map((photo, index) => {
               const photoUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
               return (
                 <div
