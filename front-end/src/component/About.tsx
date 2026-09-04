@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import "../../landing.css";
+import "../landing.css";
 import Header from "./navbar/Header";
 import Footer from "./Footer";
 import { Button, Reveal, SectionHead } from "./landing/primitives";
