@@ -21,12 +21,12 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-
 type Photo = {
   _id: string;
   name: string;
   createdAt?: string;
   folder_name?: string;
+  isSelected?: boolean;
 };
 
 type Preview = {
@@ -43,10 +43,12 @@ type InEventProps = {
   pin: string;
   ownerId: string;
   initialFolders: { name: string }[];
+  initialLimit: number;
+  initialLocked: boolean;
   setRefresh?: React.Dispatch<React.SetStateAction<number>>;
 };
 
-const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefresh }: InEventProps): React.JSX.Element => {
+const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initialLimit, initialLocked, setRefresh }: InEventProps): React.JSX.Element => {
   const [images, setImages] = useState<Photo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
@@ -59,11 +61,17 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
   const [newFolder, setNewFolder] = useState<string>("");
   const [folderError, setFolderError] = useState<string>("");
   const [savingFolders, setSavingFolders] = useState<boolean>(false);
+  const [selectionLimit, setSelectionLimit] = useState<string>(initialLimit > 0 ? String(initialLimit) : "");
+  const [selectionLocked, setSelectionLocked] = useState<boolean>(initialLocked || false);
+  const [proofBusy, setProofBusy] = useState<boolean>(false);
+  const [proofMsg, setProofMsg] = useState<string>("");
 
   useEffect(() => {
     setFolders(initialFolders || []);
     setActiveFolder("All");
-  }, [eventID, initialFolders]);
+    setSelectionLimit(initialLimit > 0 ? String(initialLimit) : "");
+    setSelectionLocked(initialLocked || false);
+  }, [eventID, initialFolders, initialLimit, initialLocked]);
 
   const fallbackPlaceholder =
     "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -192,6 +200,81 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
     }
   };
 
+  const selectedCount = images.filter((p) => p.isSelected).length;
+  const selectUrl = `${window.location.origin}/select/${eventID}`;
+
+  const saveSelectionLimit = async (): Promise<void> => {
+    const n = selectionLimit.trim() === "" ? 0 : Number(selectionLimit);
+    if (!Number.isInteger(n) || n < 0 || n > 100000) {
+      setProofMsg("Limit must be a whole number 0–100000 (0 = unlimited).");
+      return;
+    }
+    setProofBusy(true);
+    setProofMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId, selectionLimit: n }),
+      });
+      setProofMsg(res.ok ? `Album limit set to ${n === 0 ? "unlimited" : n}.` : "Could not save limit.");
+    } catch {
+      setProofMsg("Could not save limit. Please check connection.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
+  const toggleLock = async (): Promise<void> => {
+    setProofBusy(true);
+    setProofMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId, locked: !selectionLocked }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setProofMsg("Could not change lock. Please try again.");
+        return;
+      }
+      const lockedNow = data && typeof data === "object" && "selectionLocked" in data && typeof data.selectionLocked === "boolean" ? data.selectionLocked : !selectionLocked;
+      setSelectionLocked(lockedNow);
+      setProofMsg(lockedNow ? "Selection locked — clients can no longer change picks." : "Selection unlocked.");
+    } catch {
+      setProofMsg("Could not change lock. Please check connection.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
+  const copyLightroom = async (): Promise<void> => {
+    setProofBusy(true);
+    setProofMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}/lightroom-export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId }),
+      });
+      const text = await res.text();
+      if (!res.ok || !text) {
+        setProofMsg("No picks yet — nothing to export.");
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setProofMsg(`Copied ${text.split(",").length} filenames — paste into Lightroom Library Filter → Text → Filename.`);
+      } else {
+        setProofMsg(text);
+      }
+    } catch {
+      setProofMsg("Could not export. Please check connection.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
 
   const copyGuestLink = (): void => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -367,6 +450,55 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefr
           ) : null}
         </CardContent>
       </Card>
+      {/* Client proofing */}
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold tracking-tight">Client album picks</h2>
+            <Badge variant={selectionLocked ? "destructive" : "brand"}>
+              {selectedCount} picked{selectionLocked ? " · locked" : ""}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground font-mono break-all">{selectUrl}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (navigator.clipboard) void navigator.clipboard.writeText(selectUrl).then(() => setProofMsg("Selection link copied — share it with the couple + PIN."));
+              }}
+              className="min-h-[44px]"
+            >
+              <Copy className="h-4 w-4" /> Copy selection link
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void toggleLock()} disabled={proofBusy} className="min-h-[44px]">
+              {selectionLocked ? "Unlock picks" : "Lock picks"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void copyLightroom()} disabled={proofBusy} className="min-h-[44px]">
+              <Download className="h-4 w-4" /> Copy for Lightroom
+            </Button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <label htmlFor="fy-sel-limit" className="text-sm font-medium whitespace-nowrap">
+              Album limit (0 = unlimited)
+            </label>
+            <input
+              id="fy-sel-limit"
+              value={selectionLimit}
+              onChange={(e) => setSelectionLimit(e.target.value)}
+              inputMode="numeric"
+              placeholder="e.g. 120"
+              className="w-full sm:w-32 min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+            />
+            <Button type="button" size="sm" onClick={() => void saveSelectionLimit()} disabled={proofBusy} className="min-h-[44px]">
+              Save limit
+            </Button>
+          </div>
+          {proofMsg ? <p className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
+        </CardContent>
+      </Card>
+
 
       {/* Upload Photos Section */}
       <UploadImg

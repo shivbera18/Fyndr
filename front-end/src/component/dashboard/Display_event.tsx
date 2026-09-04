@@ -11,11 +11,13 @@ type EventItem = {
   pin?: string;
   event_photo?: string;
   folders?: { name: string }[];
+  selectionLimit?: number;
+  selectionLocked?: boolean;
 };
 
 type Props = {
   refresh?: number;
-  onclick: (eventID: string, name: string, pin: string, ownerId: string, folders: { name: string }[]) => void;
+  onclick: (eventID: string, name: string, pin: string, ownerId: string, folders: { name: string }[], selectionLimit: number, selectionLocked: boolean) => void;
   onQrClick?: (eventID: string) => void;
 };
 
@@ -144,7 +146,7 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
 
                 <Button
                   className="w-full min-h-[44px]"
-                  onClick={() => onclick(event._id, event.event_name, event.pin || "123456", ownerId, event.folders || [])}
+                  onClick={() => onclick(event._id, event.event_name, event.pin || "123456", ownerId, event.folders || [], event.selectionLimit || 0, event.selectionLocked || false)}
                 >
                   Open album &amp; upload →
                 </Button>
