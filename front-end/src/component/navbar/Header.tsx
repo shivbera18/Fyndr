@@ -27,7 +27,7 @@ function Logo(): React.JSX.Element {
           width: 30,
           height: 30,
           borderRadius: 8,
-          background: "var(--fy-primary, #18181b)",
+          background: "#18181b",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
@@ -111,19 +111,19 @@ export default function Header(): React.JSX.Element {
           {mobileOpen &&
             (user ? (
               <>
-                <Button variant="secondary" onClick={() => navigate("/dashboard")}>
+                <Button variant="secondary" onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}>
                   Open dashboard
                 </Button>
-                <Button variant="outline" onClick={logout}>
+                <Button variant="outline" onClick={() => { setMobileOpen(false); logout(); }}>
                   Sign out
                 </Button>
               </>
             ) : (
               <>
-                <Button variant="outline" onClick={() => navigate("/login")}>
+                <Button variant="outline" onClick={() => { setMobileOpen(false); navigate("/login"); }}>
                   Sign in
                 </Button>
-                <Button onClick={() => navigate("/login")}>
+                <Button onClick={() => { setMobileOpen(false); navigate("/login"); }}>
                   Get started
                 </Button>
               </>
