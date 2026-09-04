@@ -10,12 +10,10 @@ const eventSchema = new mongoose.Schema(
     expiresAt: { type: Date, default: () => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) },
     status: { type: String, enum: ["active", "expired", "deleted"], default: "active", index: true },
     // P0: sub-event folders (e.g. Mehendi, Sangeet) — empty = single album
-    folders: { type: [{ name: { type: String, required: true } }], default: [] },
+    folders: { type: [{ _id: false, name: { type: String, required: true, trim: true, maxlength: 60 } }], default: [] },
     // P0: client proofing — 0 = unlimited
-    selectionLimit: { type: Number, default: 0 },
+    selectionLimit: { type: Number, default: 0, min: 0, max: 100000 },
     selectionLocked: { type: Boolean, default: false },
-    // P0: lead gate — require name/phone before download
-    requireLead: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

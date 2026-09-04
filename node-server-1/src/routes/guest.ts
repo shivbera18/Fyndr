@@ -22,11 +22,14 @@ router.post("/collect_event", async (req: Request, resp: Response) => {
       const studio = await Studio.findOne({ create_by: event.created_id });
 
       event.pin = 1; // Update the pin field
+      // Owner id must never reach guests: PUT /events/:id ownership check depends on it staying photographer-known
+      const eventObj: Record<string, unknown> = event.toObject();
+      delete eventObj.created_id;
 
       if (studio) {
-        resp.status(200).send({ event, studio });
+        resp.status(200).send({ event: eventObj, studio });
       } else {
-        resp.status(200).send({ event });
+        resp.status(200).send({ event: eventObj });
       }
     } else {
       resp.status(404).send({ message: "Event not found or deleted!" });

@@ -150,10 +150,10 @@ async function run() {
   assert(res.data.some((e) => e._id === eventId));
 
   // 3.3 Guest Event Portal Access
-  console.log('  [guest] accessing event portal via /collect_event...');
   res = await axios.post(`${API}/collect_event`, { _id: eventId });
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.data.event.event_name, 'Grand Mumbai Wedding');
+  assert(!('created_id' in res.data.event), 'Guest response must not leak owner id');
 
   // 3.4 PIN Confirmation Tests
   console.log('  [guest] testing correct PIN verification...');
@@ -168,15 +168,28 @@ async function run() {
   } catch (err) {
     assert.strictEqual(err.response.status, 404);
   }
-  // 3.5 Update Event Name & PIN
+  // 3.5 Update Event Name & PIN (owner-only: created_id required)
   console.log('  [event] updating event name and PIN...');
   res = await axios.put(`${API}/events/${eventId}`, {
+    created_id: userId,
     updateName: 'Grand Mumbai Wedding (Updated)',
     updatePin: '654321',
   });
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.data.updatedEvent.event_name, 'Grand Mumbai Wedding (Updated)');
   assert.strictEqual(res.data.updatedEvent.pin, '654321');
+
+  // 3.6 Non-owner update must be rejected
+  console.log('  [event] verifying non-owner update rejection...');
+  try {
+    await axios.put(`${API}/events/${eventId}`, {
+      created_id: '000000000000000000000000',
+      updateName: 'Hijacked',
+    });
+    assert.fail('Should reject non-owner update');
+  } catch (err) {
+    assert.strictEqual(err.response.status, 403);
+  }
 
   // ================= 4. PHOTO INGESTION & DELETION SUITE =================
   console.log('\n--- 4. Testing Photo Upload & Deletion ---');

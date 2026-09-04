@@ -18,6 +18,27 @@ router.post("/event", eventProfileUpload.any(), async (req: Request, resp: Respo
     const { event_name, created_id, pin } = req.body || {};
     if (event_name && created_id) {
         try {
+            const createBody: unknown = req.body || {};
+            const rawFolders: unknown =
+                createBody && typeof createBody === "object" && "folders" in createBody ? createBody.folders : undefined;
+            const rawLimit: unknown =
+                createBody && typeof createBody === "object" && "selectionLimit" in createBody
+                    ? createBody.selectionLimit
+                    : undefined;
+            let folders: { name: string }[] | undefined;
+            if (rawFolders !== undefined) {
+                const parsed = sanitizeFolders(rawFolders);
+                if (!parsed.ok) return resp.status(400).send({ result: parsed.error });
+                folders = parsed.folders;
+            }
+            let selectionLimit = 0;
+            if (rawLimit !== undefined) {
+                const n = Number(rawLimit);
+                if (!Number.isInteger(n) || n < 0 || n > 100000) {
+                    return resp.status(400).send({ result: "selectionLimit must be an integer 0-100000." });
+                }
+                selectionLimit = n;
+            }
             const userCheck = await User.findById(created_id);
             if (userCheck) {
                 const files = req.files as Express.Multer.File[] | undefined;
@@ -26,7 +47,9 @@ router.post("/event", eventProfileUpload.any(), async (req: Request, resp: Respo
                     event_name: String(event_name).trim(),
                     pin: pin ? String(pin).trim() : '123456',
                     created_id,
-                    event_photo: uploadedFile ? uploadedFile.filename : null
+                    event_photo: uploadedFile ? uploadedFile.filename : null,
+                    ...(folders !== undefined ? { folders } : {}),
+                    selectionLimit,
                 });
 
                 const result = await event.save();
@@ -82,38 +105,104 @@ router.post('/in-event', async (req: Request, resp: Response) => {
 
 //---------------------------------------------------------------------------------------------------------
 
+// P0: shared folder sanitize for POST /event + PUT /events/:id
+type FoldersResult = { ok: true; folders: { name: string }[] } | { ok: false; error: string };
+const sanitizeFolders = (input: unknown): FoldersResult => {
+    if (!Array.isArray(input)) return { ok: false, error: "folders must be an array." };
+    const rawNames: unknown[] = input.map((f: unknown) => {
+        if (typeof f === "string") return f;
+        if (f && typeof f === "object" && "name" in f) return f.name;
+        return undefined;
+    });
+    const names = rawNames
+        .filter((n: unknown): n is string => typeof n === "string")
+        .map((n) => n.trim().slice(0, 60))
+        .filter((n) => n.length > 0);
+    if (input.length > 0 && names.length === 0) return { ok: false, error: "folders has no valid names." };
+    if (names.length > 20) return { ok: false, error: "folders limited to 20." };
+    const seen = new Set<string>();
+    const deduped = names.filter((n) => {
+        const k = n.toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+    });
+    return { ok: true, folders: deduped.map((name) => ({ name })) };
+};
+
+// Strict flag parse — Boolean("false") === true trap, so only bool + "true"/"false"
+const parseFlag = (v: unknown): boolean | undefined => {
+    if (typeof v === "boolean") return v;
+    if (v === "true") return true;
+    if (v === "false") return false;
+    return undefined;
+};
+
 router.put("/events/:id", async (req: Request, res: Response) => {
     const { id } = req.params; // Extract event ID from URL params
-    const { updateName, updatePin, folders, selectionLimit, selectionLocked, requireLead } = req.body || {};
-    const event_name = updateName ?? req.body?.event_name;
-    const pin = updatePin ?? req.body?.pin;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid event ID." });
+    }
     try {
-        const set: Record<string, unknown> = {};
-        if (event_name !== undefined) set.event_name = event_name;
-        if (pin !== undefined) set.pin = pin;
-        // ponytail: capped inline sanitize, separate folder route if this grows
-        if (folders !== undefined) {
-            if (!Array.isArray(folders)) return res.status(400).json({ message: "folders must be an array." });
-            const rawNames: unknown[] = folders.map((f: unknown) => {
-                if (typeof f === "string") return f;
-                if (f && typeof f === "object" && "name" in f) return f.name;
-                return undefined;
-            });
-            const names = rawNames
-                .filter((n: unknown): n is string => typeof n === "string")
-                .map((n: string) => n.trim().slice(0, 60))
-                .filter(Boolean)
-                .slice(0, 20);
-            const seen = new Set<string>();
-            set.folders = names.filter((n) => (seen.has(n.toLowerCase()) ? false : (seen.add(n.toLowerCase()), true))).map((name) => ({ name }));
+        const event = await Event.findById(id).select("_id created_id");
+        if (!event) {
+            return res.status(404).json({ message: "Event not found." });
         }
-        if (selectionLimit !== undefined) {
-            const n = Number(selectionLimit);
+        // Owner-only: caller proves ownership with created_id (their user _id).
+        // Guests never receive created_id (collect_event strips it), so a bare QR link can't mutate.
+        // ponytail: shared-secret ownership per event — JWT session middleware if abuse appears.
+        const body: unknown = req.body || {};
+        const caller: unknown = body && typeof body === "object" && "created_id" in body ? body.created_id : undefined;
+        if (typeof caller !== "string" || caller !== event.created_id) {
+            return res.status(403).json({ message: "Only the event owner can update this event." });
+        }
+        const rawName: unknown =
+            body && typeof body === "object" && "updateName" in body && body.updateName !== undefined
+                ? body.updateName
+                : body && typeof body === "object" && "event_name" in body
+                  ? body.event_name
+                  : undefined;
+        const rawPin: unknown =
+            body && typeof body === "object" && "updatePin" in body && body.updatePin !== undefined
+                ? body.updatePin
+                : body && typeof body === "object" && "pin" in body
+                  ? body.pin
+                  : undefined;
+        const rawFolders: unknown = body && typeof body === "object" && "folders" in body ? body.folders : undefined;
+        const rawLimit: unknown =
+            body && typeof body === "object" && "selectionLimit" in body ? body.selectionLimit : undefined;
+        const rawLocked: unknown =
+            body && typeof body === "object" && "selectionLocked" in body ? body.selectionLocked : undefined;
+        const set: Record<string, unknown> = {};
+        if (rawName !== undefined) {
+            if (typeof rawName !== "string" || rawName.trim().length === 0 || rawName.trim().length > 120) {
+                return res.status(400).json({ message: "event_name must be 1-120 characters." });
+            }
+            set.event_name = rawName.trim();
+        }
+        if (rawPin !== undefined) {
+            if (typeof rawPin !== "string" || rawPin.trim().length < 4 || rawPin.trim().length > 24) {
+                return res.status(400).json({ message: "pin must be 4-24 characters." });
+            }
+            set.pin = rawPin.trim();
+        }
+        let nextFolders: { name: string }[] | undefined;
+        if (rawFolders !== undefined) {
+            const parsed = sanitizeFolders(rawFolders);
+            if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+            nextFolders = parsed.folders;
+            set.folders = parsed.folders;
+        }
+        if (rawLimit !== undefined) {
+            const n = Number(rawLimit);
             if (!Number.isInteger(n) || n < 0 || n > 100000) return res.status(400).json({ message: "selectionLimit must be an integer 0-100000." });
             set.selectionLimit = n;
         }
-        if (selectionLocked !== undefined) set.selectionLocked = Boolean(selectionLocked);
-        if (requireLead !== undefined) set.requireLead = Boolean(requireLead);
+        if (rawLocked !== undefined) {
+            const flag = parseFlag(rawLocked);
+            if (flag === undefined) return res.status(400).json({ message: "selectionLocked must be true or false." });
+            set.selectionLocked = flag;
+        }
         if (Object.keys(set).length === 0) {
             return res.status(400).json({ message: "Not Provide event_name or pin to update." });
         }
@@ -129,11 +218,17 @@ router.put("/events/:id", async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Event not found." });
         }
 
+        // Remap photos orphaned by a folder rename/delete back to General
+        if (nextFolders !== undefined) {
+            const kept = [...nextFolders.map((f) => f.name), "General"];
+            await Photo.updateMany({ event_id: id, folder_name: { $nin: kept } }, { $set: { folder_name: "General" } });
+        }
+
         // Success response
         res.status(200).json({ message: "Event updated successfully.", updatedEvent });
-    } catch (error: any) {
-        logger.error("Error updating event:", error);
-        res.status(500).json({ message: "Internal server error.", error: error.message });
+    } catch {
+        logger.error("Error updating event");
+        res.status(500).json({ message: "Internal server error." });
     }
 });
 
