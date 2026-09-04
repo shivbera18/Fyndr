@@ -2,11 +2,25 @@ import React, { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
-import "../../landing.css";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
-import { Banner, Button, Modal, Reveal } from "../landing/primitives";
+import { Card, CardContent } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { API_URL, ML_URL } from "../../utils/api";
+import {
+  ArrowLeft,
+  Camera,
+  Download,
+  ImagePlus,
+  Loader2,
+  Maximize2,
+  RefreshCw,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
+import { cn } from "../../lib/utils";
 
 type MatchedPhoto = {
   id?: string;
@@ -23,7 +37,20 @@ type PreviewPhoto = {
 const CameraCaptureWithMask = (): React.JSX.Element => {
   const location = useLocation();
   const navigate = useNavigate();
-  const event_id = location.state as string | null;
+
+  // Fallback to sessionStorage so mobile browser refresh does not lose event context
+  const locationState = location.state;
+  const initialEventId =
+    (typeof locationState === "string" ? locationState : null) ||
+    sessionStorage.getItem("fy-last-event");
+
+  const [eventId] = useState<string | null>(initialEventId);
+
+  useEffect(() => {
+    if (eventId) {
+      sessionStorage.setItem("fy-last-event", eventId);
+    }
+  }, [eventId]);
 
   const webcamRef = useRef<Webcam>(null);
   const uploadedImageUrlRef = useRef<string | null>(null);
@@ -70,13 +97,18 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   };
 
   const processSelfieMatch = async (file: File): Promise<void> => {
+    if (!eventId) {
+      setErrorMessage("Event session expired. Please rescan the event QR code.");
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
 
     try {
       const formData = new FormData();
       formData.append("image", file);
-      formData.append("event_id", event_id as string);
+      formData.append("event_id", eventId);
 
       const response = await axios.post(`${ML_URL}/match_faces`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -89,13 +121,20 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         setMatchedPhotos([]);
         setErrorMessage(response.data.message || "No matching photos found in this event.");
       }
-    } catch (error) {
+    } catch (error: unknown) {
       setMatchedPhotos([]);
-      const msg =
-        (axios.isAxiosError(error) &&
-          (error.response?.data?.error || error.response?.data?.message || error.message)) ||
-        (error instanceof Error && error.message) ||
-        "Face detection failed. Please ensure your face is clearly visible.";
+      let msg = "Face detection failed. Please ensure your face is clearly visible.";
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data;
+        if (data && typeof data === "object") {
+          if ("error" in data && data.error) msg = String(data.error);
+          else if ("message" in data && data.message) msg = String(data.message);
+        } else if (error.message) {
+          msg = error.message;
+        }
+      } else if (error instanceof Error) {
+        msg = error.message;
+      }
       setErrorMessage(msg);
     } finally {
       setLoading(false);
@@ -110,12 +149,11 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     setErrorMessage("");
   };
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
       if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
-    },
-    []
-  );
+    };
+  }, []);
 
   const getApiBase = (): string => API_URL;
 
@@ -123,375 +161,373 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     let diskName = filename;
     if (!diskName && url) {
       try {
-        diskName = new URL(url, window.location.origin).pathname.split("/").pop() as string;
+        diskName = new URL(url, window.location.origin).pathname.split("/").pop() || "matched_photo.jpg";
       } catch {
         diskName = "matched_photo.jpg";
       }
     }
-    diskName = diskName || "matched_photo.jpg";
-    const displayFilename = diskName.replace(/^\d+-/, "");
-
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Fetch failed");
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = displayFilename;
+      a.download = diskName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      window.URL.revokeObjectURL(blobUrl);
     } catch {
-      const apiBase = getApiBase();
-      const downloadEndpoint = `${apiBase}/download/${encodeURIComponent(diskName)}`;
-      const a = document.createElement("a");
-      a.href = downloadEndpoint;
-      a.download = displayFilename;
-      a.target = "_blank";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 
   const handleUserMediaError = (): void => {
-    setErrorMessage("⚠ Camera access was unavailable or denied. Switched to gallery photo upload.");
+    setErrorMessage("Camera access denied or unavailable. Please grant permission or upload a photo.");
     setUseUploadMode(true);
   };
 
   const openPreview = (url: string, name: string, sim: number): void => {
-    setPreviewPhoto({ url, name, sim });
     setIsZoomed(false);
+    setPreviewPhoto({ url, name, sim });
   };
 
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
-    e.currentTarget.onerror = null;
-    e.currentTarget.src = fallbackPlaceholder;
+    const t = e.target as HTMLImageElement;
+    t.onerror = null;
+    t.src = fallbackPlaceholder;
   };
 
-  return (
-    <div>
-      <Header />
-      <div className="fy-page fy-container">
-        <Reveal>
-          <div className="fy-page-head">
-            <div>
-              <p className="fy-eyebrow">AI selfie match</p>
-              <h1>Find your photos</h1>
-            </div>
-            <div className="fy-page-actions">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => (event_id ? navigate(`/collect/${event_id}`) : navigate("/"))}
-              >
-                ← Back to Event
+  // If no eventId is found at all, prompt user to return home
+  if (!eventId) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background text-foreground">
+        <Header />
+        <main className="flex-1 container mx-auto max-w-md px-4 py-12 flex flex-col justify-center">
+          <Card className="text-center p-6">
+            <CardContent className="space-y-4">
+              <Badge variant="destructive">Event session expired</Badge>
+              <h1 className="text-xl font-bold">Event link expired</h1>
+              <p className="text-sm text-muted-foreground">
+                Please rescan the event QR code or re-enter the event PIN to continue.
+              </p>
+              <Button onClick={() => navigate("/")} className="w-full min-h-[44px]">
+                Return to Home
               </Button>
-            </div>
-          </div>
-        </Reveal>
+            </CardContent>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
-        {/* ================= STEP 1: CAPTURE OR RETAKE ================= */}
+  return (
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <Header />
+
+      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-8 space-y-8">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between pb-6 border-b border-border">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              AI selfie match
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-0.5">
+              Find your photos
+            </h1>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/collect/${eventId}`)}
+            className="min-h-[40px] flex items-center gap-1.5"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Event
+          </Button>
+        </div>
+
+        {/* STEP 1: CAPTURE OR RETAKE */}
         {!imageSrc ? (
-          <Reveal delay={50}>
-            <div className="fy-auth-wrap">
-              <div className="fy-auth-card" style={{ maxWidth: "34rem" }}>
-                <div className="fy-card">
-                  <span className="fy-badge fy-badge-brand">Take a selfie to find your photos</span>
-                  <p className="fy-micro" style={{ textAlign: "center", marginTop: "0.75rem" }}>
+          <div className="max-w-md mx-auto">
+            <Card className="shadow-md">
+              <CardContent className="p-6 sm:p-8 space-y-6 text-center">
+                <div className="space-y-2">
+                  <Badge variant="brand">Take a selfie to find your photos</Badge>
+                  <p className="text-xs text-muted-foreground">
                     Position your face in the frame with good lighting. Your selfie is only used
                     for matching and is never stored permanently.
                   </p>
-
-                  {/* Webcam / File Viewport */}
-                  {!useUploadMode ? (
-                    <div
-                      className="fy-qr-frame"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem",
-                        position: "relative",
-                        overflow: "hidden",
-                        background: "#101014",
-                        marginTop: "1rem",
-                      }}
-                    >
-                      <Webcam
-                        audio={false}
-                        ref={webcamRef}
-                        screenshotFormat="image/jpeg"
-                        onUserMediaError={handleUserMediaError}
-                        videoConstraints={{ facingMode: "user", width: 480, height: 480 }}
-                        style={{
-                          width: "100%",
-                          maxHeight: "340px",
-                          objectFit: "cover",
-                          borderRadius: "8px",
-                          display: "block",
-                        }}
-                      />
-                      {/* Face Guide Oval */}
-                      <div
-                        aria-hidden="true"
-                        style={{
-                          position: "absolute",
-                          top: "50%",
-                          left: "50%",
-                          transform: "translate(-50%, -50%)",
-                          width: "200px",
-                          height: "260px",
-                          border: "3px dashed rgba(255, 230, 0, 0.8)",
-                          borderRadius: "50%",
-                          pointerEvents: "none",
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      className="fy-dropzone"
-                      style={{ marginTop: "1rem" }}
-                      onClick={() => document.getElementById("selfie-file-input")?.click()}
-                    >
-                      <input
-                        id="selfie-file-input"
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        onChange={handleFileUpload}
-                      />
-                      <span className="fy-icon" aria-hidden="true">
-                        ↓
-                      </span>
-                      <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>
-                        Select a selfie from your gallery
-                      </div>
-                      <div className="fy-micro">JPG or PNG, face clearly visible</div>
-                    </div>
-                  )}
-
-                  {errorMessage && (
-                    <div style={{ marginTop: "1rem" }}>
-                      <Banner kind="error">{errorMessage}</Banner>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="fy-form" style={{ marginTop: "1rem" }}>
-                    {!useUploadMode ? (
-                      <button
-                        className="fy-btn fy-btn-default fy-btn-lg"
-                        type="button"
-                        onClick={() => void captureAndMatch()}
-                        style={{ width: "100%" }}
-                      >
-                        Take Selfie &amp; Find My Photos
-                      </button>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      className="fy-btn fy-btn-ghost fy-btn-sm"
-                      onClick={() => setUseUploadMode(!useUploadMode)}
-                    >
-                      {useUploadMode ? "Switch to camera" : "Or upload a photo instead"}
-                    </button>
-                  </div>
                 </div>
-              </div>
-            </div>
-          </Reveal>
+
+                {/* Webcam / File Viewport */}
+                {!useUploadMode ? (
+                  <div className="relative aspect-[4/3] max-h-[60dvh] overflow-hidden rounded-xl border border-border bg-black shadow-inner flex items-center justify-center">
+                    <Webcam
+                      audio={false}
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      onUserMediaError={handleUserMediaError}
+                      videoConstraints={{
+                        facingMode: "user",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        aspectRatio: 4 / 3,
+                      }}
+                      className="h-full w-full object-cover"
+                    />
+                    {/* Face Guide Oval */}
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 m-auto pointer-events-none rounded-[50%] border-2 border-dashed border-brand/90 shadow-sm"
+                      style={{
+                        width: "min(50vw, 200px)",
+                        height: "min(65vw, 260px)",
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="selfie-file-input"
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-8 min-h-[220px] cursor-pointer bg-muted/20 hover:bg-muted/40 transition-colors"
+                  >
+                    <input
+                      id="selfie-file-input"
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={handleFileUpload}
+                    />
+                    <ImagePlus className="h-10 w-10 text-muted-foreground/60 mb-2" />
+                    <span className="text-sm font-semibold text-foreground">
+                      Select a selfie from your gallery
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      JPG or PNG, face clearly visible
+                    </span>
+                  </label>
+                )}
+
+                {errorMessage && (
+                  <div className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20 text-center">
+                    {errorMessage}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="space-y-3 pt-2">
+                  {!useUploadMode ? (
+                    <Button
+                      type="button"
+                      onClick={() => void captureAndMatch()}
+                      size="lg"
+                      className="w-full min-h-[48px] text-base font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Camera className="h-5 w-5" />
+                      Take Selfie &amp; Find My Photos
+                    </Button>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setUseUploadMode(!useUploadMode)}
+                    className="w-full min-h-[44px] text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {useUploadMode ? "Switch to camera" : "Or upload a photo instead"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
-          /* ================= STEP 2: RESULTS SECTION ================= */
-          <div>
-            <Reveal delay={50}>
-              <div className="fy-card" style={{ marginBottom: "1.25rem" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "1.25rem",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <img
-                    src={imageSrc}
-                    alt="Your Selfie"
-                    style={{
-                      width: "130px",
-                      height: "130px",
-                      objectFit: "cover",
-                      borderRadius: "8px",
-                      border: "1px solid var(--fy-border)",
-                    }}
-                  />
-                  <div style={{ flex: 1, minWidth: "16rem" }}>
-                    <h2 style={{ margin: "0 0 0.25rem" }}>
+          /* STEP 2: RESULTS SECTION */
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                  <div className="relative h-28 w-28 shrink-0 rounded-xl overflow-hidden border border-border bg-muted shadow-sm">
+                    <img
+                      src={imageSrc}
+                      alt="Your Selfie"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 text-center sm:text-left space-y-2">
+                    <h2 className="text-xl font-bold text-foreground">
                       {matchedPhotos.length > 0
                         ? `Found ${matchedPhotos.length} photo${
                             matchedPhotos.length > 1 ? "s" : ""
                           } with your face`
                         : "Search status"}
                     </h2>
-                    <p className="fy-micro" style={{ margin: "0 0 0.75rem" }}>
+                    <p className="text-sm text-muted-foreground">
                       {matchedPhotos.length > 0
                         ? "Select any photo to preview or download in high resolution."
                         : errorMessage ||
-                          "We couldn't detect your face in this album with high confidence. Try taking another selfie with brighter lighting and facing straight ahead."}
+                          "We couldn't detect your face in this album with high confidence. Try taking another selfie with better lighting."}
                     </p>
-                    <div className="fy-page-actions">
-                      <Button variant="outline" size="sm" onClick={retakeSelfie}>
+                    <div className="pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={retakeSelfie}
+                        className="min-h-[44px] flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
                         Retake Selfie
                       </Button>
                     </div>
                   </div>
                 </div>
+
                 {loading && (
-                  <div className="fy-loading-row" role="status" style={{ marginTop: "1rem" }}>
-                    <span className="fy-spinner" aria-hidden="true" />
-                    <span>
-                      <strong>Analyzing 512-D face embeddings…</strong> Matching your facial
-                      signature across all event photos.
-                    </span>
+                  <div className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                    <div>
+                      <p className="font-semibold">Analyzing 512-D face embeddings…</p>
+                      <p className="text-xs text-muted-foreground">
+                        Matching your facial signature across all event photos.
+                      </p>
+                    </div>
                   </div>
                 )}
+
                 {!loading && matchedPhotos.length === 0 && errorMessage && (
-                  <div style={{ marginTop: "1rem" }}>
-                    <Banner kind="error">{errorMessage}</Banner>
+                  <div className="mt-6 rounded-lg p-4 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20 text-center">
+                    {errorMessage}
                   </div>
                 )}
-              </div>
-            </Reveal>
+              </CardContent>
+            </Card>
 
             {/* Matched Images Grid */}
             {matchedPhotos.length > 0 && (
-              <Reveal delay={100}>
-                <div className="fy-page-head">
-                  <h2 style={{ margin: 0 }}>Your matched photos ({matchedPhotos.length})</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold tracking-tight text-foreground">
+                    Your matched photos ({matchedPhotos.length})
+                  </h2>
                 </div>
-                <div className="fy-gallery">
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {matchedPhotos.map((photo, idx) => {
                     const imgUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
                     const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
 
                     return (
-                      <div key={photo.id || idx} className="fy-photo-cell">
+                      <div
+                        key={photo.id || idx}
+                        className="group relative aspect-square rounded-xl overflow-hidden bg-muted border border-border shadow-sm"
+                      >
                         <img
                           src={imgUrl}
                           alt={`Matched item ${idx + 1}`}
                           onError={handleImgError}
-                          style={{ cursor: "pointer" }}
+                          loading="lazy"
                           onClick={() => openPreview(imgUrl, photo.name, simPercent)}
+                          className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
                         />
-                        <span
-                          className="fy-badge fy-badge-brand"
-                          style={{
-                            position: "absolute",
-                            top: 8,
-                            right: 8,
-                            fontSize: "0.75rem",
-                          }}
+                        <Badge
+                          variant="brand"
+                          className="absolute top-2 right-2 text-xs font-semibold shadow"
                         >
                           {simPercent}% match
-                        </span>
-                        <div className="fy-photo-actions">
+                        </Badge>
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => openPreview(imgUrl, photo.name, simPercent)}
-                            className="fy-icon-btn"
+                            className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
                             title="View full photo"
+                            aria-label="View full photo"
                           >
-                            ⤢
+                            <Maximize2 className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => void downloadImage(imgUrl, photo.name)}
-                            className="fy-icon-btn"
+                            className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
                             title="Download photo"
+                            aria-label="Download photo"
                           >
-                            ↓
+                            <Download className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </Reveal>
+              </div>
             )}
           </div>
         )}
 
         {/* Fullscreen Photo Preview Modal */}
-        <Modal
+        <ResponsiveModal
           open={Boolean(previewPhoto)}
-          onClose={() => {
-            setPreviewPhoto(null);
-            setIsZoomed(false);
+          onOpenChange={(open) => {
+            if (!open) {
+              setPreviewPhoto(null);
+              setIsZoomed(false);
+            }
           }}
-          title={`Photo preview (${previewPhoto?.sim ?? 95}% match)`}
-          maxWidth="850px"
+          className="sm:max-w-3xl"
+          title={previewPhoto ? `Photo preview (${previewPhoto.sim}% match)` : "Photo preview"}
         >
           {previewPhoto && (
-            <div>
-              <div className="fy-page-head" style={{ marginBottom: "1rem" }}>
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: "0.9rem",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: "50%",
-                  }}
-                  title={previewPhoto.name}
-                >
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="font-semibold text-sm text-foreground truncate max-w-full sm:max-w-[50%]" title={previewPhoto.name}>
                   {previewPhoto.name ? previewPhoto.name.replace(/^\d+-/, "") : "Photo"}
-                </div>
-                <div className="fy-page-actions">
-                  <Button variant="outline" size="sm" onClick={() => setIsZoomed((prev) => !prev)}>
-                    {isZoomed ? "Fit to Screen" : "Zoom 100%"}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsZoomed((prev) => !prev)}
+                    className="min-h-[40px] flex items-center gap-1.5"
+                  >
+                    {isZoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+                    {isZoomed ? "Fit" : "Zoom"}
                   </Button>
                   <Button
-                    variant="default"
                     size="sm"
                     onClick={() => void downloadImage(previewPhoto.url, previewPhoto.name)}
+                    className="min-h-[40px] flex items-center gap-1.5"
                   >
-                    Download Photo
+                    <Download className="h-4 w-4" />
+                    Download
                   </Button>
                 </div>
               </div>
 
               <div
-                style={{
-                  overflow: isZoomed ? "auto" : "hidden",
-                  maxHeight: "65vh",
-                  border: "2px solid var(--fy-border)",
-                  borderRadius: "8px",
-                  backgroundColor: "#1E1E1E",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: isZoomed ? "flex-start" : "center",
-                }}
+                className={cn(
+                  "rounded-xl border border-border bg-black/95 flex justify-center p-2 max-h-[65vh]",
+                  isZoomed ? "overflow-auto items-start" : "overflow-hidden items-center"
+                )}
               >
                 <img
                   src={previewPhoto.url}
                   alt="Full preview"
                   onError={handleImgError}
-                  style={{
-                    maxWidth: isZoomed ? "none" : "100%",
-                    maxHeight: isZoomed ? "none" : "65vh",
-                    objectFit: isZoomed ? "none" : "contain",
-                    cursor: isZoomed ? "zoom-out" : "zoom-in",
-                    display: "block",
-                  }}
                   onClick={() => setIsZoomed((prev) => !prev)}
+                  className={cn(
+                    "rounded-lg transition-transform",
+                    isZoomed
+                      ? "max-w-none max-h-none object-none cursor-zoom-out"
+                      : "max-w-full max-h-[60vh] object-contain cursor-zoom-in"
+                  )}
                 />
               </div>
             </div>
           )}
-        </Modal>
-      </div>
+        </ResponsiveModal>
+      </main>
+
       <Footer />
     </div>
   );

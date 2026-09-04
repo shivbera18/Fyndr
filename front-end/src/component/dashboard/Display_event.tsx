@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { API_URL } from "../../utils/api";
-import { Banner, Button, Reveal } from "../landing/primitives";
+import { Card, CardContent } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import { Loader2 } from "lucide-react";
 
 type EventItem = {
   _id: string;
@@ -28,8 +31,6 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
     if (!userString) return;
     try {
       const user = JSON.parse(userString);
-      setLoading(true);
-      setFetchError("");
       const res = await fetch(`${API_URL}/display_event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,13 +38,14 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
       });
       const data = await res.json();
       if (Array.isArray(data)) {
-        setEvents(data as EventItem[]);
+        setEvents(data);
+      } else if (data && Array.isArray(data.events)) {
+        setEvents(data.events);
       } else {
         setEvents([]);
       }
     } catch {
-      setFetchError("Could not load events from server. Please verify the API is running.");
-      setEvents([]);
+      setFetchError("Unable to load events. Please check connection.");
     } finally {
       setLoading(false);
     }
@@ -55,87 +57,90 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
 
   if (loading) {
     return (
-      <div className="fy-loading-row" role="status">
-        <span className="fy-spinner" aria-hidden="true" />
-        <span>Loading your events…</span>
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm">Loading your events…</p>
       </div>
     );
   }
 
   if (fetchError) {
     return (
-      <Reveal>
-        <Banner kind="error">{fetchError}</Banner>
-        <div style={{ marginTop: "1rem" }}>
-          <Button variant="secondary" size="sm" onClick={fetchEvents}>
-            Retry
-          </Button>
-        </div>
-      </Reveal>
+      <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-destructive">
+        <p className="font-medium mb-3">{fetchError}</p>
+        <Button variant="outline" size="sm" onClick={() => fetchEvents()}>
+          Retry
+        </Button>
+      </div>
     );
   }
 
   if (events.length === 0) {
     return (
-      <Reveal>
-        <div className="fy-empty">
-          <h3>No events created yet</h3>
-          <p>Create your first event to start uploading photos and generating guest QR codes.</p>
-        </div>
-      </Reveal>
+      <Card className="text-center py-12 px-4">
+        <CardContent className="space-y-3">
+          <h3 className="text-lg font-semibold">No events created yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Create your first event album to start uploading photos and distributing guest QR codes.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div>
-      <div className="fy-page-head">
-        <h2>Your active events</h2>
-        <span className="fy-badge">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold tracking-tight text-foreground">Your active events</h2>
+        <Badge variant="secondary">
           {events.length} event{events.length > 1 ? "s" : ""}
-        </span>
+        </Badge>
       </div>
-      <div className="fy-grid">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {events.map((event, index) => {
           const coverUrl = event.event_photo
             ? `${API_URL}/event_profile/${event.event_photo}`
             : "/images/wedding.jpg";
           return (
-            <Reveal key={event._id || index} delay={(index % 8) * 40}>
-              <article className="fy-card">
-                <div style={{ marginBottom: "1rem" }}>
-                  <img
-                    src={coverUrl}
-                    alt={event.event_name}
-                    loading="lazy"
-                    onError={(e) => {
-                      const t = e.target as HTMLImageElement;
-                      t.onerror = null;
-                      t.src = PLACEHOLDER;
-                    }}
-                    style={{ width: "100%", height: "11rem", objectFit: "cover", borderRadius: "0.5rem" }}
-                  />
-                </div>
-                <h3>{event.event_name}</h3>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    margin: "0.5rem 0 1rem",
+            <Card key={event._id || index} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+              <div className="relative aspect-[16/9] w-full bg-muted overflow-hidden">
+                <img
+                  src={coverUrl}
+                  alt={event.event_name}
+                  loading="lazy"
+                  onError={(e) => {
+                    const t = e.target as HTMLImageElement;
+                    t.onerror = null;
+                    t.src = PLACEHOLDER;
                   }}
-                >
-                  <span className="fy-badge">PIN: {event.pin || "123456"}</span>
-                  <small className="fy-micro">ID: {(event._id || "").slice(-6)}</small>
+                  className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                />
+              </div>
+
+              <CardContent className="p-5 flex flex-col justify-between flex-1 space-y-4">
+                <div>
+                  <h3 className="font-semibold text-lg line-clamp-1 text-foreground">
+                    {event.event_name}
+                  </h3>
+                  <div className="flex items-center justify-between mt-2">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      PIN: {event.pin || "123456"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      ID: {(event._id || "").slice(-6)}
+                    </span>
+                  </div>
                 </div>
+
                 <Button
-                  variant="default"
-                  size="sm"
+                  className="w-full min-h-[44px]"
                   onClick={() => onclick(event._id, event.event_name, event.pin || "123456")}
                 >
                   Open album &amp; upload →
                 </Button>
-              </article>
-            </Reveal>
+              </CardContent>
+            </Card>
           );
         })}
       </div>

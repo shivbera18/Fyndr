@@ -20,7 +20,7 @@ function initialTheme(): Theme {
   if (
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
+    window.matchMedia("(prefers-color-scheme: dark)")?.matches
   ) {
     return "dark";
   }
@@ -43,6 +43,7 @@ export function ThemeProvider({
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {
@@ -65,7 +66,8 @@ export function ThemeToggle(): React.JSX.Element {
   const { theme, toggle } = useTheme();
   return (
     <button
-      className="fy-btn fy-btn-ghost fy-btn-sm fy-theme-toggle"
+      type="button"
+      className="inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
       onClick={toggle}
       aria-pressed={theme === "dark"}
       aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}

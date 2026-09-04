@@ -1,69 +1,71 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { Badge } from "../components/ui/badge";
 
 export default function Footer(): React.JSX.Element {
   return (
-    <div className="fy-dark fy-bleed">
-      <footer className="fy-container fy-footer">
-        <div className="fy-footer-grid">
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.625rem",
-            }}
-          >
+    <footer className="w-full border-t border-zinc-800 bg-zinc-950 text-zinc-300">
+      <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <Link to="/" className="inline-flex items-center gap-2.5 no-underline text-white">
             <span
               aria-hidden="true"
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                background: "var(--fy-brand, #b9ff66)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#191a23",
-                fontSize: 15,
-                fontWeight: 700,
-              }}
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-brand text-brand-ink font-bold text-sm"
             >
               ✦
             </span>
-            <strong style={{ fontSize: "1.125rem", letterSpacing: "-0.02em" }}>
+            <span className="font-display font-bold text-lg tracking-tight text-white">
               FYNDR
-            </strong>
-          </span>
-          <nav aria-label="Footer">
-            <Link to="/">Overview</Link>
-            <Link to="/about">How it works</Link>
-            <Link to="/dashboard">Dashboard</Link>
-            <Link to="/login">Sign in</Link>
+            </span>
+          </Link>
+
+          <nav className="flex flex-wrap items-center gap-6 text-sm font-medium" aria-label="Footer">
+            <Link to="/" className="transition-colors hover:text-white">
+              Overview
+            </Link>
+            <Link to="/about" className="transition-colors hover:text-white">
+              How it works
+            </Link>
+            <Link to="/dashboard" className="transition-colors hover:text-white">
+              Dashboard
+            </Link>
+            <Link to="/login" className="transition-colors hover:text-white">
+              Sign in
+            </Link>
           </nav>
-          <span className="fy-micro">Contact: shiv@fyndr.in</span>
+
+          <span className="text-xs text-zinc-500 font-mono">
+            Contact: shiv@fyndr.in
+          </span>
         </div>
 
-        <div className="fy-footer-grid" style={{ marginTop: "1.75rem" }}>
-          <p className="fy-micro" style={{ margin: 0, maxWidth: "32rem" }}>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-6 border-t border-zinc-800/60 text-xs text-zinc-400">
+          <p className="max-w-xl">
             Built for photographers — zero friction. Guests scan QR → selfie →
             instant matches. Selfies are never stored.
           </p>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span className="fy-badge fy-badge-brand">Free to start</span>
-            <span className="fy-badge">Private</span>
-            <span className="fy-badge">No app</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="brand">Free to start</Badge>
+            <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 border-zinc-700">
+              Private
+            </Badge>
+            <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 border-zinc-700">
+              No app
+            </Badge>
           </div>
         </div>
 
-        <div className="fy-footer-bottom">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-6 border-t border-zinc-800/60 text-xs text-zinc-500">
           <span>© {new Date().getFullYear()} FYNDR — Crafted by Shiv Bera</span>
-          <span style={{ display: "flex", gap: "0.5rem" }}>
-            <Link to="/">Privacy Policy</Link>
+          <div className="flex items-center gap-2">
+            <Link to="/" className="hover:text-zinc-300 transition-colors">
+              Privacy Policy
+            </Link>
             <span aria-hidden="true">•</span>
             <span>v1 • Fast &amp; Private</span>
-          </span>
+          </div>
         </div>
-      </footer>
-    </div>
+      </div>
+    </footer>
   );
 }
