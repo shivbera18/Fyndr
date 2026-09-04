@@ -7,6 +7,7 @@ import { EVENT_PROFILE_DIR, FLASK_URL, UPLOAD_DIR } from "../config";
 import User from "../models/User";
 import Event from "../models/Event";
 import Photo from "../models/Photo";
+import Lead from "../models/Lead";
 import { Job } from "../queue/mongoQueue";
 import logger from "../utils/logger";
 import { deleteObject } from "../utils/r2";
@@ -39,6 +40,18 @@ router.post("/event", eventProfileUpload.any(), async (req: Request, resp: Respo
                 }
                 selectionLimit = n;
             }
+            const rawLeadCreate: unknown =
+                createBody && typeof createBody === "object" && "requireLead" in createBody
+                    ? createBody.requireLead
+                    : undefined;
+            let requireLead = false;
+            if (rawLeadCreate !== undefined) {
+                const leadFlag = parseFlag(rawLeadCreate);
+                if (leadFlag === undefined) {
+                    return resp.status(400).send({ result: "requireLead must be true or false." });
+                }
+                requireLead = leadFlag;
+            }
             const userCheck = await User.findById(created_id);
             if (userCheck) {
                 const files = req.files as Express.Multer.File[] | undefined;
@@ -50,6 +63,7 @@ router.post("/event", eventProfileUpload.any(), async (req: Request, resp: Respo
                     event_photo: uploadedFile ? uploadedFile.filename : null,
                     ...(folders !== undefined ? { folders } : {}),
                     selectionLimit,
+                    requireLead,
                 });
 
                 const result = await event.save();
@@ -183,6 +197,8 @@ router.put("/events/:id", async (req: Request, res: Response) => {
             body && typeof body === "object" && "selectionLimit" in body ? body.selectionLimit : undefined;
         const rawLocked: unknown =
             body && typeof body === "object" && "selectionLocked" in body ? body.selectionLocked : undefined;
+        const rawLead: unknown =
+            body && typeof body === "object" && "requireLead" in body ? body.requireLead : undefined;
         const set: Record<string, unknown> = {};
         if (rawName !== undefined) {
             if (typeof rawName !== "string" || rawName.trim().length === 0 || rawName.trim().length > 120) {
@@ -212,6 +228,11 @@ router.put("/events/:id", async (req: Request, res: Response) => {
             const flag = parseFlag(rawLocked);
             if (flag === undefined) return res.status(400).json({ message: "selectionLocked must be true or false." });
             set.selectionLocked = flag;
+        }
+        if (rawLead !== undefined) {
+            const leadFlag = parseFlag(rawLead);
+            if (leadFlag === undefined) return res.status(400).json({ message: "requireLead must be true or false." });
+            set.requireLead = leadFlag;
         }
         if (Object.keys(set).length === 0) {
             return res.status(400).json({ message: "Not Provide event_name or pin to update." });
@@ -360,6 +381,7 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
         await Photo.deleteMany({ event_id: _id });
         // cleanup jobs + faiss
         try { await Job.deleteMany({ event_id: _id }); } catch(_){}
+        try { await Lead.deleteMany({ event_id: _id }); } catch(_){}
         try { await axios.post(`${FLASK_URL}/faiss_delete_event`, { event_id: _id }, { timeout: 5000 }); } catch(e: any){ logger.info('[faiss] delete_event failed', e.message); }
 
         photos.forEach((photo) => {

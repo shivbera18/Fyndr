@@ -7,6 +7,7 @@ import logger from "./utils/logger";
 import authRouter from "./routes/auth";
 import eventsRouter from "./routes/events";
 import guestRouter from "./routes/guest";
+import leadsRouter from "./routes/leads";
 import opsRouter from "./routes/ops";
 import photosRouter from "./routes/photos";
 import studioRouter from "./routes/studio";
@@ -25,6 +26,7 @@ export function createApp(): express.Express {
   app.use(eventsRouter);
   app.use(photosRouter);
   app.use(guestRouter);
+  app.use(leadsRouter);
   app.use(studioRouter);
   app.use(opsRouter);
 
