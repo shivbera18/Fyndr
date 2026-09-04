@@ -67,10 +67,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [selectionLocked, setSelectionLocked] = useState<boolean>(initialLocked || false);
   const [proofBusy, setProofBusy] = useState<boolean>(false);
   const [proofMsg, setProofMsg] = useState<string>("");
-
   useEffect(() => {
     setFolders(initialFolders || []);
     setActiveFolder("All");
+    setShowPickedOnly(false);
     setSelectionLimit(initialLimit > 0 ? String(initialLimit) : "");
     setSelectionLocked(initialLocked || false);
   }, [eventID, initialFolders, initialLimit, initialLocked]);
@@ -279,21 +279,23 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     }
   };
 
+  const guestCopied = (): void => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   const copyGuestLink = (): void => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
         .writeText(guestUrl)
-        .then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2500);
-        })
-        .catch(() => fallbackCopy(guestUrl));
+        .then(guestCopied)
+        .catch(() => fallbackCopy(guestUrl, guestCopied));
     } else {
-      fallbackCopy(guestUrl);
+      fallbackCopy(guestUrl, guestCopied);
     }
   };
 
-  const fallbackCopy = (text: string): void => {
+  const fallbackCopy = (text: string, onOk?: () => void): void => {
     try {
       const el = document.createElement("textarea");
       el.value = text;
@@ -304,8 +306,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       el.select();
       document.execCommand("copy");
       document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      if (onOk) onOk();
     } catch {}
   };
 
@@ -334,15 +335,15 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={backbtn} className="min-h-[40px] flex items-center gap-1.5">
+          <Button variant="ghost" size="sm" onClick={backbtn} className="min-h-[44px] flex items-center gap-1.5">
             <ArrowLeft className="h-4 w-4" />
             Back to Events
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[40px] flex items-center gap-1.5">
+          <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[44px] flex items-center gap-1.5">
             <QrIcon className="h-4 w-4" />
             Guest QR Code
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(true)} className="min-h-[40px] text-destructive hover:bg-destructive/10 border-destructive/30">
+          <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(true)} className="min-h-[44px] text-destructive hover:bg-destructive/10 border-destructive/30">
             <Trash2 className="h-4 w-4 mr-1.5" />
             Delete Event
           </Button>
@@ -408,7 +409,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   size="sm"
                   onClick={() => setActiveFolder(folderTab)}
                   aria-pressed={isActive}
-                  className="min-h-[40px]"
+                  className="min-h-[44px]"
                 >
                   {folderTab} ({count})
                 </Button>
@@ -431,7 +432,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               {savingFolders ? "Saving…" : "Add folder"}
             </Button>
           </div>
-          {folderError ? <p className="text-xs text-destructive">{folderError}</p> : null}
+          {folderError ? <p role="alert" className="text-xs text-destructive">{folderError}</p> : null}
           {folders.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {folders.map((f) => (
@@ -471,16 +472,11 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               onClick={() => {
                 const done = (): void => setProofMsg("Selection link copied — share it with the couple + PIN.");
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeText(selectUrl).then(done).catch(() => {
-                    fallbackCopy(selectUrl);
-                    done();
-                  });
+                  navigator.clipboard.writeText(selectUrl).then(done).catch(() => fallbackCopy(selectUrl, done));
                 } else {
-                  fallbackCopy(selectUrl);
-                  done();
+                  fallbackCopy(selectUrl, done);
                 }
               }}
-              className="min-h-[44px]"
             >
               <Copy className="h-4 w-4" /> Copy selection link
             </Button>
@@ -507,7 +503,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               Save limit
             </Button>
           </div>
-          {proofMsg ? <p className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
+          {proofMsg ? <p role="status" className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
         </CardContent>
       </Card>
 
@@ -541,7 +537,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               variant="outline"
               size="sm"
               onClick={fetchImages}
-              className="min-h-[40px] flex items-center gap-1.5"
+              className="min-h-[44px] flex items-center gap-1.5"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -737,7 +733,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   variant="outline"
                   size="sm"
                   onClick={() => setIsZoomed((prev) => !prev)}
-                  className="min-h-[40px] flex items-center gap-1.5"
+                  className="min-h-[44px] flex items-center gap-1.5"
                 >
                   {isZoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
                   {isZoomed ? "Fit" : "Zoom"}
@@ -745,7 +741,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                 <Button
                   size="sm"
                   onClick={() => downloadImage(previewImage.url, previewImage.name)}
-                  className="min-h-[40px] flex items-center gap-1.5"
+                  className="min-h-[44px] flex items-center gap-1.5"
                 >
                   <Download className="h-4 w-4" />
                   Download

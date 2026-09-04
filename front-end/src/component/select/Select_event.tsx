@@ -307,11 +307,13 @@ const SelectEvent = (): React.JSX.Element => {
                           placeholder="Note for photographer…"
                           aria-label="Retouch note for photographer"
                           maxLength={500}
+                          disabled={pendingIds.has(photo._id)}
+                          title={pendingIds.has(photo._id) ? "Saving…" : undefined}
                           onBlur={(e) => void saveNote(photo._id, e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                           }}
-                          className="w-full px-3 py-2.5 min-h-[44px] text-xs bg-background border-t border-border outline-none"
+                          className="w-full px-3 py-2.5 min-h-[44px] text-xs bg-background border-t border-border outline-none disabled:opacity-60"
                         />
                       ) : null}
                     </div>
