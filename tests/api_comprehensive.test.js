@@ -154,6 +154,9 @@ async function run() {
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.data.event.event_name, 'Grand Mumbai Wedding');
   assert(!('created_id' in res.data.event), 'Guest response must not leak owner id');
+  if (res.data.studio) {
+    assert(!('create_by' in res.data.studio), 'Guest studio must not leak owner id');
+  }
 
   // 3.4 PIN Confirmation Tests
   console.log('  [guest] testing correct PIN verification...');
@@ -190,6 +193,8 @@ async function run() {
   } catch (err) {
     assert.strictEqual(err.response.status, 403);
   }
+  res = await axios.post(`${API}/display_event`, { userId });
+  assert(res.data.some((e) => e._id === eventId && e.event_name === 'Grand Mumbai Wedding (Updated)'));
 
   // ================= 4. PHOTO INGESTION & DELETION SUITE =================
   console.log('\n--- 4. Testing Photo Upload & Deletion ---');
@@ -232,6 +237,8 @@ async function run() {
     res = await axios.post(`${API}/in-event`, { _id: eventId });
     assert.strictEqual(res.status, 200);
     assert(Array.isArray(res.data) && res.data.length > 0);
+    assert(!('upload_by' in res.data[0]), 'Gallery must not leak owner id');
+    assert(!('embedding' in res.data[0]), 'Gallery must not ship embeddings');
 
     // ================= 5. GUEST FACE MATCHING SUITE =================
     console.log('\n--- 5. Testing Guest Face Search & Vector Store ---');

@@ -95,7 +95,11 @@ router.post('/in-event', async (req: Request, resp: Response) => {
     }
 
     try {
-        const result = await Photo.find({ event_id: _id }).sort({ createdAt: -1 });
+        // Guest-visible gallery: project out owner-equivalent ids (upload_by) + embedding/hash ballast.
+        // PUT /events/:id ownership check depends on created_id staying photographer-known.
+        const result = await Photo.find({ event_id: _id })
+            .select("_id name folder_name isSelected createdAt")
+            .sort({ createdAt: -1 });
         resp.status(200).send(result || []);
     } catch (error: any) {
         resp.status(500).send({ result: "An error occurred while retrieving images", error: error.message });
@@ -103,11 +107,17 @@ router.post('/in-event', async (req: Request, resp: Response) => {
 });
 
 
-//---------------------------------------------------------------------------------------------------------
-
 // P0: shared folder sanitize for POST /event + PUT /events/:id
 type FoldersResult = { ok: true; folders: { name: string }[] } | { ok: false; error: string };
 const sanitizeFolders = (input: unknown): FoldersResult => {
+    // Multipart text fields arrive as strings — accept a JSON-stringified array too
+    if (typeof input === "string") {
+        try {
+            input = JSON.parse(input);
+        } catch {
+            return { ok: false, error: "folders must be an array." };
+        }
+    }
     if (!Array.isArray(input)) return { ok: false, error: "folders must be an array." };
     const rawNames: unknown[] = input.map((f: unknown) => {
         if (typeof f === "string") return f;

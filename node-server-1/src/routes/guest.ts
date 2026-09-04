@@ -19,7 +19,7 @@ router.post("/collect_event", async (req: Request, resp: Response) => {
     const event: any = await Event.findById(objectId);
 
     if (event) {
-      const studio = await Studio.findOne({ create_by: event.created_id });
+      const studio = await Studio.findOne({ create_by: event.created_id }).select("-create_by");
 
       event.pin = 1; // Update the pin field
       // Owner id must never reach guests: PUT /events/:id ownership check depends on it staying photographer-known
