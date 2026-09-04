@@ -355,7 +355,7 @@ async function run() {
     console.log('  [leads] listing as owner...');
     res = await axios.post(`${API}/events/${eventId}/leads`, { created_id: userId });
     assert.strictEqual(res.status, 200);
-    assert(res.data.leads.some((l) => l.phone === '+91 98765 43210'));
+    assert(res.data.leads.some((l) => l.phone === '+919876543210'));
     try {
       await axios.post(`${API}/events/${eventId}/leads`, { created_id: '000000000000000000000000' });
       assert.fail('Should reject non-owner lead list');

@@ -7,6 +7,7 @@ import { EVENT_PROFILE_DIR, FLASK_URL, UPLOAD_DIR } from "../config";
 import User from "../models/User";
 import Event from "../models/Event";
 import Photo from "../models/Photo";
+import Lead from "../models/Lead";
 import { Job } from "../queue/mongoQueue";
 import logger from "../utils/logger";
 import { deleteObject } from "../utils/r2";
@@ -380,6 +381,7 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
         await Photo.deleteMany({ event_id: _id });
         // cleanup jobs + faiss
         try { await Job.deleteMany({ event_id: _id }); } catch(_){}
+        try { await Lead.deleteMany({ event_id: _id }); } catch(_){}
         try { await axios.post(`${FLASK_URL}/faiss_delete_event`, { event_id: _id }, { timeout: 5000 }); } catch(e: any){ logger.info('[faiss] delete_event failed', e.message); }
 
         photos.forEach((photo) => {

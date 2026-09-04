@@ -223,9 +223,9 @@ def match_faces():
         best_sim = float(np.max(sims)) if len(sims) > 0 else 0.0
         if best_sim > threshold:
             matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': best_sim})
+    bump_selfie_count(event_id)
     if matches:
         matches.sort(key=lambda x: x['similarity'], reverse=True)
-        bump_selfie_count(event_id)
         return jsonify({'matches': matches}), 200
     else:
         return jsonify({'message': 'You are not Present In this event', 'matches': []}), 200

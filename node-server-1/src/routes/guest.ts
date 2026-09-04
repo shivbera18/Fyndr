@@ -22,11 +22,12 @@ router.post("/collect_event", async (req: Request, resp: Response) => {
       // ROI counter — fire-and-forget so analytics never slows the guest portal
       Event.updateOne({ _id: objectId }, { $inc: { scanCount: 1 } }).catch(() => {});
       const studio = await Studio.findOne({ create_by: event.created_id }).select("-create_by");
-
-      event.pin = 1; // Update the pin field
-      // Owner id must never reach guests: PUT /events/:id ownership check depends on it staying photographer-known
+      // Owner id + ROI counters must never reach guests (requireLead stays: guest UI needs it)
       const eventObj: Record<string, unknown> = event.toObject();
       delete eventObj.created_id;
+      delete eventObj.scanCount;
+      delete eventObj.selfieCount;
+      delete eventObj.downloadCount;
 
       if (studio) {
         resp.status(200).send({ event: eventObj, studio });
