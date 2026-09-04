@@ -17,9 +17,10 @@ type Props = {
   event_id: string;
   d_ref?: () => void;
   inevent?: boolean;
+  folder_name?: string;
 };
 
-export default function Upload_Img({ event_id, d_ref }: Props): React.JSX.Element {
+export default function Upload_Img({ event_id, d_ref, folder_name }: Props): React.JSX.Element {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -106,12 +107,12 @@ export default function Upload_Img({ event_id, d_ref }: Props): React.JSX.Elemen
     setLoading(true);
     setUploadStatus(null);
     setProgress(0);
-
     const formData = new FormData();
     selectedFiles.forEach((item) => {
       formData.append("name", item.file);
     });
     formData.append("event_id", event_id);
+    if (folder_name) formData.append("folder_name", folder_name);
     if (USER_ID) {
       formData.append("upload_by", USER_ID);
       formData.append("user_id", USER_ID);

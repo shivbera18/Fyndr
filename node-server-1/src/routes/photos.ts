@@ -35,7 +35,8 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         const eventExists = await Event.findById(event_id).select('_id folders');
         if (!eventExists) return res.status(404).send({ error: 'event not found' });
         // Canonical folder spelling from the event taxonomy — rejects typos/phantoms, 'General' always valid
-        const validFolders = ['General', ...eventExists.folders.map((f) => f.name)];
+        const validFolders: string[] = ['General'];
+        for (const f of eventExists.folders) validFolders.push(f.name);
         const canonical = validFolders.find((n) => n.toLowerCase() === wantFolder.toLowerCase());
         if (!canonical) return res.status(400).send({ error: `unknown folder_name. Valid: ${validFolders.join(', ')}` });
         const folder_name = canonical;
