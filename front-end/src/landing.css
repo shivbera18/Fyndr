@@ -1,12 +1,14 @@
 /* ==========================================================================
-   FYNDR landing theme — ported from openstatusHQ/openstatus
-   Reference: packages/ui/src/globals.css (shadcn CSS vars, oklch → sRGB),
-   apps/web/src/styles/globals.css (Tailwind v4 CSS-first @theme, container,
-   tailwindcss-animate only). Scoped under .fy so app pages (dashboard/login
-   on neobrutalism.css) are untouched. No new dependencies.
+   FYNDR app theme — ported from openstatusHQ/openstatus
+   Reference: packages/ui/src/globals.css (shadcn CSS vars, oklch → sRGB,
+   :root light + .dark override) + apps/web/src/styles/globals.css
+   (Tailwind v4 CSS-first @theme, container, tailwindcss-animate only).
+   Dark mode follows the same class strategy via [data-theme="dark"]
+   on <html> (see component/landing/Theme.tsx). Always-dark bands use
+   .fy-dark. No new dependencies.
    ========================================================================== */
 
-.fy {
+:root {
   --fy-background: #ffffff;
   --fy-foreground: #18181b;
   --fy-card: #ffffff;
@@ -36,6 +38,32 @@
   --fy-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --fy-font-display: "Space Grotesk", var(--fy-font-sans);
 
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --fy-background: #0c0c0d;
+  --fy-foreground: #fafafa;
+  --fy-card: #17171a;
+  --fy-card-foreground: #fafafa;
+  --fy-primary: #fafafa;
+  --fy-primary-foreground: #18181b;
+  --fy-secondary: #232326;
+  --fy-secondary-foreground: #fafafa;
+  --fy-muted: #232326;
+  --fy-muted-foreground: #a1a1aa;
+  --fy-accent: #26262b;
+  --fy-accent-foreground: #fafafa;
+  --fy-border: #2b2b30;
+  --fy-ring: #71717a;
+  --fy-success: #22c55e;
+  --fy-brand: #b9ff66;
+  --fy-brand-ink: #191a23;
+
+  color-scheme: dark;
+}
+
+.fy {
   background: var(--fy-background);
   color: var(--fy-foreground);
   font-family: var(--fy-font-sans);
