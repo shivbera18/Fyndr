@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { API_URL } from "../../utils/api";
-import { Banner, Field, Reveal } from "../landing/primitives";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Button } from "../../components/ui/button";
 
 export default function Photographer_detail(): React.JSX.Element {
   const [studioName, setStudioName] = useState("");
@@ -42,93 +45,129 @@ export default function Photographer_detail(): React.JSX.Element {
     setLoading(true);
     setStatus(null);
 
+    if (!userId) {
+      setStatus({ kind: "error", text: "Please log in to save studio details." });
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch(`${API_URL}/studio`, {
+      const res = await fetch(`${API_URL}/add_studio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          create_by: userId,
           studio_name: studioName,
           phone_no: phoneNo,
           address,
           offer,
           description,
-          create_by: userId,
         }),
       });
-
+      const data = await res.json();
       if (res.ok) {
-        setStatus({ kind: "success", text: "Studio profile successfully saved!" });
+        setStatus({ kind: "success", text: "Studio details saved successfully." });
       } else {
-        setStatus({ kind: "error", text: "Failed to save profile." });
+        setStatus({ kind: "error", text: data.message || "Failed to save studio details." });
       }
     } catch {
-      setStatus({ kind: "error", text: "Server connection error." });
+      setStatus({ kind: "error", text: "Network error. Please try again." });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Reveal>
-      <div className="fy-card" style={{ maxWidth: "44rem" }}>
-        <h3>Photographer &amp; studio branding</h3>
-        <p style={{ marginBottom: "1.25rem" }}>
-          This information will be displayed to guests when they access your event galleries and
-          scan QR codes.
-        </p>
+    <div className="max-w-2xl mx-auto">
+      <Card>
+        <CardHeader>
+          <CardTitle>Photographer &amp; studio branding</CardTitle>
+          <CardDescription>
+            This information will be displayed to guests when they access your event galleries and
+            scan QR codes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {status && (
+            <div
+              className={`mb-6 rounded-lg p-4 text-sm font-medium border ${
+                status.kind === "success"
+                  ? "bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800"
+                  : "bg-destructive/10 text-destructive border-destructive/20"
+              }`}
+            >
+              {status.text}
+            </div>
+          )}
 
-        {status && (
-          <div style={{ marginBottom: "1rem" }}>
-            <Banner kind={status.kind}>{status.text}</Banner>
-          </div>
-        )}
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="studioName">Studio or brand name</Label>
+              <Input
+                id="studioName"
+                value={studioName}
+                onChange={(e) => setStudioName(e.target.value)}
+                required
+                placeholder="e.g. Apex Visuals & Wedding Cinema"
+              />
+            </div>
 
-        <form className="fy-form" onSubmit={handleSubmit}>
-          <Field
-            label="Studio or brand name"
-            name="studioName"
-            value={studioName}
-            onChange={setStudioName}
-            required
-            placeholder="e.g. Apex Visuals & Wedding Cinema"
-          />
-          <Field
-            label="Contact phone / WhatsApp"
-            name="phoneNo"
-            value={phoneNo}
-            onChange={setPhoneNo}
-            placeholder="+91 98765 43210"
-            autoComplete="tel"
-          />
-          <Field
-            label="Special offers / tagline"
-            name="offer"
-            value={offer}
-            onChange={setOffer}
-            placeholder="Book 2026 weddings & get 15% off"
-          />
-          <Field
-            label="Studio location / address"
-            name="address"
-            value={address}
-            onChange={setAddress}
-            placeholder="Mumbai, India / Available Worldwide"
-            autoComplete="street-address"
-          />
-          <Field
-            label="About your studio"
-            name="description"
-            value={description}
-            onChange={setDescription}
-            multiline
-            rows={3}
-            placeholder="Tell your clients and event guests about your photography experience…"
-          />
-          <button className="fy-btn fy-btn-default fy-btn-md" type="submit" disabled={loading}>
-            {loading ? "Saving…" : "Save studio branding →"}
-          </button>
-        </form>
-      </div>
-    </Reveal>
+            <div className="space-y-2">
+              <Label htmlFor="phoneNo">Contact phone / WhatsApp</Label>
+              <Input
+                id="phoneNo"
+                type="tel"
+                value={phoneNo}
+                onChange={(e) => setPhoneNo(e.target.value)}
+                placeholder="+91 98765 43210"
+                autoComplete="tel"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="offer">Special offers / tagline</Label>
+              <Input
+                id="offer"
+                value={offer}
+                onChange={(e) => setOffer(e.target.value)}
+                placeholder="Book 2026 weddings & get 15% off"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Studio location / address</Label>
+              <Input
+                id="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Mumbai, India / Available Worldwide"
+                autoComplete="street-address"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">About your studio</Label>
+              <textarea
+                id="description"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Tell your clients and event guests about your photography experience…"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              loading={loading}
+              className="w-full sm:w-auto min-h-[44px]"
+            >
+              Save studio branding →
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

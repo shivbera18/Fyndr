@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import { ThemeProvider } from './component/landing/Theme';
+import { Toaster } from './components/ui/sonner';
 import CollectEvent from './component/collect_images/Collect_event';
 import Home from './component/home/Home';
 import About from './component/About';
@@ -16,7 +17,7 @@ function App() {
 
 
   return (
-    <div className="App fy">
+    <div className="App min-h-screen bg-background text-foreground">
       <ThemeProvider>
       <BrowserRouter>
 
@@ -44,6 +45,7 @@ function App() {
 
       </BrowserRouter>
       </ThemeProvider>
+        <Toaster />
     </div>
   );
 }

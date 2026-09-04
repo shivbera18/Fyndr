@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import "../../landing.css";
-import { Banner, Field, Reveal, Tabs } from "../landing/primitives";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 import { API_URL } from "../../utils/api";
+import { cn } from "../../lib/utils";
 
 type Mode = "login" | "register";
 
@@ -27,63 +30,231 @@ const Login_Register = (): React.JSX.Element => {
   };
 
   const handleLogin = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault(); setErr(""); setOk(""); setLoading(true);
+    e.preventDefault();
+    setErr("");
+    setOk("");
+    setLoading(true);
     try {
-      const r = await fetch(`${API_URL}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim(), password }) });
+      const r = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
       const d = await r.json();
-      if (r.ok && d._id) { localStorage.setItem("user", JSON.stringify(d)); setOk("Signed in — redirecting…"); setTimeout(() => navigate("/dashboard"), 500); }
-      else setErr(d.message || d.error || "Invalid email or password.");
-    } catch { setErr("Cannot reach auth server."); } finally { setLoading(false); }
+      if (r.ok && d._id) {
+        localStorage.setItem("user", JSON.stringify(d));
+        setOk("Signed in — redirecting…");
+        setTimeout(() => navigate("/dashboard"), 800);
+      } else {
+        setErr(d.message || d.error || "Invalid email or password.");
+      }
+    } catch {
+      setErr("Cannot reach auth server.");
+    } finally {
+      setLoading(false);
+    }
   };
+
   const handleRegister = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault(); setErr(""); setOk(""); setLoading(true);
+    e.preventDefault();
+    setErr("");
+    setOk("");
+    setLoading(true);
     try {
-      const r = await fetch(`${API_URL}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password }) });
+      const r = await fetch(`${API_URL}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+      });
       const d = await r.json();
-      if (r.ok) { setOk(d.message || "Account created — sign in now."); setMode("login"); }
-      else setErr(d.message || d.error || "Registration failed.");
-    } catch { setErr("Cannot reach auth server."); } finally { setLoading(false); }
+      if (r.ok) {
+        setOk(d.message || "Account created — sign in now.");
+        setMode("login");
+      } else {
+        setErr(d.message || d.error || "Registration failed.");
+      }
+    } catch {
+      setErr("Cannot reach auth server.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fy-page fy-container">
-      <div className="fy-auth-wrap">
-        <Reveal className="fy-auth-card">
-          <div className="fy-card">
-            <div className="fy-page-head">
-              <h1>{mode === "login" ? "Sign in to Fyndr" : "Create your account"}</h1>
-              <p className="fy-lede">{mode === "login" ? "Welcome back — manage your events and photos." : "Start sharing event photos in minutes."}</p>
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-background text-foreground">
+      <div className="w-full max-w-md space-y-4">
+        {/* Logo */}
+        <div className="text-center pb-2">
+          <Link to="/" className="inline-flex items-center gap-2.5 no-underline text-foreground">
+            <span
+              aria-hidden="true"
+              className="flex h-[32px] w-[32px] items-center justify-center rounded-lg bg-zinc-900 text-brand font-bold text-sm"
+            >
+              ✦
+            </span>
+            <span className="font-display font-bold text-xl tracking-tight">FYNDR</span>
+          </Link>
+        </div>
+
+        <Card className="shadow-lg">
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-xl sm:text-2xl font-bold">
+              {mode === "login" ? "Sign in to Fyndr" : "Create your account"}
+            </CardTitle>
+            <CardDescription>
+              {mode === "login"
+                ? "Welcome back — manage your events and photos."
+                : "Start sharing event albums with AI face match."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Segmented Mode Switcher */}
+            <div className="grid grid-cols-2 p-1 bg-muted rounded-lg text-sm font-medium">
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                className={cn(
+                  "py-2 rounded-md transition-all min-h-[40px] flex items-center justify-center",
+                  mode === "login"
+                    ? "bg-background text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("register")}
+                className={cn(
+                  "py-2 rounded-md transition-all min-h-[40px] flex items-center justify-center",
+                  mode === "register"
+                    ? "bg-background text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Register
+              </button>
             </div>
 
-            <Tabs tabs={[{ id: "login", label: "Sign in" }, { id: "register", label: "Register" }]} active={mode} onChange={switchMode} />
-
-            {err && <Banner kind="error">{err}</Banner>}
-            {ok && <Banner kind="success">{ok}</Banner>}
+            {err && (
+              <div className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20 text-center">
+                {err}
+              </div>
+            )}
+            {ok && (
+              <div className="rounded-lg p-3 text-sm font-medium border bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800 text-center">
+                {ok}
+              </div>
+            )}
 
             {mode === "login" ? (
-              <form onSubmit={handleLogin} className="fy-form">
-                <Field label="Email" name="email" type="email" placeholder="you@studio.com" value={email} onChange={setEmail} required autoComplete="email" />
-                <Field label="Password" name="password" type="password" placeholder="••••••••" value={password} onChange={setPassword} required autoComplete="current-password" />
-                <div style={{ textAlign: "right" }}><Link to="/forgetpassword" className="fy-link-muted" style={{ fontSize: 12 }}>Forgot?</Link></div>
-                <button type="submit" className="fy-btn fy-btn-default fy-btn-md" disabled={loading}>{loading ? "Signing in…" : "Sign in →"}</button>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email address</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="you@studio.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="login-password">Password</Label>
+                    <Link
+                      to="/forgetpassword"
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  loading={loading}
+                  className="w-full min-h-[44px]"
+                >
+                  Sign in →
+                </Button>
               </form>
             ) : (
-              <form onSubmit={handleRegister} className="fy-form">
-                <Field label="Studio name" name="name" placeholder="Apex Visuals" value={name} onChange={setName} required autoComplete="organization" />
-                <Field label="Email" name="email" type="email" placeholder="studio@example.com" value={email} onChange={setEmail} required autoComplete="email" />
-                <Field label="Password" name="password" type="password" placeholder="At least 6 characters" value={password} onChange={setPassword} required autoComplete="new-password" />
-                <button type="submit" className="fy-btn fy-btn-default fy-btn-md" disabled={loading}>{loading ? "Creating…" : "Create account →"}</button>
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-name">Studio or photographer name</Label>
+                  <Input
+                    id="reg-name"
+                    placeholder="Apex Visuals"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="reg-email">Email address</Label>
+                  <Input
+                    id="reg-email"
+                    type="email"
+                    placeholder="studio@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="reg-password">Password</Label>
+                  <Input
+                    id="reg-password"
+                    type="password"
+                    placeholder="At least 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  loading={loading}
+                  className="w-full min-h-[44px]"
+                >
+                  Create account →
+                </Button>
               </form>
             )}
 
-            <p className="fy-micro" style={{ textAlign: "center", marginTop: "1rem" }}>Guest looking for photos? Scan the QR code provided by your event photographer.</p>
-          </div>
-        </Reveal>
-        <Reveal delay={80}>
-          <p className="fy-micro" style={{ textAlign: "center", marginTop: "1rem" }}>© {new Date().getFullYear()} FYNDR — Fast &amp; Private Event Photography</p>
-        </Reveal>
+            <p className="text-xs text-muted-foreground text-center pt-2">
+              Guest looking for photos? Scan the event QR code or visit your event link directly.
+            </p>
+          </CardContent>
+        </Card>
+
+        <p className="text-xs text-muted-foreground text-center font-mono">
+          © {new Date().getFullYear()} FYNDR • Fast &amp; Private
+        </p>
       </div>
     </div>
   );
 };
+
 export default Login_Register;

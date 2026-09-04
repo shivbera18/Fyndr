@@ -1,9 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import "../landing.css";
 import Header from "./navbar/Header";
 import Footer from "./Footer";
-import { Button, Reveal, SectionHead } from "./landing/primitives";
+import { Card, CardContent } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 
 const pillars = [
   { title: "Lightning fast", desc: "Photos matched in under 2 seconds." },
@@ -14,90 +16,94 @@ const pillars = [
 
 const About = (): React.JSX.Element => {
   const navigate = useNavigate();
+
   return (
-    <div>
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
-      <div className="fy-page fy-container">
-        <Reveal>
-          <SectionHead
-            eyebrow="About Fyndr"
-            title="Event photo sharing without the friction"
-            lede="We're on a mission to eliminate the friction of event photo sharing. Fyndr connects event guests to their memories instantly without bloated apps, passwords, or endless scrolling."
-          />
-        </Reveal>
+
+      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-12 space-y-12">
+        {/* Section Head */}
+        <div className="text-center space-y-3 max-w-2xl mx-auto">
+          <Badge variant="brand">About Fyndr</Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            Event photo sharing without the friction
+          </h1>
+          <p className="text-muted-foreground text-base sm:text-lg">
+            We're on a mission to eliminate the friction of event photo sharing. Fyndr connects event guests to their memories using fast, privacy-first facial recognition.
+          </p>
+        </div>
 
         {/* Problem vs Solution */}
-        <div className="fy-grid" style={{ marginBottom: "1.25rem" }}>
-          <Reveal delay={50}>
-            <div className="fy-card">
-              <span className="fy-badge">The problem</span>
-              <h3 style={{ marginTop: "0.75rem" }}>The 5,000 Photo Dilemma</h3>
-              <p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-border">
+            <CardContent className="p-6 sm:p-8 space-y-3">
+              <Badge variant="outline">The problem</Badge>
+              <h3 className="text-xl font-bold text-foreground">The 5,000 Photo Dilemma</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 Event photographers take thousands of stunning photos, but delivering them is
                 painful. Shared cloud links overwhelm guests, forcing them to hunt through
                 hundreds of strangers&apos; pictures. Most guests never see their best moments.
               </p>
-            </div>
-          </Reveal>
-          <Reveal delay={100}>
-            <div className="fy-card fy-card-dark">
-              <span className="fy-badge fy-badge-brand">The solution</span>
-              <h3 style={{ marginTop: "0.75rem" }}>Scan QR → Instant Personal Gallery</h3>
-              <p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-zinc-900 text-white">
+            <CardContent className="p-6 sm:p-8 space-y-3">
+              <Badge variant="brand">The solution</Badge>
+              <h3 className="text-xl font-bold text-white">Scan QR → Instant Personal Gallery</h3>
+              <p className="text-sm text-zinc-300 leading-relaxed">
                 Guests scan a QR code at the table, take a quick selfie, and get every photo
                 they appear in within two seconds. High-resolution downloads, complete privacy,
                 zero apps.
               </p>
-            </div>
-          </Reveal>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Privacy Promise */}
-        <Reveal delay={150}>
-          <div className="fy-card" style={{ marginBottom: "1.25rem" }}>
-            <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-              <span className="fy-icon" aria-hidden="true">
-                ✓
-              </span>
-              <div style={{ flex: 1, minWidth: "16rem" }}>
-                <strong>Our Strict Privacy Promise</strong>
-                <p style={{ margin: "0.25rem 0 0" }}>
-                  Guest selfies are processed strictly in real-time to find photos and are
-                  immediately discarded. We never sell, store, or train on guest face data.
-                </p>
-              </div>
+        <Card className="border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-950/20">
+          <CardContent className="p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 shrink-0">
+              <ShieldCheck className="h-6 w-6" />
             </div>
-          </div>
-        </Reveal>
+            <div className="space-y-1">
+              <h3 className="font-semibold text-foreground text-base">Our Strict Privacy Promise</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Guest selfies are processed strictly in real-time to find photos and are
+                immediately discarded. We never sell, store, or train on guest face data.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* 4 Core Pillars */}
-        <Reveal delay={200}>
-          <div className="fy-card" style={{ marginBottom: "1.25rem" }}>
-            <p className="fy-eyebrow" style={{ marginBottom: "1rem" }}>
-              Built on four core pillars
-            </p>
-            <div className="fy-cards-4">
-              {pillars.map((item) => (
-                <div key={item.title} className="fy-card">
-                  <div style={{ fontSize: "0.8125rem", fontWeight: 700 }}>{item.title}</div>
-                  <p className="fy-micro" style={{ margin: "0.375rem 0 0" }}>
-                    {item.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
+        <div className="space-y-4">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block text-center">
+            Built on four core pillars
+          </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {pillars.map((item) => (
+              <Card key={item.title} className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-5 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="font-semibold text-sm text-foreground">{item.title}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </Reveal>
+        </div>
 
         {/* Call to action */}
-        <Reveal delay={250}>
-          <div style={{ textAlign: "center", padding: "1.25rem 0" }}>
-            <Button variant="default" size="lg" onClick={() => navigate("/login")}>
-              Start Creating Events Free →
-            </Button>
-          </div>
-        </Reveal>
-      </div>
+        <div className="text-center py-6">
+          <Button size="lg" onClick={() => navigate("/login")} className="min-h-[48px] px-8 text-base">
+            Start Creating Events Free →
+          </Button>
+        </div>
+      </main>
+
       <Footer />
     </div>
   );
