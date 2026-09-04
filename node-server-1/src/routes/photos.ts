@@ -187,6 +187,58 @@ router.delete('/delete-image', deleteImageHandler);
 router.delete('/delete-img', deleteImageHandler);
 
 //-----------------------------------------------------------------------------------------------------
+// P0: client proofing — PIN-gated select/star (the couple holds the PIN, not the owner id)
+router.patch('/photos/:id/select', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).send({ error: 'invalid photo id' });
+    }
+    try {
+        const body: unknown = req.body || {};
+        const event_id: unknown = body && typeof body === "object" && "event_id" in body ? body.event_id : undefined;
+        const pin: unknown = body && typeof body === "object" && "pin" in body ? body.pin : undefined;
+        const rawSelected: unknown = body && typeof body === "object" && "isSelected" in body ? body.isSelected : undefined;
+        const rawNote: unknown = body && typeof body === "object" && "selectionNote" in body ? body.selectionNote : undefined;
+        if (typeof event_id !== "string" || !mongoose.Types.ObjectId.isValid(event_id)) {
+            return res.status(400).send({ error: 'event_id required' });
+        }
+        if (typeof rawSelected !== "boolean") {
+            return res.status(400).send({ error: 'isSelected must be true or false' });
+        }
+        let note = "";
+        if (rawNote !== undefined) {
+            if (typeof rawNote !== "string") return res.status(400).send({ error: 'selectionNote must be a string' });
+            note = rawNote.trim().slice(0, 500);
+        }
+        const event = await Event.findById(event_id).select('_id pin selectionLocked selectionLimit');
+        if (!event) return res.status(404).send({ error: 'event not found' });
+        if (typeof pin !== "string" || event.pin !== pin) {
+            return res.status(404).send({ error: 'Pin is wrong! Contact the photographer to provide the correct (Pin)' });
+        }
+        if (event.selectionLocked) {
+            return res.status(403).send({ error: 'Selection is locked and cannot be changed' });
+        }
+        const photo = await Photo.findOne({ _id: id, event_id });
+        if (!photo) return res.status(404).send({ error: 'photo not found in this event' });
+        // ponytail: count-then-write can overshoot the limit by 1 under concurrent selects — exact cap needs a transaction
+        if (rawSelected && !photo.isSelected && event.selectionLimit > 0) {
+            const count = await Photo.countDocuments({ event_id, isSelected: true });
+            if (count >= event.selectionLimit) {
+                return res.status(409).send({ error: `Selection limit reached (${event.selectionLimit} photos)` });
+            }
+        }
+        photo.isSelected = rawSelected;
+        if (rawNote !== undefined) photo.selectionNote = note;
+        await photo.save();
+        return res.status(200).send({ _id: photo._id, isSelected: photo.isSelected, selectionNote: photo.selectionNote });
+    } catch {
+        logger.error('[photo] select error');
+        return res.status(500).send({ error: 'Internal server error' });
+    }
+});
+
+
+//-----------------------------------------------------------------------------------------------------
 
 router.get('/download/:filename', (req: Request, res: Response) => {
     try {

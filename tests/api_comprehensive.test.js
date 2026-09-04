@@ -239,6 +239,90 @@ async function run() {
     assert(Array.isArray(res.data) && res.data.length > 0);
     assert(!('upload_by' in res.data[0]), 'Gallery must not leak owner id');
     assert(!('embedding' in res.data[0]), 'Gallery must not ship embeddings');
+    const photoName1 = res.data[0].name;
+
+    // 4.4 Client proofing: PIN select, limit 409, lock 403, Lightroom export
+    console.log('  [proofing] setting selection limit...');
+    res = await axios.put(`${API}/events/${eventId}`, { created_id: userId, selectionLimit: 2 });
+    assert.strictEqual(res.status, 200);
+
+    console.log('  [proofing] selecting photo via PIN...');
+    res = await axios.patch(`${API}/photos/${photoId}/select`, {
+      event_id: eventId, pin: '654321', isSelected: true, selectionNote: 'Album cover',
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.isSelected, true);
+
+    console.log('  [proofing] verifying selection gallery...');
+    res = await axios.post(`${API}/selection`, { _id: eventId, pin: '654321' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.selectedCount, 1);
+    assert(res.data.photos.some((p) => p._id === photoId && p.isSelected));
+
+    console.log('  [proofing] verifying wrong PIN rejection...');
+    try {
+      await axios.patch(`${API}/photos/${photoId}/select`, { event_id: eventId, pin: '000000', isSelected: false });
+      assert.fail('Should reject wrong PIN');
+    } catch (err) {
+      assert.strictEqual(err.response.status, 404);
+    }
+
+    const facialPath = path.join(__dirname, '../front-end/public/images/facial.jpg');
+    if (fs.existsSync(facialPath)) {
+      console.log('  [proofing] uploading second photo for limit test...');
+      const photoForm2 = new FormData();
+      photoForm2.append('name', fs.createReadStream(facialPath));
+      photoForm2.append('event_id', eventId);
+      photoForm2.append('upload_by', userId);
+      const res2 = await axios.post(`${API}/photo`, photoForm2, {
+        headers: photoForm2.getHeaders(), maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000,
+      });
+      assert.strictEqual(res2.status, 200);
+      const photoId2 = res2.data[0]._id;
+      assert(photoId2 && photoId2 !== photoId, 'Expected a distinct second photo');
+
+      console.log('  [proofing] selecting second photo (2/2)...');
+      res = await axios.patch(`${API}/photos/${photoId2}/select`, {
+        event_id: eventId, pin: '654321', isSelected: true,
+      });
+      assert.strictEqual(res.status, 200);
+
+      console.log('  [proofing] tightening limit and verifying 409...');
+      res = await axios.put(`${API}/events/${eventId}`, { created_id: userId, selectionLimit: 1 });
+      assert.strictEqual(res.status, 200);
+      res = await axios.patch(`${API}/photos/${photoId2}/select`, {
+        event_id: eventId, pin: '654321', isSelected: false,
+      });
+      assert.strictEqual(res.status, 200);
+      try {
+        await axios.patch(`${API}/photos/${photoId2}/select`, {
+          event_id: eventId, pin: '654321', isSelected: true,
+        });
+        assert.fail('Should reject over-limit selection');
+      } catch (err) {
+        assert.strictEqual(err.response.status, 409);
+      }
+    }
+
+    console.log('  [proofing] locking selection via PIN...');
+    res = await axios.post(`${API}/events/${eventId}/lock`, { pin: '654321', locked: true });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.selectionLocked, true);
+    try {
+      await axios.patch(`${API}/photos/${photoId}/select`, {
+        event_id: eventId, pin: '654321', isSelected: false,
+      });
+      assert.fail('Should reject locked selection');
+    } catch (err) {
+      assert.strictEqual(err.response.status, 403);
+    }
+
+    console.log('  [proofing] exporting Lightroom list as owner...');
+    res = await axios.post(`${API}/events/${eventId}/lock`, { created_id: userId, locked: false });
+    assert.strictEqual(res.status, 200);
+    res = await axios.post(`${API}/events/${eventId}/lightroom-export`, { created_id: userId });
+    assert.strictEqual(res.status, 200);
+    assert(String(res.data).includes(photoName1), 'Lightroom export must list selected filenames');
 
     // ================= 5. GUEST FACE MATCHING SUITE =================
     console.log('\n--- 5. Testing Guest Face Search & Vector Store ---');
