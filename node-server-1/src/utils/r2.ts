@@ -1,11 +1,15 @@
-// Fyndr — R2 presigned (P2) — falls back to local disk if no env
+// Fyndr — R2 presigned (P2) — falls back to local disk if no env.
+// The SDK loads lazily so the API still boots on partial installs
+// (same graceful degradation as the original require-in-try).
 import type { S3Client } from "@aws-sdk/client-s3";
-import { S3Client as S3ClientImpl } from "@aws-sdk/client-s3";
+import type * as S3SDK from "@aws-sdk/client-s3";
 
 let s3: S3Client | null = null;
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const sdk: typeof S3SDK = require("@aws-sdk/client-s3");
   if (process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY && process.env.R2_SECRET_KEY) {
-    s3 = new S3ClientImpl({
+    s3 = new sdk.S3Client({
       region: process.env.R2_REGION || "auto",
       endpoint: process.env.R2_ENDPOINT,
       credentials: {
