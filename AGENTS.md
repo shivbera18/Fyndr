@@ -20,13 +20,13 @@ pnpm compose:prod # mongo + api + ml only
 | Mongo | 27017 | `mongosh --eval "db.adminCommand('ping')"` | `photo_sharing_db` |
 | API | 5000 | `curl http://127.0.0.1:5000/metrics \| grep fyndr` | `node-server-1/src` → `dist/server.js` |
 | ML | 5001 | `curl http://127.0.0.1:5001/faiss_stats?event_id=test` | `flask-server-2/app.py` + `faiss_store.py` |
-| Web | 3000 | `curl http://127.0.0.1:3000` | `front-end` |
+| Web | 3000 | `curl http://127.0.0.1:3000` | `front-end` (Tailwind 3.4.4 + Radix + Vaul + `src/components/ui/*`) |
 
 ## Tasks You Can Do
 
 - **Fix bug:** `grep -r` then `read` then `edit` with tight `PUT N.=M:` ranges. Verify with `node --check` / `py_compile` and full tests (can be skipped for trivial text/CSS-only changes).
 - **Add feature:** Check `UPGRADE_PLAN.md` P1/P2 first — is it in plan? If not, discuss.
-- **UI:** Use `shadcn` + `Tailwind`, not `antd`+`bootstrap`. See `plot.md` tokens `ink 950` etc.
+- **UI:** Pure Tailwind 3.4.4 + Radix UI + Vaul Drawer + Dub-style UI primitives (`front-end/src/components/ui/*`), not `antd`+`bootstrap` (purged). Ensure all touch targets are >= 44x44px.
 - **ML:** `buffalo_s` `det 320` on CPU, `faiss_store.py` per-event, threshold `0.34`. Don't add GPU unless `queue wait>2h`.
 
 ## Docker
@@ -47,7 +47,9 @@ See `docker-compose.dev.yml` / `prod.yml` and `DEPLOYMENT.md`.
 ## Testing
 
 ```bash
-pnpm test # tests/e2e.test.js → register→event→photo→metrics→faiss→match
+pnpm test                                       # e2e: register→event→photo→metrics→faiss→match
+npm --prefix front-end test -- --watchAll=false # web unit tests (3 suites, 6 tests)
+npm --prefix node-server-1 run build            # backend tsc compilation
 ```
 
 ## Git & PR Review Workflow

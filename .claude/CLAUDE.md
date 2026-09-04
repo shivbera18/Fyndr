@@ -11,29 +11,29 @@ Event photo SaaS: `Photographer uploads → QR → Guest selfie → find my phot
 
 | Layer | Tech | Why |
 |-------|------|-----|
-| Web | React 18 + Vite (migrating to Next.js 15 + Tailwind + shadcn) | Existing, single system |
-| API | Node 20 + Express + Mongoose + Multer + JWT + prom-client | Already, $0 |
-| ML | Flask + InsightFace mock → `buffalo_s` ONNX `SCRFD 320` + ArcFace 512-d, FAISS per-event `IndexFlatIP` + numpy fallback | Mock for CI, real on CPU 36m/50k |
-| DB | MongoDB 8.0 (photo_sharing_db) + `/tmp/fyndr_faiss` files | PG-boss queue via `queue/mongoQueue.js` (hash UNIQUE) |
-| Infra | Oracle Always Free `4 OCPU 24GB` `pm2`, R2 10GB free + Cloudflare | $0 → $1/mo 5×5k |
+| Web | React 18 + Tailwind 3.4.4 + Radix UI + Vaul + Dub-style UI primitives (`src/components/ui/*`) | Modernized, mobile-first, 0 legacy bloat (antd/bootstrap purged) |
+| API | Node 20 + Express + TypeScript (`node-server-1/src` → `dist/`) + Mongoose + Multer + JWT + prom-client | Modular routes, typed models, $0 |
+| ML | Flask + InsightFace mock → `buffalo_s` ONNX `SCRFD 320` + ArcFace 512-d, FAISS per-event `IndexFlatIP` + numpy fallback | Mock for CI, real on CPU 36m/50k (`flask-server-2/`) |
+| DB | MongoDB 8.0 (`photo_sharing_db`) + `/tmp/fyndr_faiss` files | Mongo queue via `src/queue/mongoQueue.ts` (hash UNIQUE) |
+| Infra | Oracle Always Free `4 OCPU 24GB` `pm2`, R2 10GB free + Cloudflare, Vercel frontend | $0 → $1/mo 5×5k |
 
 **ML pipeline (see ML_MODEL.md):** `640px preview → SCRFD detect (score>0.6, size>45) → align 112 → ArcFace 512 L2 → FAISS cosine 0.34 → re-rank`.
-
 ## Commands (single)
 
 ```bash
 pnpm dev        # or npm run dev → concurrently api 5000 + ml 5001 + web 3000 (cross-platform)
 pnpm compose:dev  # docker compose dev: mongo+api+ml+web (Vercel alternative)
 pnpm compose:prod # docker compose prod: mongo+api+ml only (frontend on Vercel)
-pnpm test       # e2e: register→login→event→photo→metrics→faiss
-```
+pnpm test          # e2e: register→login→event→photo→metrics→faiss
+npm --prefix front-end test -- --watchAll=false  # web unit tests
+npm --prefix node-server-1 run build             # backend tsc build
 
 Ports: `5000 API`, `5001 ML`, `3000 WEB`, `27017 MONGO`. All `pnpm dev` via `concurrently`.
 
 ## Project Conventions
 
 - **Git:** `init commit` squashed, `shivbera18 <164228363+shivbera18@users.noreply.github.com>` so counted. Small commits, branch PR.
-- **Code style:** Delete before add (38MB `public/models` removed), `antd+bootstrap` → `shadcn` single system, `face-api.js` removed.
+- **Code style:** Delete before add (38MB `public/models` removed), legacy bloat (`antd`, `bootstrap`, `@emotion/css`, `face-api.js`, `landing.css`) purged in favor of pure Tailwind 3.4.4 + Radix + Vaul primitives in `front-end/src/components/ui/*`. Backend fully modularized in TypeScript (`node-server-1/src`). Tap targets must be >= 44x44px.
 - **No new dep without metric:** Qdrant/Milvus/Kafka/K8s not until `queue wait>2h` or `p95>700ms`.
 - **Security:** Guest selfie tmp 60s, `token_hash=SHA256`, `isVerified:true` local, `EMAIL_PASS` env.
 - **Files to never edit blindly:** `cloud.md` (secrets), `~/.ssh/fyndr_oracle` (600), `node-server-1/.env`.
