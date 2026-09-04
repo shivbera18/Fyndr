@@ -1,4 +1,3 @@
-import './App.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min';
 
 
