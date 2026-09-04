@@ -8,6 +8,11 @@
    .fy-dark. No new dependencies.
    ========================================================================== */
 
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+
 :root {
   --fy-background: #ffffff;
   --fy-foreground: #18181b;
@@ -68,12 +73,8 @@
   color: var(--fy-foreground);
   font-family: var(--fy-font-sans);
   -webkit-font-smoothing: antialiased;
-  /* Neutralize neobrutalism body padding + #root cap for full-bleed landing */
-  margin-top: -100px;
-  padding-bottom: 0;
-}
-@media (max-width: 800px) {
-  .fy { margin-top: -70px; }
+  min-height: 100vh;
+  padding-top: 68px;
 }
 
 /* Full-bleed band inside #root's max-width container */
@@ -275,7 +276,7 @@
 .fy-hero {
   position: relative;
   overflow: hidden;
-  padding: calc(68px + 4.5rem) 0 4rem;
+  padding: 4.5rem 0 4rem;
   background:
     radial-gradient(48rem 24rem at 50% -6rem, rgba(185, 255, 102, 0.35), transparent 70%),
     radial-gradient(36rem 20rem at 85% 10%, rgba(24, 24, 27, 0.06), transparent 70%);
