@@ -1,7 +1,5 @@
-import 'bootstrap/dist/js/bootstrap.bundle.min';
-
-
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+
 import { ThemeProvider } from './component/landing/Theme';
 import CollectEvent from './component/collect_images/Collect_event';
 import Home from './component/home/Home';
