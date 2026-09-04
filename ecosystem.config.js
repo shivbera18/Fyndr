@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'fyndr-api',
       cwd: './node-server-1',
-      script: 'index.js',
+      script: 'dist/server.js',
       env: {
         NODE_ENV: 'production',
         PORT: 5000,

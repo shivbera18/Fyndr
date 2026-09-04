@@ -41,7 +41,7 @@ pnpm dev          # or npm run dev
 # pkill -f "node|python" (Linux)
 ```
 
-**What `pnpm dev` does:** `concurrently` runs `node node-server-1/index.js` + `cd flask-server-2 && venv/.../python app.py` + `npm start --prefix front-end`.
+**What `pnpm dev` does:** `concurrently` runs `npm run build --prefix node-server-1 && node node-server-1/dist/server.js` + `cd flask-server-2 && venv/.../python app.py` + `npm start --prefix front-end`.
 
 ## 2. Docker Dev (no local installs, except Docker)
 

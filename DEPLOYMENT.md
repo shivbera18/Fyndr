@@ -43,7 +43,7 @@ firewalld 3000/5000/5001 open
 ssh fyndr
 cd ~/pic-share
 git pull
-cd node-server-1 && npm install
+cd node-server-1 && npm install && npm run build
 pm2 restart all && pm2 save
 # or docker:
 # docker compose -f docker-compose.prod.yml up --build -d

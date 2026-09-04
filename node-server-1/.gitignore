@@ -13,6 +13,8 @@ event_profile/
 
 # production
 /build
+# typescript build output (compiled via npm run build)
+/dist
 
 # misc
 .DS_Store

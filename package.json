@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/clean-ports.js && node scripts/ensure-mongo.js && node -e \"require('fs').mkdirSync('logs',{recursive:true})\" && concurrently --names \"api,ml,web\" --prefix-colors \"cyan,magenta,green\" \"npm:dev:api\" \"npm:dev:ml\" \"npm:dev:web\"",
     "dev:mongo": "docker compose -f docker-compose.dev.yml up -d mongo --wait",
-    "dev:api": "node node-server-1/index.js",
+    "dev:api": "npm run build --prefix node-server-1 && node node-server-1/dist/server.js",
     "dev:ml": "node scripts/run-ml.js",
     "dev:ml:unix": "node scripts/run-ml.js",
     "dev:web": "npm start --prefix front-end",

@@ -371,7 +371,7 @@ Check OCI bucket after upload:
 ssh ubuntu@<YOUR_PUBLIC_IP>
 cd /home/ubuntu/app
 git pull origin main
-npm install --prefix node-server-1 --production
+npm install --prefix node-server-1 && npm run build --prefix node-server-1
 # if ML deps changed: source flask-server-2/venv/bin/activate && pip install -r flask-server-2/requirements.txt && deactivate
 pm2 restart ecosystem.config.js   # or pm2 restart fyndr-api fyndr-ml
 sudo nginx -t && sudo systemctl reload nginx  # only if nginx changed

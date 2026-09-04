@@ -18,7 +18,7 @@ pnpm compose:prod # mongo + api + ml only
 | Service | Port | Health | Code |
 |---------|------|--------|------|
 | Mongo | 27017 | `mongosh --eval "db.adminCommand('ping')"` | `photo_sharing_db` |
-| API | 5000 | `curl http://127.0.0.1:5000/metrics \| grep fyndr` | `node-server-1/index.js` |
+| API | 5000 | `curl http://127.0.0.1:5000/metrics \| grep fyndr` | `node-server-1/src` → `dist/server.js` |
 | ML | 5001 | `curl http://127.0.0.1:5001/faiss_stats?event_id=test` | `flask-server-2/app.py` + `faiss_store.py` |
 | Web | 3000 | `curl http://127.0.0.1:3000` | `front-end` |
 
