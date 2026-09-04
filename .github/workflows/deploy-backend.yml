@@ -1,0 +1,67 @@
+# Backend API redeploy — runs on every push to main that touches the API.
+# SSH into the Oracle VPS, pull, install, build (tsc), and restart ONLY the
+# API pm2 process. Mongo (systemctl mongod) and the ML process are never
+# touched, so the database is never restarted by deploys.
+#
+# Required Actions secrets (Settings → Secrets → Actions):
+#   SSH_HOST  VPS address, e.g. 129.151.47.214
+#   SSH_USER  SSH user, e.g. opc
+#   SSH_KEY   private key content (the .pub is already in authorized_keys)
+# Optional:
+#   APP_DIR   repo checkout on the VPS (default ~/pic-share)
+name: Deploy backend API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "node-server-1/**"
+      - "ecosystem.config.js"
+      - ".github/workflows/deploy-backend.yml"
+
+# Never overlap two deploys; queue instead of racing pm2 restarts.
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull, build, and restart API on VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.APP_DIR }}"
+            APP_DIR="${APP_DIR:-~/pic-share}"
+            cd "$APP_DIR"
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+            cd node-server-1
+            npm ci --no-audit --no-fund
+            npm run build
+            cd "$APP_DIR"
+            # Normalize the pre-TypeScript process (pic-share-api → node index.js)
+            # to the repo process (fyndr-api → dist/server.js). Delete+start is
+            # intentional: `restart --update-env` cannot change the script path.
+            pm2 delete fyndr-api pic-share-api 2>/dev/null || true
+            pm2 start ecosystem.config.js --only fyndr-api --update-env
+            for i in $(seq 1 12); do
+              if curl -sf http://127.0.0.1:5000/metrics | grep -q fyndr_http_requests_total; then
+                echo "API healthy"
+                break
+              fi
+              sleep 5
+              if [ "$i" = 12 ]; then
+                echo "API health check failed"
+                pm2 logs fyndr-api --lines 50 --nostream || true
+                exit 1
+              fi
+            done
+            pm2 save

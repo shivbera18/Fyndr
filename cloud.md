@@ -31,11 +31,12 @@ Old keys still in `Downloads` (not Fyndr, keep): `ssh-key-2026-08-08.key`, `ssh-
 ### Services (pm2)
 ```
 pm2 list
-  pic-share-api  5000  node node-server-1/index.js
-  pic-share-ml   5001  python3 app.py (mock, InsightFace→mock hash)
-  pic-share-web  3000  serve -s build -l 3000
+  fyndr-api    5000  node node-server-1/dist/server.js (deploy-backend.yml restarts only this)
+  pic-share-ml 5001  python3 app.py (mock, InsightFace→mock hash, never restarted by API deploys)
+  pic-share-web 3000 serve -s build -l 3000
 pm2 save; sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u opc --hp /home/opc
 ```
+- **Mongo** is a system service (`systemctl mongod`), NOT pm2/docker — deploys never restart it.
 - **Node** `20.20.2` `npm 10.8.2` via nodesource 20.x
 - **Python** `3.9.25` `pip 21.3` + `Flask 3.0.3` etc
 - **Mongo** `8.0.31` `mongod` `systemctl enable --now mongod` → `mongosh --eval "db.adminCommand('ping')" {ok:1}`
