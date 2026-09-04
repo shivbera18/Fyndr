@@ -49,9 +49,21 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [eventId] = useState<string | null>(initialEventId);
 
   useEffect(() => {
-    if (eventId) {
-      sessionStorage.setItem("fy-last-event", eventId);
-    }
+    if (!eventId) return;
+    sessionStorage.setItem("fy-last-event", eventId);
+    // Fail-closed + fresh: deep links hydrate the flag; owner toggles apply every mount.
+    fetch(`${API_URL}/collect_event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _id: eventId }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const ev: unknown = data && typeof data === "object" && "event" in data ? data.event : null;
+        const gate = ev && typeof ev === "object" && "requireLead" in ev ? ev.requireLead === true : false;
+        sessionStorage.setItem(`fy-require-lead-${eventId}`, gate ? "1" : "0");
+      })
+      .catch(() => {});
   }, [eventId]);
 
   const webcamRef = useRef<Webcam>(null);
@@ -237,6 +249,14 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
           photos_found: matchedPhotos.length,
         }),
       });
+      if (res.status === 429) {
+        setLeadError("Too many submissions for this event — please try again later.");
+        return;
+      }
+      if (res.status >= 500) {
+        setLeadError("Server busy — please try again in a moment.");
+        return;
+      }
       if (res.status !== 201 && res.status !== 200) {
         setLeadError("That phone number looks invalid — please check it.");
         return;

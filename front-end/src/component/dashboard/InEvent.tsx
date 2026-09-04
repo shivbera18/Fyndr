@@ -92,6 +92,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           setStudioName(data.studio_name);
         }
       })
+      .catch(() => {});
   }, [ownerId]);
 
   useEffect(() => {
@@ -347,7 +348,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         ].map(csvCell);
         rows.push(row.join(","));
       }
-      const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
