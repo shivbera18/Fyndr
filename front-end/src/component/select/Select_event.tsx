@@ -286,7 +286,7 @@ const SelectEvent = (): React.JSX.Element => {
                       )}
                     >
                       <div className="aspect-square">
-                        <img src={photoUrl} alt="Selectable gallery photo" loading="lazy" className="h-full w-full object-cover" />
+                        <img src={photoUrl} alt={photo.name || "Gallery item"} loading="lazy" className="h-full w-full object-cover" />
                       </div>
                       <button
                         type="button"

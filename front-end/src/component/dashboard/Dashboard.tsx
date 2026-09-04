@@ -6,6 +6,7 @@ import Footer from "../Footer";
 import DisplayEvent from "./Display_event";
 import InEvent from "./InEvent";
 import PhotographerDetail from "./Photographer_detail";
+import StudioAnalytics from "./StudioAnalytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -30,11 +31,12 @@ type SelectedEvent = {
   selectionLocked: boolean;
 };
 
-type TabId = "events" | "create" | "studio";
+type TabId = "events" | "create" | "analytics" | "studio";
 
 const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: "events", label: "My Events" },
   { id: "create", label: "Create New Event" },
+  { id: "analytics", label: "Studio Analytics" },
   { id: "studio", label: "Studio Branding" },
 ];
 
@@ -324,6 +326,8 @@ export default function Dashboard(): React.JSX.Element {
               </CardContent>
             </Card>
           </div>
+        ) : activeTab === "analytics" ? (
+          <StudioAnalytics userId={user?._id || ""} />
         ) : activeTab === "studio" ? (
           <PhotographerDetail />
         ) : (

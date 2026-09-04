@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { API_URL, ML_URL } from "../../utils/api";
+import { trackEvent } from "../../utils/analytics";
 import {
   ArrowLeft,
   Camera,
@@ -106,6 +107,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
 
     setLoading(true);
     setErrorMessage("");
+    const startTime = Date.now();
 
     try {
       const formData = new FormData();
@@ -118,13 +120,18 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         timeout: 30000,
       });
 
+      const latencyMs = Date.now() - startTime;
       if (response.data.matches && response.data.matches.length > 0) {
-        setMatchedPhotos(response.data.matches as MatchedPhoto[]);
+        const matches = response.data.matches as MatchedPhoto[];
+        setMatchedPhotos(matches);
+        trackEvent(eventId, "selfie_search", { matchCount: matches.length, latencyMs });
       } else {
         setMatchedPhotos([]);
         setErrorMessage(response.data.message || "No matching photos found in this event.");
+        trackEvent(eventId, "selfie_search", { matchCount: 0, latencyMs });
       }
     } catch (error: unknown) {
+      trackEvent(eventId, "selfie_search", { matchCount: 0, latencyMs: Date.now() - startTime, error: true });
       setMatchedPhotos([]);
       let msg = "Face detection failed. Please ensure your face is clearly visible.";
       if (axios.isAxiosError(error)) {
@@ -144,6 +151,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     }
   };
   const retakeSelfie = (): void => {
+    if (eventId) trackEvent(eventId, "retake_selfie");
     if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
     uploadedImageUrlRef.current = null;
     setImageSrc(null);
@@ -179,6 +187,9 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         diskName = "matched_photo.jpg";
       }
     }
+    if (eventId) {
+      trackEvent(eventId, "photo_download", { photoName: diskName, photoUrl: url });
+    }
     try {
       const response = await fetch(url);
       const blob = await response.blob();
@@ -203,6 +214,9 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const openPreview = (url: string, name: string, sim: number): void => {
     setIsZoomed(false);
     setPreviewPhoto({ url, name, sim });
+    if (eventId) {
+      trackEvent(eventId, "photo_view", { photoName: name, similarity: sim });
+    }
   };
 
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
