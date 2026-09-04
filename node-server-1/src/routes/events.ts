@@ -241,6 +241,99 @@ router.put("/events/:id", async (req: Request, res: Response) => {
         res.status(500).json({ message: "Internal server error." });
     }
 });
+//---------------------------------------------------------------------------------------------------
+// P0: client proofing — PIN-gated selection gallery (couple holds the PIN, not the owner id)
+router.post('/selection', async (req: Request, res: Response) => {
+    try {
+        const body: unknown = req.body || {};
+        const _id: unknown = body && typeof body === "object" && "_id" in body ? body._id : undefined;
+        const pin: unknown = body && typeof body === "object" && "pin" in body ? body.pin : undefined;
+        if (typeof _id !== "string" || !mongoose.Types.ObjectId.isValid(_id)) {
+            return res.status(400).send({ result: "Event ID is required" });
+        }
+        const event = await Event.findById(_id).select('event_name event_photo pin selectionLimit selectionLocked folders');
+        if (!event) return res.status(404).send({ result: "Event not found. Please check the Event ID." });
+        if (typeof pin !== "string" || event.pin !== pin) {
+            return res.status(404).send({ result: "Pin is wrong! Contact the photographer to provide the correct (Pin)" });
+        }
+        // Guest-visible projection only — never embeddings, hashes, or owner ids
+        const photos = await Photo.find({ event_id: _id })
+            .select('_id name folder_name isSelected selectionNote createdAt')
+            .sort({ createdAt: -1 });
+        const selectedCount = photos.filter((p) => p.isSelected).length;
+        return res.status(200).send({
+            event: {
+                _id: event._id,
+                event_name: event.event_name,
+                event_photo: event.event_photo,
+                selectionLimit: event.selectionLimit,
+                selectionLocked: event.selectionLocked,
+                folders: event.folders,
+            },
+            photos,
+            selectedCount,
+        });
+    } catch {
+        logger.error("Error retrieving selection");
+        return res.status(500).send({ result: "An error occurred while retrieving selection" });
+    }
+});
+
+//---------------------------------------------------------------------------------------------------
+// P0: lock/unlock proofing — owner (created_id) or couple (PIN); one route, either proof accepted
+router.post('/events/:id/lock', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid event ID." });
+    }
+    try {
+        const body: unknown = req.body || {};
+        const caller: unknown = body && typeof body === "object" && "created_id" in body ? body.created_id : undefined;
+        const pin: unknown = body && typeof body === "object" && "pin" in body ? body.pin : undefined;
+        const rawLocked: unknown = body && typeof body === "object" && "locked" in body ? body.locked : undefined;
+        if (typeof rawLocked !== "boolean") {
+            return res.status(400).json({ message: "locked must be true or false." });
+        }
+        const event = await Event.findById(id).select('_id created_id pin selectionLocked');
+        if (!event) return res.status(404).json({ message: "Event not found." });
+        const isOwner = typeof caller === "string" && caller === event.created_id;
+        const hasPin = typeof pin === "string" && event.pin !== undefined && pin === event.pin;
+        if (!isOwner && !hasPin) {
+            return res.status(403).json({ message: "Only the event owner or PIN holder can lock the selection." });
+        }
+        event.selectionLocked = rawLocked;
+        await event.save();
+        return res.status(200).json({ message: rawLocked ? "Selection locked." : "Selection unlocked.", selectionLocked: event.selectionLocked });
+    } catch {
+        logger.error("Error locking selection");
+        return res.status(500).json({ message: "Internal server error." });
+    }
+});
+
+//---------------------------------------------------------------------------------------------------
+// P0: Lightroom export — owner-only comma list of selected filenames for Library Filter pasting
+router.post('/events/:id/lightroom-export', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid event ID." });
+    }
+    try {
+        const body: unknown = req.body || {};
+        const caller: unknown = body && typeof body === "object" && "created_id" in body ? body.created_id : undefined;
+        const event = await Event.findById(id).select('_id created_id');
+        if (!event) return res.status(404).json({ message: "Event not found." });
+        if (typeof caller !== "string" || caller !== event.created_id) {
+            return res.status(403).json({ message: "Only the event owner can export the selection." });
+        }
+        const selected = await Photo.find({ event_id: id, isSelected: true }).select('name').sort({ createdAt: -1 });
+        res.setHeader('Content-Type', 'text/plain');
+        return res.status(200).send(selected.map((p) => p.name).join(','));
+    } catch {
+        logger.error("Error exporting selection");
+        return res.status(500).json({ message: "Internal server error." });
+    }
+});
+
 
 
 //---------------------------------------------------------------------------------------------------
