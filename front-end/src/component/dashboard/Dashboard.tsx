@@ -100,7 +100,9 @@ export default function Dashboard(): React.JSX.Element {
       formData.append("event_name", eventName.trim());
       formData.append("pin", pin.trim());
       formData.append("created_id", user?._id || "");
+      formData.append("create_by", user?._id || "");
       if (coverFile) {
+        formData.append("event_photo", coverFile);
         formData.append("event_profile", coverFile);
       }
 
@@ -116,7 +118,7 @@ export default function Dashboard(): React.JSX.Element {
         setCoverFile(null);
         setCoverPreview("");
         // Select the newly created event
-        const createdId = data._id || data.eventID || (data.event && data.event._id);
+        const createdId = data._id || data.event?._id || data.eventID || (data.event && data.event._id);
         if (createdId) {
           setSelectedEvent({
             eventID: createdId,

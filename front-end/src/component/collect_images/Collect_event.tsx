@@ -37,15 +37,18 @@ const CollectEvent = (): React.JSX.Element => {
         body: JSON.stringify({ _id: eventId }),
       });
       const data = await res.json();
-      if (data && data.event_name) {
-        setEventData(data);
-        if (data.studio_name) {
-          setStudioData({ studio_name: data.studio_name });
+      const ev = (data && data.event) ? data.event : data;
+      if (ev && ev.event_name) {
+        setEventData(ev);
+        const std = (data && data.studio) ? data.studio : data;
+        if (std && std.studio_name) {
+          setStudioData({ studio_name: std.studio_name });
         }
         if (eventId) {
+          sessionStorage.setItem("fy-last-event", eventId);
         }
       } else {
-        setErrorMessage("Event not found or has expired.");
+        setErrorMessage(data?.message || "Event not found or has expired.");
       }
     } catch {
       setErrorMessage("Could not connect to event server.");
@@ -79,14 +82,14 @@ const CollectEvent = (): React.JSX.Element => {
       });
 
       const data = await res.json();
-      if (data.pin) {
+      if (res.ok && (data.pin !== undefined || data.result === "Pin confirmed")) {
         // PIN Verified -> Navigate to Camera Selfie Matching screen
         if (eventId) {
           sessionStorage.setItem("fy-last-event", eventId);
         }
         navigate("/camera", { state: eventId });
       } else {
-        setErrorMessage(data.result || "Incorrect PIN. Contact the photographer or host.");
+        setErrorMessage(data.result || data.message || "Incorrect PIN. Contact the photographer or host.");
       }
     } catch {
       setErrorMessage("Could not verify PIN. Please try again.");

@@ -81,13 +81,15 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
       const res = await fetch(`${getApiBase()}/in-event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: eventID }),
+        body: JSON.stringify({ _id: eventID, event_id: eventID }),
       });
       const data = await res.json();
       if (Array.isArray(data)) {
         setImages(data);
       } else if (data && Array.isArray(data.photos)) {
         setImages(data.photos);
+      } else if (data && Array.isArray(data.result)) {
+        setImages(data.result);
       } else {
         setImages([]);
       }
@@ -108,7 +110,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
       const res = await fetch(`${getApiBase()}/delete-event`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: eventID }),
+        body: JSON.stringify({ _id: eventID, event_id: eventID }),
       });
       if (res.ok) {
         setShowDeleteModal(false);
@@ -123,7 +125,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
       const res = await fetch(`${getApiBase()}/delete-img`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: photoId, event_id: eventID }),
+        body: JSON.stringify({ _id: photoId, photo_id: photoId, event_id: eventID }),
       });
       if (res.ok) {
         setImages((prev) => prev.filter((p) => p._id !== photoId));
