@@ -83,6 +83,7 @@ interface EventAnalyticsModalProps {
   onOpenChange: (open: boolean) => void;
   eventId: string;
   eventName: string;
+  ownerId?: string;
 }
 
 export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
@@ -90,6 +91,7 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
   onOpenChange,
   eventId,
   eventName,
+  ownerId,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -104,11 +106,15 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
   const fetchData = async () => {
     if (!eventId) return;
     try {
+      const authQuery = ownerId ? `&created_id=${encodeURIComponent(ownerId)}` : "";
+      const authQueryFirst = ownerId ? `?created_id=${encodeURIComponent(ownerId)}` : "";
+      const authHeaders: Record<string, string> = ownerId ? { "x-created-id": ownerId } : {};
+
       const [sumRes, guestsRes, timelineRes, actRes] = await Promise.all([
-        fetch(`${API_URL}/api/analytics/event/${eventId}/summary`),
-        fetch(`${API_URL}/api/analytics/event/${eventId}/guests?limit=200`),
-        fetch(`${API_URL}/api/analytics/event/${eventId}/timeline`),
-        fetch(`${API_URL}/api/analytics/event/${eventId}/activity`),
+        fetch(`${API_URL}/api/analytics/event/${eventId}/summary${authQueryFirst}`, { headers: authHeaders }),
+        fetch(`${API_URL}/api/analytics/event/${eventId}/guests?limit=100${authQuery}`, { headers: authHeaders }),
+        fetch(`${API_URL}/api/analytics/event/${eventId}/timeline${authQueryFirst}`, { headers: authHeaders }),
+        fetch(`${API_URL}/api/analytics/event/${eventId}/activity${authQueryFirst}`, { headers: authHeaders }),
       ]);
 
       if (sumRes.ok) {
@@ -221,8 +227,7 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
               {refreshing ? "Refreshing…" : "Refresh"}
             </Button>
             <a
-              href={`${API_URL}/api/analytics/event/${eventId}/export-csv`}
-              download
+              href={`${API_URL}/api/analytics/event/${eventId}/export-csv?created_id=${encodeURIComponent(ownerId || "")}`}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -638,7 +643,7 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
 
                             <p className="text-muted-foreground">
                               {act.type === "pin_success" && "Unlocked the album gallery successfully with PIN."}
-                              {act.type === "pin_failure" && `Attempted incorrect PIN: "${act.metadata?.pinAttempted || "******"}"`}
+                              {act.type === "pin_failure" && "Entered an incorrect PIN."}
                               {act.type === "selfie_search" && `Searched photos via face selfie — found ${act.metadata?.matchCount || 0} match(es) (${act.metadata?.latencyMs || 0}ms)`}
                               {act.type === "photo_download" && `Downloaded photo "${act.metadata?.photoName || "image.jpg"}"`}
                               {act.type === "photo_view" && `Previewed photo "${act.metadata?.photoName || "image.jpg"}"`}

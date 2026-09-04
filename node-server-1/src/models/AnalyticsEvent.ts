@@ -28,13 +28,14 @@ const analyticsEventSchema = new Schema(
       os: { type: String, default: "" },
       browser: { type: String, default: "" },
     },
-    timestamp: { type: Date, default: Date.now, index: true },
+    timestamp: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
 
 analyticsEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 analyticsEventSchema.index({ eventId: 1, timestamp: -1 });
+analyticsEventSchema.index({ eventId: 1, type: 1 });
 
 export type AnalyticsEventDoc = InferSchemaType<typeof analyticsEventSchema>;
 export default mongoose.models.AnalyticsEvent || mongoose.model("AnalyticsEvent", analyticsEventSchema);

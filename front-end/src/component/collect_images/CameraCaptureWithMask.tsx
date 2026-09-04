@@ -58,6 +58,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [matchedPhotos, setMatchedPhotos] = useState<MatchedPhoto[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  // Match sensitivity — Flask validates 0.1–0.9, default 0.34 (Balanced)
+  const [threshold, setThreshold] = useState<number>(0.34);
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [previewPhoto, setPreviewPhoto] = useState<PreviewPhoto | null>(null);
@@ -97,7 +99,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     }
   };
 
-  const processSelfieMatch = async (file: File): Promise<void> => {
+  const processSelfieMatch = async (file: File, overrideThreshold?: number): Promise<void> => {
     if (!eventId) {
       setErrorMessage("Event session expired. Please rescan the event QR code.");
       return;
@@ -111,6 +113,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("event_id", eventId);
+      formData.append("threshold", String(overrideThreshold ?? threshold));
 
       const response = await axios.post(`${ML_URL}/match_faces`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -147,7 +150,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       setLoading(false);
     }
   };
-
   const retakeSelfie = (): void => {
     if (eventId) trackEvent(eventId, "retake_selfie");
     if (uploadedImageUrlRef.current) URL.revokeObjectURL(uploadedImageUrlRef.current);
@@ -155,6 +157,17 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     setImageSrc(null);
     setMatchedPhotos([]);
     setErrorMessage("");
+  };
+
+  const retryLoose = async (): Promise<void> => {
+    if (!imageSrc || loading) return;
+    setThreshold(0.28);
+    try {
+      const blob = await fetch(imageSrc).then((res) => res.blob());
+      await processSelfieMatch(new File([blob], "selfie.jpg", { type: "image/jpeg" }), 0.28);
+    } catch {
+      setErrorMessage("Could not retry. Please retake your selfie.");
+    }
   };
 
   useEffect(() => {
@@ -328,7 +341,32 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                     {errorMessage}
                   </div>
                 )}
-
+                {/* Match sensitivity */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Match sensitivity</p>
+                  <div className="grid grid-cols-3 gap-2" role="group" aria-label="Face match sensitivity">
+                    {[
+                      { label: "Strict", value: 0.42, hint: "Exact matches only" },
+                      { label: "Balanced", value: 0.34, hint: "Best for weddings" },
+                      { label: "Loose", value: 0.28, hint: "Side profiles, sunglasses" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        aria-pressed={threshold === opt.value}
+                        title={opt.hint}
+                        onClick={() => setThreshold(opt.value)}
+                        className={
+                          threshold === opt.value
+                            ? "min-h-[44px] rounded-lg bg-primary px-2 py-2 text-xs font-bold text-primary-foreground"
+                            : "min-h-[44px] rounded-lg border border-input bg-background px-2 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                        }
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {/* Actions */}
                 <div className="space-y-3 pt-2">
                   {!useUploadMode ? (
@@ -383,7 +421,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                         : errorMessage ||
                           "We couldn't detect your face in this album with high confidence. Try taking another selfie with better lighting."}
                     </p>
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -393,6 +431,16 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                         <RefreshCw className="h-4 w-4" />
                         Retake Selfie
                       </Button>
+                      {!loading && matchedPhotos.length === 0 && threshold > 0.28 ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void retryLoose()}
+                          className="min-h-[44px] flex items-center gap-2"
+                        >
+                          Try loose match
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

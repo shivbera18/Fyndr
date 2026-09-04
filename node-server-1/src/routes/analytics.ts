@@ -46,11 +46,40 @@ function getClientIp(req: Request): string {
 
 function escapeCsv(val: any): string {
   if (val === null || val === undefined) return "";
-  const str = String(val);
+  let str = String(val);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
   if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+async function checkEventOwner(req: Request, res: Response, eventId: string): Promise<boolean> {
+  const caller =
+    (req.headers["x-created-id"] as string) ||
+    (typeof req.query.created_id === "string" ? req.query.created_id : undefined) ||
+    (typeof req.query.userId === "string" ? req.query.userId : undefined) ||
+    (req.body && typeof req.body.created_id === "string" ? req.body.created_id : undefined);
+
+  if (!mongoose.Types.ObjectId.isValid(eventId)) {
+    res.status(400).json({ message: "Invalid event ID" });
+    return false;
+  }
+
+  const event = await Event.findById(eventId).select("_id created_id");
+  if (!event) {
+    res.status(404).json({ message: "Event not found" });
+    return false;
+  }
+
+  if (!caller || caller !== event.created_id) {
+    res.status(403).json({ message: "Only the event owner can view analytics." });
+    return false;
+  }
+
+  return true;
 }
 
 // 1. POST /api/analytics/access-attempt
@@ -141,7 +170,7 @@ router.post("/access-attempt", async (req: Request, res: Response) => {
       sessionId: cleanSessionId,
       type: isMatch ? "pin_success" : "pin_failure",
       metadata: {
-        pinAttempted: cleanPin,
+        pinLength: cleanPin.length,
         name: cleanName,
         phone: cleanPhone,
       },
@@ -165,15 +194,25 @@ router.post("/access-attempt", async (req: Request, res: Response) => {
   }
 });
 
+const ALLOWED_TYPES = new Set([
+  "page_view",
+  "pin_attempt",
+  "pin_success",
+  "pin_failure",
+  "selfie_search",
+  "photo_view",
+  "photo_download",
+  "retake_selfie",
+]);
+
 // 2. POST /api/analytics/track
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const { eventId, sessionId, guestId, type, metadata } = req.body || {};
 
-    if (!eventId || !type) {
-      return res.status(400).json({ ok: false, message: "eventId and type are required" });
+    if (!eventId || !type || !ALLOWED_TYPES.has(type)) {
+      return res.status(400).json({ ok: false, message: "Valid eventId and allowed type are required" });
     }
-
     const ua = (req.headers["user-agent"] as string) || "";
     const clientIp = getClientIp(req);
     const device = parseUserAgent(ua);
@@ -206,8 +245,8 @@ router.post("/track", async (req: Request, res: Response) => {
         updateDoc.$inc = { downloadsCount: 1 };
         updateDoc.$push = {
           downloads: {
-            photoId: metadata?.photoId || "",
-            photoName: metadata?.photoName || "",
+            photoId: String(metadata?.photoId || ""),
+            photoName: String(metadata?.photoName || ""),
             downloadedAt: new Date(),
           },
         };
@@ -217,7 +256,10 @@ router.post("/track", async (req: Request, res: Response) => {
         updateDoc.$inc = { searchesCount: 1 };
       }
 
-      await GuestAccess.findByIdAndUpdate(guestAccessObjId, updateDoc);
+      await GuestAccess.findOneAndUpdate(
+        { _id: guestAccessObjId, eventId: String(eventId) },
+        updateDoc
+      );
     }
 
     return res.status(200).json({ ok: true });
@@ -231,8 +273,8 @@ router.post("/track", async (req: Request, res: Response) => {
 router.get("/event/:eventId/summary", async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
-    if (!eventId) {
-      return res.status(400).json({ message: "eventId is required" });
+    if (!eventId || !(await checkEventOwner(req, res, eventId))) {
+      return;
     }
 
     const eId = String(eventId);
@@ -310,8 +352,11 @@ router.get("/event/:eventId/summary", async (req: Request, res: Response) => {
 router.get("/event/:eventId/guests", async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
-    const { q, status, page = "1", limit = "50", sort = "-lastSeenAt" } = req.query;
+    if (!eventId || !(await checkEventOwner(req, res, eventId))) {
+      return;
+    }
 
+    const { q, status, page = "1", limit = "50", sort = "-lastSeenAt" } = req.query;
     const query: any = { eventId: String(eventId) };
 
     if (status === "verified") {
@@ -325,13 +370,29 @@ router.get("/event/:eventId/guests", async (req: Request, res: Response) => {
       query.$or = [{ guestName: searchRegex }, { guestPhone: searchRegex }];
     }
 
+    const ALLOWED_SORTS: Record<string, 1 | -1> = {
+      "-lastSeenAt": -1,
+      lastSeenAt: 1,
+      "-createdAt": -1,
+      createdAt: 1,
+      "-attempts": -1,
+      attempts: 1,
+      "-downloadsCount": -1,
+      downloadsCount: 1,
+      "-searchesCount": -1,
+      searchesCount: 1,
+    };
+    const sortStr = typeof sort === "string" && ALLOWED_SORTS[sort] ? sort : "-lastSeenAt";
+    const sortField = sortStr.replace(/^-/, "");
+    const sortDir = sortStr.startsWith("-") ? -1 : 1;
+
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-    const limitNum = Math.min(200, Math.max(1, parseInt(String(limit), 10) || 50));
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
     const [guests, total] = await Promise.all([
       GuestAccess.find(query)
-        .sort(String(sort))
+        .sort({ [sortField]: sortDir })
         .skip(skip)
         .limit(limitNum)
         .lean(),
@@ -354,8 +415,10 @@ router.get("/event/:eventId/guests", async (req: Request, res: Response) => {
 router.get("/event/:eventId/export-csv", async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
+    if (!eventId || !(await checkEventOwner(req, res, eventId))) {
+      return;
+    }
     const eId = String(eventId);
-
     let eventName = "event";
     if (mongoose.Types.ObjectId.isValid(eId)) {
       const ev = await Event.findById(eId).select("event_name");
@@ -409,6 +472,9 @@ router.get("/event/:eventId/export-csv", async (req: Request, res: Response) => 
 router.get("/event/:eventId/activity", async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
+    if (!eventId || !(await checkEventOwner(req, res, eventId))) {
+      return;
+    }
     const activities = await AnalyticsEvent.find({ eventId: String(eventId) })
       .sort({ timestamp: -1 })
       .limit(50)
@@ -426,7 +492,9 @@ router.get("/event/:eventId/activity", async (req: Request, res: Response) => {
 router.get("/event/:eventId/timeline", async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
-
+    if (!eventId || !(await checkEventOwner(req, res, eventId))) {
+      return;
+    }
     const timeline = await AnalyticsEvent.aggregate([
       { $match: { eventId: String(eventId) } },
       {
@@ -461,10 +529,11 @@ router.get("/event/:eventId/timeline", async (req: Request, res: Response) => {
 // 8. GET /api/analytics/studio/overview
 router.get("/studio/overview", async (req: Request, res: Response) => {
   try {
-    const userId = (req.query.userId || req.query.created_id || "") as string;
-    if (!userId) {
-      return res.status(400).json({ message: "userId or created_id is required" });
+    const rawUserId = req.query.userId || req.query.created_id;
+    if (typeof rawUserId !== "string" || !mongoose.Types.ObjectId.isValid(rawUserId.trim())) {
+      return res.status(400).json({ message: "Valid userId or created_id is required" });
     }
+    const userId = rawUserId.trim();
 
     const events: any[] = await Event.find({ created_id: userId }).select("_id event_name createdAt").lean();
     const eventIds = events.map((e: any) => e._id.toString());
@@ -548,10 +617,11 @@ router.get("/studio/overview", async (req: Request, res: Response) => {
 // 9. GET /api/analytics/studio/export-leads
 router.get("/studio/export-leads", async (req: Request, res: Response) => {
   try {
-    const userId = (req.query.userId || req.query.created_id || "") as string;
-    if (!userId) {
-      return res.status(400).json({ message: "userId or created_id is required" });
+    const rawUserId = req.query.userId || req.query.created_id;
+    if (typeof rawUserId !== "string" || !mongoose.Types.ObjectId.isValid(rawUserId.trim())) {
+      return res.status(400).json({ message: "Valid userId or created_id is required" });
     }
+    const userId = rawUserId.trim();
 
     const events: any[] = await Event.find({ created_id: userId }).select("_id event_name").lean();
     const eventIds = events.map((e: any) => e._id.toString());

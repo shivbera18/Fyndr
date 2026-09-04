@@ -37,6 +37,7 @@ const guestAccessSchema = new Schema(
 );
 
 guestAccessSchema.index({ eventId: 1, guestPhone: 1 });
+guestAccessSchema.index({ eventId: 1, lastSeenAt: -1 });
 guestAccessSchema.index({ eventId: 1, createdAt: -1 });
 guestAccessSchema.index({ eventId: 1, verified: 1 });
 

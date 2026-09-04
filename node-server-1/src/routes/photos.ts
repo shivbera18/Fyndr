@@ -240,7 +240,7 @@ router.patch('/photos/:id/select', async (req: Request, res: Response) => {
 
 //-----------------------------------------------------------------------------------------------------
 
-router.get('/download/:filename', (req: Request, res: Response) => {
+router.get('/download/:filename', async (req: Request, res: Response) => {
     try {
         const filename = req.params.filename;
         if (!filename || typeof filename !== 'string') {
@@ -255,6 +255,11 @@ router.get('/download/:filename', (req: Request, res: Response) => {
         if (!fs.existsSync(safePath)) {
             return res.status(404).json({ error: 'File not found' });
         }
+        // ROI counter — analytics must never break downloads, resolve owner first
+        try {
+            const owner = await Photo.findOne({ name: baseName }).select('event_id');
+            if (owner && owner.event_id) await Event.updateOne({ _id: owner.event_id }, { $inc: { downloadCount: 1 } });
+        } catch {}
         let originalName = baseName;
         const match = originalName.match(/^\d+-(.+)$/);
         if (match && match[1]) {

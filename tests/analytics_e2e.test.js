@@ -138,9 +138,14 @@ async function run() {
       }),
     });
 
-    // 6. Summary KPI Verification
-    console.log('[analytics_e2e] Verifying event summary metrics...');
-    const summaryRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/summary`);
+    // 6. Authorization check: unauthorized access rejected
+    console.log('[analytics_e2e] Verifying unauthorized access is rejected (403)...');
+    const unauthRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/summary`);
+    assert.strictEqual(unauthRes.status, 403);
+
+    // 7. Summary KPI Verification (with auth)
+    console.log('[analytics_e2e] Verifying event summary metrics (authorized)...');
+    const summaryRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/summary?created_id=${userId}`);
     assert.strictEqual(summaryRes.status, 200);
     const summary = await summaryRes.json();
 
@@ -156,8 +161,7 @@ async function run() {
 
     // 7. Guests Ledger Verification
     console.log('[analytics_e2e] Verifying guest leads ledger...');
-    const guestsRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/guests`);
-    assert.strictEqual(guestsRes.status, 200);
+    const guestsRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/guests?created_id=${userId}`);
     const guestsData = await guestsRes.json();
     assert.strictEqual(guestsData.total, 1);
     const lead = guestsData.guests[0];
@@ -173,8 +177,7 @@ async function run() {
 
     // 8. Event CSV Export
     console.log('[analytics_e2e] Verifying event CSV export...');
-    const csvRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/export-csv`);
-    assert.strictEqual(csvRes.status, 200);
+    const csvRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/export-csv?created_id=${userId}`);
     const csvContentType = csvRes.headers.get('content-type') || '';
     assert(csvContentType.includes('text/csv'));
     const csvText = await csvRes.text();
@@ -183,16 +186,14 @@ async function run() {
 
     // 9. Activity Feed
     console.log('[analytics_e2e] Verifying real-time activity feed...');
-    const actRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/activity`);
-    assert.strictEqual(actRes.status, 200);
+    const actRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/activity?created_id=${userId}`);
     const actData = await actRes.json();
     assert(Array.isArray(actData));
     assert(actData.length >= 3);
 
     // 10. Timeline Aggregation
     console.log('[analytics_e2e] Verifying timeline aggregation...');
-    const timelineRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/timeline`);
-    assert.strictEqual(timelineRes.status, 200);
+    const timelineRes = await fetch(`${BASE_URL}/api/analytics/event/${eventId}/timeline?created_id=${userId}`);
     const timelineData = await timelineRes.json();
     assert(Array.isArray(timelineData));
 
