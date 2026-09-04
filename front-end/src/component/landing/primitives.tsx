@@ -118,3 +118,165 @@ export function Reveal({ children, className, delay = 0 }: RevealProps) {
     </div>
   );
 }
+
+/* Modal — same contract as NeoModal (open/onClose/title/footer):
+   Esc-close, scroll lock, backdrop-click close. */
+type ModalProps = {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  maxWidth?: string;
+};
+
+export function Modal({ open, onClose, title, children, footer, maxWidth = "32rem" }: ModalProps) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="fy-modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="fy-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        style={{ maxWidth }}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <div className="fy-modal-header">
+          <span>{title}</span>
+          <button className="fy-icon-btn" onClick={onClose} aria-label="Close dialog">
+            ✕
+          </button>
+        </div>
+        <div className="fy-modal-body">{children}</div>
+        {footer !== undefined && <div className="fy-modal-footer">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* Field — label + input/textarea + error/help (replaces NeoInput). */
+type FieldProps = {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+  multiline?: boolean;
+  rows?: number;
+  placeholder?: string;
+  error?: string;
+  help?: string;
+  autoComplete?: string;
+};
+
+export function Field({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  multiline = false,
+  rows = 4,
+  placeholder,
+  error,
+  help,
+  autoComplete,
+}: FieldProps) {
+  const id = `fy-${name}`;
+  return (
+    <div className="fy-field">
+      <label className="fy-label" htmlFor={id}>
+        {label}
+        {required && (
+          <span className="req" aria-hidden="true">
+            {" *"}
+          </span>
+        )}
+      </label>
+      {multiline ? (
+        <textarea
+          id={id}
+          name={name}
+          className="fy-textarea"
+          value={value}
+          rows={rows}
+          placeholder={placeholder}
+          required={required}
+          aria-invalid={error !== undefined}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
+        />
+      ) : (
+        <input
+          id={id}
+          name={name}
+          className="fy-input"
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
+          aria-invalid={error !== undefined}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+        />
+      )}
+      {error !== undefined && <span className="fy-error">{error}</span>}
+      {help !== undefined && error === undefined && <span className="fy-help">{help}</span>}
+    </div>
+  );
+}
+
+/* Banner — inline status notice (replaces NeoAlert err/ok). */
+export function Banner({ kind, children }: { kind: "error" | "success"; children: React.ReactNode }) {
+  return (
+    <div className={cn("fy-banner", kind === "error" ? "fy-banner-error" : "fy-banner-success")} role={kind === "error" ? "alert" : "status"}>
+      <span aria-hidden="true">{kind === "error" ? "⚠" : "✓"}</span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
+/* Tabs — underline tab bar. */
+export type TabId = string;
+
+export function Tabs<T extends TabId>({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: ReadonlyArray<{ id: T; label: string }>;
+  active: T;
+  onChange: (id: T) => void;
+}) {
+  return (
+    <div className="fy-tabs" role="tablist">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          role="tab"
+          aria-selected={active === t.id}
+          className={cn("fy-tab", active === t.id && "is-active")}
+          onClick={() => onChange(t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
