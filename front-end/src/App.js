@@ -3,6 +3,7 @@ import 'bootstrap/dist/js/bootstrap.bundle.min';
 
 
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { ThemeProvider } from './component/landing/Theme';
 import CollectEvent from './component/collect_images/Collect_event';
 import Home from './component/home/Home';
 import About from './component/About';
@@ -18,10 +19,8 @@ function App() {
 
 
   return (
-    <div className="App">
-
-
-
+    <div className="App fy">
+      <ThemeProvider>
       <BrowserRouter>
 
 
@@ -47,7 +46,7 @@ function App() {
 
 
       </BrowserRouter>
-
+      </ThemeProvider>
     </div>
   );
 }

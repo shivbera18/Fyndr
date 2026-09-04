@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../landing/primitives";
+import { ThemeToggle } from "../landing/Theme";
 
 type SessionUser = {
   name?: string;
@@ -130,6 +131,7 @@ export default function Header(): React.JSX.Element {
         </nav>
 
         <div className="fy-nav-cta">
+          <ThemeToggle />
           {user ? (
             <>
               <span className="fy-micro">{displayName}</span>
