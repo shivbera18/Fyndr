@@ -179,12 +179,12 @@ body { margin: 0; }
   color: var(--fy-primary-foreground);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
-.fy-btn-default:hover { background: #000000; }
+.fy-btn-default:hover { filter: brightness(1.3); }
 .fy-btn-secondary {
   background: var(--fy-secondary);
   color: var(--fy-secondary-foreground);
 }
-.fy-btn-secondary:hover { background: #e4e4e7; }
+.fy-btn-secondary:hover { filter: brightness(0.94); }
 .fy-btn-outline {
   background: var(--fy-background);
   border-color: var(--fy-border);
@@ -476,8 +476,10 @@ body { margin: 0; }
   .fy-split { grid-template-columns: 1fr; }
 }
 .fy-panel { border-radius: var(--fy-radius-lg); padding: 2rem; border: 1px solid var(--fy-border); }
-.fy-panel-bad { background: #fef2f2; border-color: #fecaca; }
-.fy-panel-good { background: #f0fdf4; border-color: #bbf7d0; }
+.fy-panel-bad { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+[data-theme="dark"] .fy-panel-bad { background: rgba(127, 29, 29, 0.28); border-color: #7f1d1d; color: #fecaca; }
+.fy-panel-good { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+[data-theme="dark"] .fy-panel-good { background: rgba(20, 83, 45, 0.28); border-color: #14532d; color: #bbf7d0; }
 .fy-panel h3 { margin: 0 0 1rem; font-size: 1.25rem; }
 .fy-panel ul { margin: 0; padding-left: 1.25rem; line-height: 2; font-size: 0.9375rem; }
 
