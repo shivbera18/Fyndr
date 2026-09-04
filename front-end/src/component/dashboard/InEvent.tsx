@@ -328,7 +328,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     ctx.drawImage(qrEl, W / 2 - 300, 320, 600, 600);
     ctx.fillStyle = "#09090b";
     ctx.font = "bold 88px ui-monospace, monospace";
-    ctx.fillText(`PIN ${pin || "123456"}`, W / 2, 1050, W - 160);
+    if (pin) ctx.fillText(`PIN ${pin}`, W / 2, 1050, W - 160);
+    else ctx.fillText("No PIN — scan & go", W / 2, 1050, W - 160);
     ctx.font = "500 44px system-ui, sans-serif";
     ctx.fillStyle = "#3f3f46";
     ctx.fillText("1. Scan the QR code", W / 2, 1180);
