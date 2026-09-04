@@ -642,7 +642,6 @@ body { margin: 0; }
   letter-spacing: -0.02em;
   margin: 0;
 }
-.fy-page-actions { display: flex; gap: 0.625rem; flex-wrap: wrap; }
 .fy-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
@@ -660,7 +659,8 @@ body { margin: 0; }
 /* Auth */
 .fy-auth-wrap {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   padding: 3rem 0 4rem;
 }
 .fy-auth-card { width: 100%; max-width: 26rem; }
