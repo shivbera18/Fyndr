@@ -291,7 +291,8 @@ router.post('/events/:id/lock', async (req: Request, res: Response) => {
         const caller: unknown = body && typeof body === "object" && "created_id" in body ? body.created_id : undefined;
         const pin: unknown = body && typeof body === "object" && "pin" in body ? body.pin : undefined;
         const rawLocked: unknown = body && typeof body === "object" && "locked" in body ? body.locked : undefined;
-        if (typeof rawLocked !== "boolean") {
+        const flag = parseFlag(rawLocked);
+        if (flag === undefined) {
             return res.status(400).json({ message: "locked must be true or false." });
         }
         const event = await Event.findById(id).select('_id created_id pin selectionLocked');
@@ -299,11 +300,11 @@ router.post('/events/:id/lock', async (req: Request, res: Response) => {
         const isOwner = typeof caller === "string" && caller === event.created_id;
         const hasPin = typeof pin === "string" && event.pin !== undefined && pin === event.pin;
         if (!isOwner && !hasPin) {
-            return res.status(403).json({ message: "Only the event owner or PIN holder can lock the selection." });
+            return res.status(404).json({ message: "Pin is wrong! Contact the photographer to provide the correct (Pin)" });
         }
-        event.selectionLocked = rawLocked;
+        event.selectionLocked = flag;
         await event.save();
-        return res.status(200).json({ message: rawLocked ? "Selection locked." : "Selection unlocked.", selectionLocked: event.selectionLocked });
+        return res.status(200).json({ message: flag ? "Selection locked." : "Selection unlocked.", selectionLocked: event.selectionLocked });
     } catch {
         logger.error("Error locking selection");
         return res.status(500).json({ message: "Internal server error." });
