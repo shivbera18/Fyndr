@@ -178,7 +178,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 

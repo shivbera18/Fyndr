@@ -52,7 +52,7 @@ export default function Photographer_detail(): React.JSX.Element {
     }
 
     try {
-      const res = await fetch(`${API_URL}/add_studio`, {
+      const res = await fetch(`${API_URL}/studio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

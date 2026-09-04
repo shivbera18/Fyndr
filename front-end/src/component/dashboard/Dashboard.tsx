@@ -99,16 +99,15 @@ export default function Dashboard(): React.JSX.Element {
       const formData = new FormData();
       formData.append("event_name", eventName.trim());
       formData.append("pin", pin.trim());
-      formData.append("create_by", user?._id || "");
+      formData.append("created_id", user?._id || "");
       if (coverFile) {
-        formData.append("event_photo", coverFile);
+        formData.append("event_profile", coverFile);
       }
 
-      const res = await fetch(`${API_URL}/create_event`, {
+      const res = await fetch(`${API_URL}/event`, {
         method: "POST",
         body: formData,
       });
-
       const data = await res.json();
       if (res.ok && data) {
         // Reset form

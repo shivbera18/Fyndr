@@ -69,7 +69,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -78,10 +78,10 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
   const fetchImages = async (): Promise<void> => {
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBase()}/get_photos_in_event`, {
+      const res = await fetch(`${getApiBase()}/in-event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: eventID }),
+        body: JSON.stringify({ _id: eventID }),
       });
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -105,10 +105,10 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
 
   const handleDeleteEvent = async (): Promise<void> => {
     try {
-      const res = await fetch(`${getApiBase()}/delete_event`, {
-        method: "POST",
+      const res = await fetch(`${getApiBase()}/delete-event`, {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: eventID }),
+        body: JSON.stringify({ _id: eventID }),
       });
       if (res.ok) {
         setShowDeleteModal(false);
@@ -120,10 +120,10 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
 
   const handleDeletePhoto = async (photoId: string): Promise<void> => {
     try {
-      const res = await fetch(`${getApiBase()}/delete_photo`, {
-        method: "POST",
+      const res = await fetch(`${getApiBase()}/delete-img`, {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photo_id: photoId, event_id: eventID }),
+        body: JSON.stringify({ _id: photoId, event_id: eventID }),
       });
       if (res.ok) {
         setImages((prev) => prev.filter((p) => p._id !== photoId));
@@ -227,9 +227,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
                 </Button>
                 <a
                   href={guestUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent px-4 py-2 min-h-[44px] flex-1 md:flex-initial"
+                  rel="noopener noreferrer"
                 >
                   Open Guest View
                   <ExternalLink className="h-3.5 w-3.5" />

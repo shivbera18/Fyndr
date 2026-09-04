@@ -89,7 +89,7 @@ export default function Header(): React.JSX.Element {
           <a
             href="https://github.com/shivbera18/Fyndr"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="transition-colors hover:text-foreground"
           >
             GitHub
@@ -192,7 +192,7 @@ export default function Header(): React.JSX.Element {
             <a
               href="https://github.com/shivbera18/Fyndr"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               onClick={() => setMobileOpen(false)}
               className="flex min-h-[44px] items-center px-3 rounded-md text-base font-medium text-foreground hover:bg-accent transition-colors"
             >

@@ -31,10 +31,10 @@ const CollectEvent = (): React.JSX.Element => {
 
   const fetchEvent = async (): Promise<void> => {
     try {
-      const res = await fetch(`${API_URL}/get_event_name_by_id`, {
+      const res = await fetch(`${API_URL}/collect_event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: eventId }),
+        body: JSON.stringify({ _id: eventId }),
       });
       const data = await res.json();
       if (data && data.event_name) {

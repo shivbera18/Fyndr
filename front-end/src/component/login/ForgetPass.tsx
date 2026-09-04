@@ -54,7 +54,7 @@ const ForgetPass = (): React.JSX.Element => {
         body: JSON.stringify({
           email: email.trim(),
           otp: otp.trim(),
-          newPassword: newPassword.trim(),
+          newpassword: newPassword.trim(),
         }),
       });
       const d = await r.json();

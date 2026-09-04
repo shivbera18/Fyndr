@@ -109,7 +109,7 @@ export default function Upload_Img({ event_id, d_ref }: Props): React.JSX.Elemen
 
     const formData = new FormData();
     selectedFiles.forEach((item) => {
-      formData.append("photos", item.file);
+      formData.append("name", item.file);
     });
     formData.append("event_id", event_id);
     if (USER_ID) {
@@ -117,7 +117,7 @@ export default function Upload_Img({ event_id, d_ref }: Props): React.JSX.Elemen
     }
 
     try {
-      const res = await axios.post(`${API_URL}/upload_img`, formData, {
+      const res = await axios.post(`${API_URL}/photo`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {

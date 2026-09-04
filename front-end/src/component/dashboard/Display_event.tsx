@@ -34,7 +34,7 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
       const res = await fetch(`${API_URL}/display_event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ create_by: user._id }),
+        body: JSON.stringify({ userId: user._id }),
       });
       const data = await res.json();
       if (Array.isArray(data)) {
