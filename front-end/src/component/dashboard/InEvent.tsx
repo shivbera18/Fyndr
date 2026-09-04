@@ -192,7 +192,7 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
         </div>
       </Reveal>
 
-      <Reveal delay={0.05}>
+      <Reveal delay={50}>
         <div className="fy-card">
           <div className="fy-grid">
             <div>
@@ -227,11 +227,11 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
         </div>
       </Reveal>
 
-      <Reveal delay={0.1}>
+      <Reveal delay={100}>
         <UploadImg event_id={eventID} inevent={true} d_ref={fetchImages} />
       </Reveal>
 
-      <Reveal delay={0.15}>
+      <Reveal delay={150}>
         <div style={{ marginTop: "2rem" }}>
           <div className="fy-page-head">
             <h2 style={{ margin: 0 }}>Event photo gallery ({images.length})</h2>

@@ -123,7 +123,7 @@ const CollectEvent = (): React.JSX.Element => {
                   )}
                 </div>
 
-                {errorMessage && <Banner kind="error">⚠ {errorMessage}</Banner>}
+                {errorMessage && <Banner kind="error">{errorMessage}</Banner>}
 
                 <form onSubmit={handlePinSubmit} className="fy-form" style={{ marginTop: "1rem" }}>
                   <div className="fy-field">

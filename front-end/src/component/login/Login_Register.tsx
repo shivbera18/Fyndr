@@ -79,7 +79,7 @@ const Login_Register = (): React.JSX.Element => {
             <p className="fy-micro" style={{ textAlign: "center", marginTop: "1rem" }}>Guest looking for photos? Scan the QR code provided by your event photographer.</p>
           </div>
         </Reveal>
-        <Reveal delay={0.08}>
+        <Reveal delay={80}>
           <p className="fy-micro" style={{ textAlign: "center", marginTop: "1rem" }}>© {new Date().getFullYear()} FYNDR — Fast &amp; Private Event Photography</p>
         </Reveal>
       </div>
