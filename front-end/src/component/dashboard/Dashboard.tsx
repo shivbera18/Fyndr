@@ -24,6 +24,8 @@ type SelectedEvent = {
   eventID: string;
   name: string;
   pin: string;
+  ownerId: string;
+  folders: { name: string }[];
 };
 
 type TabId = "events" | "create" | "studio";
@@ -124,6 +126,8 @@ export default function Dashboard(): React.JSX.Element {
             eventID: createdId,
             name: eventName,
             pin: pin,
+            ownerId: user?._id || "",
+            folders: [],
           });
         } else {
           setActiveTab("events");
@@ -190,6 +194,8 @@ export default function Dashboard(): React.JSX.Element {
             eventID={selectedEvent.eventID}
             name={selectedEvent.name}
             pin={selectedEvent.pin}
+            ownerId={selectedEvent.ownerId}
+            initialFolders={selectedEvent.folders}
             backbtn={() => {
               setSelectedEvent(null);
               setRefreshKey((prev) => prev + 1);
@@ -317,8 +323,8 @@ export default function Dashboard(): React.JSX.Element {
         ) : (
           <DisplayEvent
             refresh={refreshKey}
-            onclick={(eventID, name, display_pin) => {
-              setSelectedEvent({ eventID, name, pin: display_pin });
+            onclick={(eventID, name, display_pin, ownerId, folders) => {
+              setSelectedEvent({ eventID, name, pin: display_pin, ownerId, folders });
             }}
           />
         )}

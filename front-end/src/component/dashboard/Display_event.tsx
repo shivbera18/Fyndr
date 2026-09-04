@@ -10,31 +10,40 @@ type EventItem = {
   event_name: string;
   pin?: string;
   event_photo?: string;
+  folders?: { name: string }[];
 };
 
 type Props = {
   refresh?: number;
-  onclick: (eventID: string, name: string, pin: string) => void;
+  onclick: (eventID: string, name: string, pin: string, ownerId: string, folders: { name: string }[]) => void;
   onQrClick?: (eventID: string) => void;
 };
 
 const PLACEHOLDER =
   "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='100%25' height='100%25' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' fill='%236b7280' font-family='sans-serif' font-size='24' text-anchor='middle' dy='.35em'%3EEvent%3C/text%3E%3C/svg%3E";
-
 export default function Display_event({ refresh, onclick }: Props): React.JSX.Element {
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [ownerId, setOwnerId] = useState("");
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
 
   const fetchEvents = async () => {
     const userString = localStorage.getItem("user");
     if (!userString) return;
+    let parsed: unknown;
     try {
-      const user = JSON.parse(userString);
+      parsed = JSON.parse(userString);
+    } catch {
+      return;
+    }
+    const uid = parsed && typeof parsed === "object" && "_id" in parsed && typeof parsed._id === "string" ? parsed._id : "";
+    if (!uid) return;
+    setOwnerId(uid);
+    try {
       const res = await fetch(`${API_URL}/display_event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user._id, create_by: user._id }),
+        body: JSON.stringify({ userId: uid, create_by: uid }),
       });
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -135,7 +144,7 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
 
                 <Button
                   className="w-full min-h-[44px]"
-                  onClick={() => onclick(event._id, event.event_name, event.pin || "123456")}
+                  onClick={() => onclick(event._id, event.event_name, event.pin || "123456", ownerId, event.folders || [])}
                 >
                   Open album &amp; upload →
                 </Button>

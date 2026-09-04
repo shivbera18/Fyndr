@@ -16,6 +16,7 @@ import {
   QrCode as QrIcon,
   RefreshCw,
   Trash2,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -25,6 +26,7 @@ type Photo = {
   _id: string;
   name: string;
   createdAt?: string;
+  folder_name?: string;
 };
 
 type Preview = {
@@ -39,10 +41,12 @@ type InEventProps = {
   eventID: string;
   name: string;
   pin: string;
+  ownerId: string;
+  initialFolders: { name: string }[];
   setRefresh?: React.Dispatch<React.SetStateAction<number>>;
 };
 
-const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): React.JSX.Element => {
+const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, setRefresh }: InEventProps): React.JSX.Element => {
   const [images, setImages] = useState<Photo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
@@ -50,6 +54,11 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
   const [previewImage, setPreviewImage] = useState<Preview | null>(null);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+  const [folders, setFolders] = useState<{ name: string }[]>(initialFolders || []);
+  const [activeFolder, setActiveFolder] = useState<string>("All");
+  const [newFolder, setNewFolder] = useState<string>("");
+  const [folderError, setFolderError] = useState<string>("");
+  const [savingFolders, setSavingFolders] = useState<boolean>(false);
 
   const fallbackPlaceholder =
     "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22300%22%20height%3D%22200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23F3F4F6%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20fill%3D%22%239CA3AF%22%3E%E2%9A%A0%EF%B8%8F%20Image%20Unavailable%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -132,6 +141,52 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
       }
     } catch {}
   };
+  const persistFolders = async (next: { name: string }[]): Promise<boolean> => {
+    setSavingFolders(true);
+    setFolderError("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId, folders: next }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = data && typeof data === "object" && "message" in data ? String(data.message) : "Could not save folders.";
+        setFolderError(msg);
+        return false;
+      }
+      const saved = data && typeof data === "object" && "updatedEvent" in data ? data.updatedEvent : null;
+      const savedFolders =
+        saved && typeof saved === "object" && "folders" in saved && Array.isArray(saved.folders)
+          ? saved.folders.filter((f: unknown): f is { name: string } => !!f && typeof f === "object" && "name" in f && typeof f.name === "string")
+          : next;
+      setFolders(savedFolders);
+      return true;
+    } catch {
+      setFolderError("Could not save folders. Please check connection.");
+      return false;
+    } finally {
+      setSavingFolders(false);
+    }
+  };
+
+  const handleAddFolder = async (): Promise<void> => {
+    const trimmed = newFolder.trim().slice(0, 60);
+    if (!trimmed) return;
+    if (folders.some((f) => f.name.toLowerCase() === trimmed.toLowerCase()) || trimmed.toLowerCase() === "general") {
+      setFolderError("That folder already exists.");
+      return;
+    }
+    if (await persistFolders([...folders, { name: trimmed }])) setNewFolder("");
+  };
+
+  const handleRemoveFolder = async (folderName: string): Promise<void> => {
+    if (await persistFolders(folders.filter((f) => f.name !== folderName))) {
+      if (activeFolder === folderName) setActiveFolder("All");
+    }
+  };
+
 
   const copyGuestLink = (): void => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -243,14 +298,81 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
         </CardContent>
       </Card>
 
+      {/* Sub-event folders */}
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {["All", ...folders.map((f) => f.name)].map((folderTab) => {
+              const count =
+                folderTab === "All"
+                  ? images.length
+                  : images.filter((p) => (p.folder_name || "General") === folderTab).length;
+              return (
+                <Button
+                  key={folderTab}
+                  type="button"
+                  variant={activeFolder === folderTab ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActiveFolder(folderTab)}
+                  className="min-h-[40px]"
+                >
+                  {folderTab} ({count})
+                </Button>
+              );
+            })}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={newFolder}
+              onChange={(e) => setNewFolder(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleAddFolder();
+              }}
+              placeholder="New sub-event (e.g. Mehendi)"
+              maxLength={60}
+              className="flex-1 min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+            />
+            <Button type="button" size="sm" onClick={() => void handleAddFolder()} disabled={savingFolders} className="min-h-[44px]">
+              {savingFolders ? "Saving…" : "Add folder"}
+            </Button>
+          </div>
+          {folderError ? <p className="text-xs text-destructive">{folderError}</p> : null}
+          {folders.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {folders.map((f) => (
+                <Badge key={f.name} variant="outline" className="flex items-center gap-1.5 py-1.5">
+                  {f.name}
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveFolder(f.name)}
+                    disabled={savingFolders}
+                    className="ml-1 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                    title={`Remove ${f.name} (photos move to General)`}
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       {/* Upload Photos Section */}
-      <UploadImg event_id={eventID} inevent={true} d_ref={fetchImages} />
+      <UploadImg
+        event_id={eventID}
+        inevent={true}
+        d_ref={fetchImages}
+        folder_name={activeFolder === "All" ? "General" : activeFolder}
+      />
 
       {/* Gallery Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight text-foreground">
-            Event photo gallery ({images.length})
+            Event photo gallery ({activeFolder === "All" ? images.length : images.filter((p) => (p.folder_name || "General") === activeFolder).length}
+            {activeFolder === "All" ? "" : ` in ${activeFolder}`})
           </h2>
           <Button
             variant="outline"
@@ -278,7 +400,9 @@ const InEvent = ({ backbtn, eventID, name, pin, setRefresh }: InEventProps): Rea
           </Card>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {images.map((photo, index) => {
+            {images
+              .filter((p) => activeFolder === "All" || (p.folder_name || "General") === activeFolder)
+              .map((photo, index) => {
               const photoUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
               return (
                 <div
