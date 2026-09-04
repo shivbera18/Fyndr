@@ -88,6 +88,13 @@ def cosine_similarity(embedding1, embedding2):
     norm2 = np.linalg.norm(embedding2)
     return dot_product / (norm1 * norm2)
 
+# ROI counter for photographer analytics — never breaks matching
+def bump_selfie_count(event_id):
+    try:
+        mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$inc": {"selfieCount": 1}})
+    except Exception:
+        pass
+
 @app.route('/test_db_connection', methods=['GET'])
 def test_db_connection():
     try:
@@ -172,6 +179,7 @@ def match_faces():
                         matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
                 except Exception:
                     matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
+            bump_selfie_count(event_id)
             return jsonify({'matches': matches}), 200
     except Exception as e:
         logger.warning(f"[faiss] search fallback brute: {e}")
@@ -217,6 +225,7 @@ def match_faces():
             matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': best_sim})
     if matches:
         matches.sort(key=lambda x: x['similarity'], reverse=True)
+        bump_selfie_count(event_id)
         return jsonify({'matches': matches}), 200
     else:
         return jsonify({'message': 'You are not Present In this event', 'matches': []}), 200

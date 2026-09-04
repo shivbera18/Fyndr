@@ -14,6 +14,12 @@ const eventSchema = new mongoose.Schema(
     // P0: client proofing — 0 = unlimited
     selectionLimit: { type: Number, default: 0, min: 0, max: 100000 },
     selectionLocked: { type: Boolean, default: false },
+    // P0: lead gate — require name/phone before guest downloads
+    requireLead: { type: Boolean, default: false },
+    // P0: photographer ROI counters (increment-only analytics)
+    scanCount: { type: Number, default: 0 },
+    selfieCount: { type: Number, default: 0 },
+    downloadCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

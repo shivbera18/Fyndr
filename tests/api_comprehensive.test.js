@@ -324,6 +324,50 @@ async function run() {
     assert.strictEqual(res.status, 200);
     assert(String(res.data).includes(photoName1), 'Lightroom export must list selected filenames');
 
+    // 4.5 Lead capture, gate flag, counters
+    console.log('  [leads] submitting guest lead...');
+    res = await axios.post(`${API}/leads`, {
+      event_id: eventId, name: 'Guest One', phone: '+91 98765 43210', photos_found: 3,
+    });
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.data.lead.name, 'Guest One');
+
+    console.log('  [leads] verifying 24h double-submit dedupe...');
+    res = await axios.post(`${API}/leads`, {
+      event_id: eventId, name: 'Guest One', phone: '+91 98765 43210', photos_found: 3,
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.deduped, true);
+
+    console.log('  [leads] verifying phone validation...');
+    try {
+      await axios.post(`${API}/leads`, { event_id: eventId, name: 'Bad', phone: 'xyz' });
+      assert.fail('Should reject bad phone');
+    } catch (err) {
+      assert.strictEqual(err.response.status, 400);
+    }
+
+    console.log('  [leads] enabling download gate...');
+    res = await axios.put(`${API}/events/${eventId}`, { created_id: userId, requireLead: true });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.updatedEvent.requireLead, true);
+
+    console.log('  [leads] listing as owner...');
+    res = await axios.post(`${API}/events/${eventId}/leads`, { created_id: userId });
+    assert.strictEqual(res.status, 200);
+    assert(res.data.leads.some((l) => l.phone === '+91 98765 43210'));
+    try {
+      await axios.post(`${API}/events/${eventId}/leads`, { created_id: '000000000000000000000000' });
+      assert.fail('Should reject non-owner lead list');
+    } catch (err) {
+      assert.strictEqual(err.response.status, 403);
+    }
+
+    console.log('  [leads] verifying scan counter...');
+    res = await axios.post(`${API}/display_event`, { userId });
+    const listed = res.data.find((e) => e._id === eventId);
+    assert(listed.scanCount >= 1, 'Expected scanCount to reflect portal visits');
+
     // ================= 5. GUEST FACE MATCHING SUITE =================
     console.log('\n--- 5. Testing Guest Face Search & Vector Store ---');
     console.log('  [ml] matching face with event query...');
