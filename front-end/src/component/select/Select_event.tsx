@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
@@ -39,6 +39,10 @@ const SelectEvent = (): React.JSX.Element => {
   const [activeFolder, setActiveFolder] = useState<string>("All");
   const [selectedOnly, setSelectedOnly] = useState<boolean>(false);
   const [locking, setLocking] = useState<boolean>(false);
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
+  // Fresh mirror: onBlur/toggle closures read current picks, never a stale render snapshot
+  const photosRef = useRef<SelectPhoto[]>([]);
+  photosRef.current = photos;
 
   const selectedCount = photos.filter((p) => p.isSelected).length;
   const limit = eventData?.selectionLimit || 0;
@@ -57,7 +61,8 @@ const SelectEvent = (): React.JSX.Element => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setErrorMessage("Pin is wrong! Contact the photographer for the correct PIN.");
+        // Server 404s wrong-PIN and missing-event identically (enumeration parity) — message covers both.
+        setErrorMessage("Wrong PIN or invalid link — check both, or ask the photographer.");
         return;
       }
       setEventData(data.event);
@@ -70,49 +75,67 @@ const SelectEvent = (): React.JSX.Element => {
     }
   };
 
-  const toggleSelect = async (photo: SelectPhoto): Promise<void> => {
-    if (locked || !eventId) return;
-    const next = !photo.isSelected;
-    setPhotos((prev) => prev.map((p) => (p._id === photo._id ? { ...p, isSelected: next } : p)));
+  const toggleSelect = async (photoId: string): Promise<void> => {
+    if (locked || !eventId || pendingIds.has(photoId)) return;
+    const current = photosRef.current.find((p) => p._id === photoId);
+    if (!current) return;
+    const next = !current.isSelected;
+    setPendingIds((prev) => new Set(prev).add(photoId));
+    setPhotos((prev) => prev.map((p) => (p._id === photoId ? { ...p, isSelected: next } : p)));
     setErrorMessage("");
     try {
-      const res = await fetch(`${API_URL}/photos/${photo._id}/select`, {
+      const res = await fetch(`${API_URL}/photos/${photoId}/select`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event_id: eventId, pin: pin.trim(), isSelected: next }),
       });
       if (res.status === 409) {
-        setPhotos((prev) => prev.map((p) => (p._id === photo._id ? { ...p, isSelected: false } : p)));
+        setPhotos((prev) => prev.map((p) => (p._id === photoId ? { ...p, isSelected: false } : p)));
         setErrorMessage(limit > 0 ? `Album limit reached — ${limit} photos. Unselect one to change your picks.` : "Selection limit reached.");
         return;
       }
       if (res.status === 403) {
         setEventData((prev) => (prev ? { ...prev, selectionLocked: true } : prev));
-        setPhotos((prev) => prev.map((p) => (p._id === photo._id ? { ...p, isSelected: photo.isSelected } : p)));
+        setPhotos((prev) => prev.map((p) => (p._id === photoId ? { ...p, isSelected: !next } : p)));
         setErrorMessage("Selection is locked and cannot be changed.");
         return;
       }
       if (!res.ok) throw new Error("toggle failed");
     } catch {
-      setPhotos((prev) => prev.map((p) => (p._id === photo._id ? { ...p, isSelected: photo.isSelected } : p)));
+      setPhotos((prev) => prev.map((p) => (p._id === photoId ? { ...p, isSelected: !next } : p)));
       setErrorMessage("Could not save your pick. Please try again.");
+    } finally {
+      setPendingIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(photoId);
+        return copy;
+      });
     }
   };
 
-  const saveNote = async (photo: SelectPhoto, noteText: string): Promise<void> => {
-    if (locked || !eventId) return;
+  const saveNote = async (photoId: string, noteText: string): Promise<void> => {
+    if (locked || !eventId || pendingIds.has(photoId)) return;
+    const current = photosRef.current.find((p) => p._id === photoId);
+    if (!current) return;
     const note = noteText.trim().slice(0, 500);
+    setPendingIds((prev) => new Set(prev).add(photoId));
     try {
-      const res = await fetch(`${API_URL}/photos/${photo._id}/select`, {
+      const res = await fetch(`${API_URL}/photos/${photoId}/select`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: eventId, pin: pin.trim(), isSelected: photo.isSelected, selectionNote: note }),
+        body: JSON.stringify({ event_id: eventId, pin: pin.trim(), isSelected: current.isSelected, selectionNote: note }),
       });
       if (!res.ok) throw new Error("note failed");
-      setPhotos((prev) => prev.map((p) => (p._id === photo._id ? { ...p, selectionNote: note } : p)));
+      setPhotos((prev) => prev.map((p) => (p._id === photoId ? { ...p, selectionNote: note } : p)));
       setNotice("Note saved for the photographer.");
     } catch {
       setErrorMessage("Could not save your note. Please try again.");
+    } finally {
+      setPendingIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(photoId);
+        return copy;
+      });
     }
   };
 
@@ -207,13 +230,13 @@ const SelectEvent = (): React.JSX.Element => {
             </div>
 
             {locked ? (
-              <div className="rounded-lg p-3 text-sm font-medium border bg-primary/10 text-primary border-primary/20">
+              <div role="status" className="rounded-lg p-3 text-sm font-medium border bg-primary/10 text-primary border-primary/20">
                 Picks submitted and locked — thank you! Contact your photographer if anything must change.
               </div>
             ) : null}
-            {notice && !locked ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+            {notice && !locked ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
             {errorMessage ? (
-              <div className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
+              <div role="alert" className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
                 {errorMessage}
               </div>
             ) : null}
@@ -227,7 +250,7 @@ const SelectEvent = (): React.JSX.Element => {
                   size="sm"
                   aria-pressed={activeFolder === tab}
                   onClick={() => setActiveFolder(tab)}
-                  className="min-h-[40px]"
+                  className="min-h-[44px]"
                 >
                   {tab}
                 </Button>
@@ -238,7 +261,7 @@ const SelectEvent = (): React.JSX.Element => {
                 size="sm"
                 aria-pressed={selectedOnly}
                 onClick={() => setSelectedOnly((v) => !v)}
-                className="min-h-[40px]"
+                className="min-h-[44px]"
               >
                 ♥ Selected only
               </Button>
@@ -267,8 +290,8 @@ const SelectEvent = (): React.JSX.Element => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => void toggleSelect(photo)}
-                        disabled={locked}
+                        onClick={() => void toggleSelect(photo._id)}
+                        disabled={locked || pendingIds.has(photo._id)}
                         aria-pressed={photo.isSelected}
                         aria-label={photo.isSelected ? "Unselect photo" : "Select photo"}
                         className={cn(
@@ -284,7 +307,7 @@ const SelectEvent = (): React.JSX.Element => {
                           placeholder="Note for photographer…"
                           aria-label="Retouch note for photographer"
                           maxLength={500}
-                          onBlur={(e) => void saveNote(photo, e.target.value)}
+                          onBlur={(e) => void saveNote(photo._id, e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                           }}

@@ -34,6 +34,7 @@ function App() {
           <Route path='/confirmed' element={<ConfirmVerify/>}/>
           <Route path="/emailverified" element={<EmailVerified />} />
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
+          <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/collect/:eventId' element={<CollectEvent />} />
           <Route path='/select/:eventId' element={<SelectEvent />} />
           <Route path='/login' element={<LoginRegister />} />

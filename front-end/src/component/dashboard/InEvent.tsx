@@ -27,6 +27,7 @@ type Photo = {
   createdAt?: string;
   folder_name?: string;
   isSelected?: boolean;
+  selectionNote?: string;
 };
 
 type Preview = {
@@ -60,6 +61,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [activeFolder, setActiveFolder] = useState<string>("All");
   const [newFolder, setNewFolder] = useState<string>("");
   const [folderError, setFolderError] = useState<string>("");
+  const [showPickedOnly, setShowPickedOnly] = useState<boolean>(false);
   const [savingFolders, setSavingFolders] = useState<boolean>(false);
   const [selectionLimit, setSelectionLimit] = useState<string>(initialLimit > 0 ? String(initialLimit) : "");
   const [selectionLocked, setSelectionLocked] = useState<boolean>(initialLocked || false);
@@ -263,9 +265,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         setProofMsg("No picks yet — nothing to export.");
         return;
       }
+      const picked = images.filter((p) => p.isSelected).length;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
-        setProofMsg(`Copied ${text.split(",").length} filenames — paste into Lightroom Library Filter → Text → Filename.`);
+        setProofMsg(`Copied ${picked} picked filename${picked === 1 ? "" : "s"} — paste into Lightroom Library Filter → Text → Filename.`);
       } else {
         setProofMsg(text);
       }
@@ -314,7 +317,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
   const inFolder = (p: Photo, folder: string): boolean =>
     folder === "All" || (p.folder_name || "General") === folder;
-  const visibleImages = images.filter((p) => inFolder(p, activeFolder));
+  const visibleImages = images.filter((p) => inFolder(p, activeFolder) && (!showPickedOnly || p.isSelected));
 
   return (
     <div className="space-y-8">
@@ -466,7 +469,16 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               variant="secondary"
               size="sm"
               onClick={() => {
-                if (navigator.clipboard) void navigator.clipboard.writeText(selectUrl).then(() => setProofMsg("Selection link copied — share it with the couple + PIN."));
+                const done = (): void => setProofMsg("Selection link copied — share it with the couple + PIN.");
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(selectUrl).then(done).catch(() => {
+                    fallbackCopy(selectUrl);
+                    done();
+                  });
+                } else {
+                  fallbackCopy(selectUrl);
+                  done();
+                }
               }}
               className="min-h-[44px]"
             >
@@ -515,15 +527,26 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             Event photo gallery ({visibleImages.length}
             {activeFolder === "All" ? "" : ` in ${activeFolder}`})
           </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchImages}
-            className="min-h-[40px] flex items-center gap-1.5"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showPickedOnly ? "default" : "outline"}
+              size="sm"
+              aria-pressed={showPickedOnly}
+              onClick={() => setShowPickedOnly((v) => !v)}
+              className="min-h-[44px] flex items-center gap-1.5"
+            >
+              ♥ Picked ({images.filter((p) => p.isSelected).length})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchImages}
+              className="min-h-[40px] flex items-center gap-1.5"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -554,8 +577,17 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               return (
                 <div
                   key={photo._id || index}
-                  className="group relative aspect-square rounded-xl overflow-hidden bg-muted border border-border"
+                  className={cn(
+                    "group relative aspect-square rounded-xl overflow-hidden bg-muted border",
+                    photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
+                  )}
+                  title={photo.selectionNote ? `Client note: ${photo.selectionNote}` : undefined}
                 >
+                  {photo.isSelected ? (
+                    <span className="absolute top-2 left-2 z-10 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow">
+                      ♥ Picked
+                    </span>
+                  ) : null}
                   <img
                     src={photoUrl}
                     alt={`Event item ${index + 1}`}
