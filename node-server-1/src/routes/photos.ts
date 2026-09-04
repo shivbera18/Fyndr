@@ -23,12 +23,22 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
     const endTimer = uploadDuration.startTimer();
     try {
         const files = (req.files as Express.Multer.File[] | undefined) || [];
-        const { event_id, upload_by } = req.body;
+        const body: unknown = req.body;
+        const event_id: unknown = body && typeof body === "object" && "event_id" in body ? body.event_id : undefined;
+        const upload_by: unknown = body && typeof body === "object" && "upload_by" in body ? body.upload_by : undefined;
+        const folderRaw: unknown = body && typeof body === "object" && "folder_name" in body ? body.folder_name : undefined;
+        const wantFolder = typeof folderRaw === "string" && folderRaw.trim() ? folderRaw.trim().slice(0, 60) : "General";
         if (!event_id) return res.status(400).send({ error: 'event_id required' });
-        if (!mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({ error: 'invalid event_id' });
+        if (typeof event_id !== "string" || !mongoose.Types.ObjectId.isValid(event_id)) return res.status(400).send({ error: 'invalid event_id' });
+        if (upload_by !== undefined && typeof upload_by !== "string") return res.status(400).send({ error: 'upload_by must be a string' });
         if (files.length === 0) return res.status(400).send({ error: 'no files uploaded' });
-        const eventExists = await Event.findById(event_id).select('_id');
+        const eventExists = await Event.findById(event_id).select('_id folders');
         if (!eventExists) return res.status(404).send({ error: 'event not found' });
+        // Canonical folder spelling from the event taxonomy — rejects typos/phantoms, 'General' always valid
+        const validFolders = ['General', ...eventExists.folders.map((f) => f.name)];
+        const canonical = validFolders.find((n) => n.toLowerCase() === wantFolder.toLowerCase());
+        if (!canonical) return res.status(400).send({ error: `unknown folder_name. Valid: ${validFolders.join(', ')}` });
+        const folder_name = canonical;
 
         const limit = pLimit(6);
 
@@ -54,6 +64,11 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
                     if (existingPhoto) {
                         try { fs.unlinkSync(file.path); } catch(_){}
                         await markDone(event_id, hash).catch(()=>{});
+                        // Re-upload targets a move: keep grouping truthful
+                        if (existingPhoto.folder_name !== folder_name) {
+                            existingPhoto.folder_name = folder_name;
+                            await existingPhoto.save();
+                        }
                         return existingPhoto;
                     }
                 } catch(_){}
@@ -96,7 +111,8 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
                         name: file.filename,
                         event_id, upload_by,
                         embedding: JSON.stringify(embeddings),
-                        hash, status: 'done'
+                        hash, status: 'done',
+                        folder_name,
                     });
                     await photo.save();
                     await markDone(event_id, hash).catch(()=>{});
