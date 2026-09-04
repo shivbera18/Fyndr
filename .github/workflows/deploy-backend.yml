@@ -8,7 +8,7 @@
 #   SSH_USER  SSH user, e.g. opc
 #   SSH_KEY   private key content (the .pub is already in authorized_keys)
 # Optional:
-#   APP_DIR   repo checkout on the VPS (default ~/pic-share)
+#   APP_DIR   repo checkout on the VPS (default $HOME/pic-share)
 name: Deploy backend API
 
 on:
@@ -38,7 +38,9 @@ jobs:
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.APP_DIR }}"
-            APP_DIR="${APP_DIR:-~/pic-share}"
+            # NOTE: bare ~/pic-share does NOT work here — tilde never
+            # expands inside a variable. $HOME does.
+            APP_DIR="${APP_DIR:-$HOME/pic-share}"
             cd "$APP_DIR"
             git fetch origin
             git checkout main
