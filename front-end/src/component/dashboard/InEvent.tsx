@@ -5,7 +5,7 @@ import Qrcode from "./Qrcode";
 import { QRCodeCanvas } from "qrcode.react";
 import { Card, CardContent } from "../../components/ui/card";
 import EventAnalyticsModal from "./EventAnalyticsModal";
-import { Button } from "../../components/ui/button";
+import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import {
@@ -558,15 +558,17 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                 </Button>
                 <a
                   href={guestUrl}
+                  target="_blank"
                   rel="noopener noreferrer"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "min-h-[44px] flex items-center gap-1.5 flex-1 md:flex-initial"
+                  )}
                 >
-                  Open Guest View
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  <span>Open Guest View</span>
                 </a>
               </div>
-              <p className="text-xs text-muted-foreground font-mono break-all text-left md:text-right">
-                {guestUrl}
-              </p>
             </div>
           </div>
         </CardContent>
