@@ -95,6 +95,36 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [savingPaywall, setSavingPaywall] = useState<boolean>(false);
   const [paywallMsg, setPaywallMsg] = useState<string>("");
   const [showAdvancedTools, setShowAdvancedTools] = useState<boolean>(false);
+  const [currentPin, setCurrentPin] = useState<string>(pin || "");
+  const [editingPin, setEditingPin] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>(pin || "");
+  const [savingPin, setSavingPin] = useState<boolean>(false);
+  const [pinFeedback, setPinFeedback] = useState<string>("");
+
+  const handleUpdatePin = async (newPinValue: string) => {
+    setSavingPin(true);
+    setPinFeedback("");
+    try {
+      const res = await fetch(`${getApiBase()}/event/${eventID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updatePin: newPinValue.trim() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        setCurrentPin(newPinValue.trim());
+        setEditingPin(false);
+        setPinFeedback(newPinValue.trim() ? "PIN updated successfully." : "PIN removed. Event is now public.");
+        setTimeout(() => setPinFeedback(""), 3500);
+      } else {
+        setPinFeedback(data?.message || "Failed to update PIN.");
+      }
+    } catch {
+      setPinFeedback("Network error updating PIN.");
+    } finally {
+      setSavingPin(false);
+    }
+  };
   useEffect(() => {
     setFolders(initialFolders || []);
     setActiveFolder("All");
@@ -616,16 +646,98 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div className="space-y-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-muted-foreground">Security PIN:</span>
-                <Badge variant="outline" className="font-mono text-base px-3 py-1 tracking-widest font-bold">
-                  {pin || "123456"}
-                </Badge>
-                <Badge variant="brand">{images.length} photos</Badge>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-muted-foreground">Access:</span>
+                {editingPin ? (
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    <input
+                      type="text"
+                      value={pinInput}
+                      onChange={(e) => setPinInput(e.target.value)}
+                      placeholder="Empty = No PIN"
+                      maxLength={24}
+                      className="w-36 min-h-[40px] rounded-lg border border-input bg-background px-3 font-mono text-sm"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={savingPin}
+                      onClick={() => void handleUpdatePin(pinInput)}
+                      className="min-h-[40px] text-xs font-semibold"
+                    >
+                      {savingPin ? "Saving…" : "Save"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const rand = Math.floor(100000 + Math.random() * 900000).toString();
+                        setPinInput(rand);
+                      }}
+                      className="min-h-[40px] text-xs font-mono text-muted-foreground"
+                    >
+                      Random
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPinInput("")}
+                      className="min-h-[40px] text-xs text-muted-foreground"
+                    >
+                      No PIN
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingPin(false);
+                        setPinInput(currentPin);
+                      }}
+                      className="min-h-[40px] text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {currentPin ? (
+                      <Badge variant="outline" className="font-mono text-base px-3 py-1 tracking-widest font-bold">
+                        {currentPin}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="font-medium text-xs px-2.5 py-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                        Public (No PIN)
+                      </Badge>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingPin(true);
+                        setPinInput(currentPin);
+                      }}
+                      className="min-h-[36px] text-xs h-8 px-2.5"
+                    >
+                      {currentPin ? "Change PIN" : "Add PIN"}
+                    </Button>
+                    <Badge variant="brand">{images.length} photos</Badge>
+                  </>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Guests enter this PIN on their phone to access the event selfie search.
+                {currentPin
+                  ? "Guests enter this PIN on their phone to access the gallery."
+                  : "Public gallery — guests can scan and access directly without a PIN."}
               </p>
+              {pinFeedback && (
+                <p role="status" className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  {pinFeedback}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2 flex flex-col md:items-end">
