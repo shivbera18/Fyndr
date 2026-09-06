@@ -117,7 +117,7 @@ export default function CreateEventPage(): React.JSX.Element {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
 
-      <main className="flex-1 container mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12 space-y-6">
+      <main className="flex-1 container mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12 pb-20 md:pb-8 space-y-6">
         <div className="space-y-1 text-center sm:text-left">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-border bg-card">
             <Calendar className="size-3.5 text-emerald-500" />

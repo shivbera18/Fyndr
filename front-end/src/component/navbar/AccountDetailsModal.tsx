@@ -32,8 +32,15 @@ export default function AccountDetailsModal({
     if (!open || !userId) return;
 
     // Prefill from local storage
-    setName(parsedUser.name || "");
-    setEmail(parsedUser.email || "");
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u.name) setName(u.name);
+        if (u.email) setEmail(u.email);
+      }
+    } catch {}
+
     setStatus(null);
     setCurrentPassword("");
     setNewPassword("");
