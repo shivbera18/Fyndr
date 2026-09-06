@@ -85,6 +85,27 @@ export default function Header(): React.JSX.Element {
     navigate("/login");
   };
 
+  const handleNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    item: NavItem
+  ) => {
+    if (item.link.includes("#")) {
+      const hash = item.link.split("#")[1];
+      if (location.pathname === "/") {
+        e.preventDefault();
+        const el = document.getElementById(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+        window.history.pushState(null, "", item.link);
+      }
+    } else if (item.link === "/" && location.pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.history.pushState(null, "", "/");
+    }
+  };
+
   return (
     <Navbar>
       {/* Desktop Resizable Floating Nav */}
@@ -93,7 +114,7 @@ export default function Header(): React.JSX.Element {
           <Logo />
         </Link>
 
-        <NavItems items={navItems} />
+        <NavItems items={navItems} onItemClick={handleNavClick} />
 
         <div className="flex items-center gap-2.5">
           {user ? (
@@ -162,7 +183,10 @@ export default function Header(): React.JSX.Element {
                   href={item.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={(e) => {
+                    setMobileOpen(false);
+                    handleNavClick(e, item);
+                  }}
                   className="flex min-h-[44px] items-center px-3.5 rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
                 >
                   {item.name}
@@ -171,7 +195,10 @@ export default function Header(): React.JSX.Element {
                 <Link
                   key={item.name}
                   to={item.link}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={(e) => {
+                    setMobileOpen(false);
+                    handleNavClick(e, item);
+                  }}
                   className="flex min-h-[44px] items-center px-3.5 rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
                 >
                   {item.name}
