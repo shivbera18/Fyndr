@@ -31,7 +31,72 @@ type SessionUser = {
 };
 
 function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
-  // Guest / capture pages
+  // 1. Landing Page (/) -> exact landing page options
+  if (pathname === "/") {
+    return [
+      { name: "Overview", link: "/" },
+      { name: "Features", link: "/#features" },
+      { name: "How it works", link: "/#how-it-works" },
+      { name: "Pricing", link: "/#pricing" },
+      { name: "Dashboard", link: "/dashboard" },
+    ];
+  }
+
+  // 2. Dashboard / My Events (/dashboard, /events)
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/events")) {
+    return [
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Settings", link: "/settings" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 3. Create Event page (/create-event)
+  if (pathname.startsWith("/create-event")) {
+    return [
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Settings", link: "/settings" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 4. Analytics page (/analytics)
+  if (pathname.startsWith("/analytics")) {
+    return [
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Settings", link: "/settings" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 5. Settings page (/settings)
+  if (pathname.startsWith("/settings")) {
+    return [
+      { name: "Settings", link: "/settings" },
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 6. Event photo selection / gallery (/select)
+  if (pathname.startsWith("/select")) {
+    return [
+      { name: "Dashboard", link: "/dashboard" },
+      { name: "Event Gallery", link: pathname },
+      { name: "How it works", link: "/about" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 7. Guest scan / selfie (/collect, /camera)
   if (pathname.startsWith("/collect") || pathname.startsWith("/camera")) {
     return [
       { name: "Find Photos", link: pathname },
@@ -39,22 +104,11 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
     ];
   }
 
-  // Logged-in Photographer / Admin Navigation
-  if (user) {
-    return [
-      { name: "My Events", link: "/dashboard" },
-      { name: "Create Event", link: "/create-event" },
-      { name: "Studio Analytics", link: "/analytics" },
-      { name: "Settings", link: "/settings" },
-    ];
-  }
-
-  // Public / Visitor Navigation
+  // 8. About / others
   return [
     { name: "Overview", link: "/" },
-    { name: "Features", link: "/#features" },
-    { name: "How it works", link: "/#how-it-works" },
-    { name: "Pricing", link: "/#pricing" },
+    { name: "How it works", link: "/about" },
+    { name: "Dashboard", link: "/dashboard" },
   ];
 }
 
@@ -98,9 +152,19 @@ export default function Header(): React.JSX.Element {
         <div className="flex items-center gap-2.5">
           {user ? (
             <>
-              <span className="hidden sm:inline-block text-xs font-medium text-muted-foreground px-1">
-                {user.name || "Photographer"}
-              </span>
+              {location.pathname === "/" ? (
+                <Button
+                  size="sm"
+                  className="rounded-full px-4 h-9 font-semibold text-xs shadow-xs"
+                  onClick={() => navigate("/dashboard")}
+                >
+                  Dashboard
+                </Button>
+              ) : (
+                <span className="hidden sm:inline-block text-xs font-medium text-muted-foreground px-1">
+                  {user.name || "Photographer"}
+                </span>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
