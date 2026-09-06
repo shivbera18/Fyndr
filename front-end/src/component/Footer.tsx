@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "../components/ui/badge";
+import { Sparkles } from "lucide-react";
 
 export default function Footer(): React.JSX.Element {
   return (
@@ -12,7 +13,7 @@ export default function Footer(): React.JSX.Element {
               aria-hidden="true"
               className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-brand text-brand-ink font-bold text-sm"
             >
-              ✦
+              <Sparkles className="h-4 w-4 text-brand-ink" />
             </span>
             <span className="font-display font-bold text-lg tracking-tight text-white">
               FYNDR
