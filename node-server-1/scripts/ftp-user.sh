@@ -11,9 +11,9 @@ USERNAME="${2:?usage: ftp-user.sh add|passwd|del username}"
 
 # Only event shooter logins, nothing else. Ever.
 [[ "$USERNAME" =~ ^evt_[0-9a-f]{8}(_[b-e])?$ ]] || { echo "refusing bad username: $USERNAME" >&2; exit 2; }
-
-# Shooters a-e of one event share one jail dir.
-EVTDIR="/srv/fyndr-ftp/${USERNAME%_[b-e]}"
+# Each login gets its own jail dir so the watcher attributes uploads exactly
+# (evt_ab12cd = shooter a, evt_ab12cd_b = shooter b, ...).
+EVTDIR="/srv/fyndr-ftp/$USERNAME"
 
 case "$ACTION" in
   add)

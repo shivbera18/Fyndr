@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { PORT } from "./config";
+import { startFtpWatcher } from "./ftp/watcher";
 import logger from "./utils/logger";
 
 process.on("uncaughtException", (err) => logger.error("uncaughtException", { error: err.message, stack: err.stack }));
@@ -13,3 +14,5 @@ process.on("unhandledRejection", (reason: unknown) =>
 const app = createApp();
 app.listen(PORT);
 logger.info(`server is running on port ${PORT}`);
+// Camera-to-cloud drop watcher. No-op unless FTP_WATCH_DIR is set (VPS only).
+startFtpWatcher();

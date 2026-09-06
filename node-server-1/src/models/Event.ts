@@ -44,6 +44,8 @@ const eventSchema = new mongoose.Schema(
     // Passwords stored SHA256 (cf. token_hash) — plaintext shown once at creation.
     ftp: {
       enabled: { type: Boolean, default: false },
+      // Non-JPEG drops (RAW/HEIC/video) — counted visibly, never silently dropped.
+      skipped: { type: Number, default: 0 },
       logins: {
         type: [
           {
