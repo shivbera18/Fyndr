@@ -13,7 +13,9 @@ import {
 } from "../../components/ui/resizable-navbar";
 import { LogoMark } from "../brand/LogoMark";
 import { ThemeToggle } from "../landing/Theme";
-
+import AccountMenu from "./AccountMenu";
+import AccountDetailsModal from "./AccountDetailsModal";
+import { User } from "lucide-react";
 function Logo(): React.JSX.Element {
   return (
     <span className="inline-flex items-center gap-2.5">
@@ -26,6 +28,7 @@ function Logo(): React.JSX.Element {
 }
 
 type SessionUser = {
+  _id?: string;
   name?: string;
   email?: string;
 };
@@ -118,18 +121,23 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const navItems = getNavItems(location.pathname, user);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("user");
-      setUser(raw ? (JSON.parse(raw) as SessionUser) : null);
-    } catch {
-      setUser(null);
-    }
+    const loadUser = () => {
+      try {
+        const raw = localStorage.getItem("user");
+        setUser(raw ? (JSON.parse(raw) as SessionUser) : null);
+      } catch {
+        setUser(null);
+      }
+    };
+    loadUser();
+    window.addEventListener("user-updated", loadUser);
     setMobileOpen(false);
+    return () => window.removeEventListener("user-updated", loadUser);
   }, [location]);
-
   const logout = () => {
     try {
       localStorage.removeItem("user");
@@ -152,7 +160,7 @@ export default function Header(): React.JSX.Element {
         <div className="flex items-center gap-2.5">
           {user ? (
             <>
-              {location.pathname === "/" ? (
+              {location.pathname === "/" && (
                 <Button
                   size="sm"
                   className="rounded-full px-4 h-9 font-semibold text-xs shadow-xs"
@@ -160,19 +168,12 @@ export default function Header(): React.JSX.Element {
                 >
                   Dashboard
                 </Button>
-              ) : (
-                <span className="hidden sm:inline-block text-xs font-medium text-muted-foreground px-1">
-                  {user.name || "Photographer"}
-                </span>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full px-3.5 h-9 font-medium text-xs text-muted-foreground hover:text-foreground"
-                onClick={logout}
-              >
-                Sign out
-              </Button>
+              <AccountMenu
+                user={user}
+                onLogout={logout}
+                onUserUpdated={(updated) => setUser(updated)}
+              />
             </>
           ) : (
             <>
@@ -247,9 +248,29 @@ export default function Header(): React.JSX.Element {
           <div className="flex w-full flex-col gap-2 pt-3 border-t border-border">
             {user ? (
               <>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-muted/40 border border-border">
+                  <div className="flex items-center justify-center size-8 rounded-full bg-primary text-primary-foreground font-semibold text-xs">
+                    {user.name ? user.name.charAt(0).toUpperCase() : <User className="size-3.5" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-foreground truncate">{user.name || "Photographer"}</p>
+                    <p className="text-[11px] text-muted-foreground truncate font-mono">{user.email || ""}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full min-h-[44px] rounded-xl text-xs font-medium flex items-center justify-center gap-2"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setAccountModalOpen(true);
+                  }}
+                >
+                  <User className="size-3.5" />
+                  Account Details
+                </Button>
                 <Button
                   variant="secondary"
-                  className="w-full min-h-[44px] rounded-xl font-semibold"
+                  className="w-full min-h-[44px] rounded-xl font-semibold text-xs"
                   onClick={() => {
                     setMobileOpen(false);
                     navigate("/dashboard");
@@ -258,8 +279,8 @@ export default function Header(): React.JSX.Element {
                   Dashboard
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full min-h-[44px] rounded-xl"
+                  variant="ghost"
+                  className="w-full min-h-[44px] rounded-xl text-xs text-destructive hover:bg-destructive/10"
                   onClick={() => {
                     setMobileOpen(false);
                     logout();
@@ -294,6 +315,11 @@ export default function Header(): React.JSX.Element {
           </div>
         </MobileNavMenu>
       </MobileNav>
+      <AccountDetailsModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
+        onUserUpdated={setUser}
+      />
     </Navbar>
   );
 }
