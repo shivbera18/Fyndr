@@ -29,7 +29,7 @@ export interface NavItem {
 export interface NavItemsProps {
   items: NavItem[];
   className?: string;
-  onItemClick?: () => void;
+  onItemClick?: (e: React.MouseEvent<HTMLAnchorElement>, item: NavItem) => void;
 }
 
 export interface MobileNavProps {
@@ -139,8 +139,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
-              onMouseEnter={() => setHovered(idx)}
-              onClick={onItemClick}
+              onClick={(e) => onItemClick?.(e, item)}
               className="relative px-3.5 py-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
             >
               {content}
@@ -153,7 +152,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
             key={`link-${idx}`}
             to={item.link}
             onMouseEnter={() => setHovered(idx)}
-            onClick={onItemClick}
+            onClick={(e) => onItemClick?.(e, item)}
             className="relative px-3.5 py-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
           >
             {content}
