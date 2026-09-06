@@ -89,15 +89,17 @@ export default function Header(): React.JSX.Element {
     e: React.MouseEvent<HTMLAnchorElement>,
     item: NavItem
   ) => {
+    if (item.external || item.link.startsWith("http")) return;
+
     if (item.link.includes("#")) {
       const hash = item.link.split("#")[1];
       if (location.pathname === "/") {
-        e.preventDefault();
         const el = document.getElementById(hash);
         if (el) {
+          e.preventDefault();
           el.scrollIntoView({ behavior: "smooth" });
+          window.history.pushState(null, "", item.link);
         }
-        window.history.pushState(null, "", item.link);
       }
     } else if (item.link === "/" && location.pathname === "/") {
       e.preventDefault();

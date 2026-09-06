@@ -139,6 +139,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
+              onMouseEnter={() => setHovered(idx)}
               onClick={(e) => onItemClick?.(e, item)}
               className="relative px-3.5 py-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
             >
