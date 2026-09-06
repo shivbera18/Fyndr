@@ -63,11 +63,20 @@ export function maskWhatsAppPhone(phone: string | undefined | null): string {
 /**
  * Sanitizes photographer-provided event name for inclusion in WhatsApp draft text.
  * Prevents newline injection, defangs links, collapses whitespace, and enforces hard length limit (CWE-74).
+ * Uses character-code filtering to avoid ESLint no-control-regex build warnings.
  */
 export function sanitizeEventName(name: string | undefined | null): string {
   if (!name) return "the event";
-  // Strip control characters (0x00-0x1F, 0x7F) and newlines/tabs
-  let clean = String(name).replace(/[\x00-\x1F\x7F\r\n\t]/g, " ");
+  // Replace control characters (ASCII 0-31, 127) and newlines/tabs with space without regex control chars
+  let clean = "";
+  for (const ch of String(name)) {
+    const code = ch.charCodeAt(0);
+    if (code < 32 || code === 127) {
+      clean += " ";
+    } else {
+      clean += ch;
+    }
+  }
   // Defang/neutralize URLs to prevent phishing in WhatsApp draft
   clean = clean.replace(/https?:\/\//gi, "").replace(/www\./gi, "");
   // Collapse whitespace

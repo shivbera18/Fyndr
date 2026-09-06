@@ -106,10 +106,13 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     setSavingPin(true);
     setPinFeedback("");
     try {
-      const res = await fetch(`${getApiBase()}/event/${eventID}`, {
+      const res = await fetch(`${getApiBase()}/events/${eventID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updatePin: newPinValue.trim() }),
+        body: JSON.stringify({
+          created_id: ownerId,
+          updatePin: newPinValue.trim(),
+        }),
       });
       const data = await res.json().catch(() => null);
       if (res.ok) {
