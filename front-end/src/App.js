@@ -1,4 +1,6 @@
+import React, { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import { ThemeProvider } from './component/landing/Theme';
 import { Toaster } from './components/ui/sonner';
@@ -17,14 +19,37 @@ import AnalyticsPage from './component/dashboard/AnalyticsPage';
 import SettingsPage from './component/dashboard/SettingsPage';
 import BottomNav from './component/navbar/BottomNav';
 import AccountPage from './component/dashboard/AccountPage';
+import { PWAInstallBanner, PWAOfflineIndicator } from './components/pwa';
 function App() {
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      const registration = e.detail;
+      toast('New version of Fyndr is available', {
+        description: 'Update now for the latest performance improvements.',
+        action: {
+          label: 'Reload',
+          onClick: () => {
+            if (registration && registration.waiting) {
+              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+            window.location.reload();
+          },
+        },
+        duration: 10000,
+      });
+    };
 
+    window.addEventListener('pwa-update-available', handleUpdate);
+    return () => window.removeEventListener('pwa-update-available', handleUpdate);
+  }, []);
 
   return (
     <div className="App min-h-screen bg-background text-foreground">
       <ThemeProvider>
       <BrowserRouter>
         <BottomNav />
+        <PWAOfflineIndicator />
+        <PWAInstallBanner />
 
 
 

@@ -1,6 +1,17 @@
 {
   "short_name": "Fyndr",
-  "name": "Fyndr — Find yourself in every celebration",
+  "name": "Fyndr — Event Photo Sharing",
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "theme_color": "#14161d",
+  "background_color": "#101218",
+  "description": "Instant AI facial search for event photography. Find and download your event photos in seconds, or manage event galleries as a photographer.",
+  "categories": ["photography", "productivity", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,12 +21,14 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
       "src": "logo-maskable-512.png",
@@ -24,8 +37,24 @@
       "purpose": "maskable"
     }
   ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#14161d",
-  "background_color": "#101218"
+  "shortcuts": [
+    {
+      "name": "Photographer Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard?source=pwa_shortcut",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Create Event",
+      "short_name": "New Event",
+      "url": "/create-event?source=pwa_shortcut",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Find My Photos",
+      "short_name": "Selfie Search",
+      "url": "/camera?source=pwa_shortcut",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    }
+  ]
 }

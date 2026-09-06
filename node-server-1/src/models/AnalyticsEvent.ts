@@ -37,6 +37,7 @@ const analyticsEventSchema = new Schema(
 analyticsEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 analyticsEventSchema.index({ eventId: 1, timestamp: -1 });
 analyticsEventSchema.index({ eventId: 1, type: 1 });
-
+analyticsEventSchema.index({ eventId: 1, type: 1, createdAt: -1 });
+analyticsEventSchema.index({ eventId: 1, sessionId: 1 });
 export type AnalyticsEventDoc = InferSchemaType<typeof analyticsEventSchema>;
 export default mongoose.models.AnalyticsEvent || mongoose.model("AnalyticsEvent", analyticsEventSchema);
