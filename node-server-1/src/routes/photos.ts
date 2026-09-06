@@ -1,15 +1,13 @@
 import { Router, type Request, type Response } from "express";
 import mongoose from "mongoose";
 import axios from "axios";
-import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import FormData from "form-data";
 import pLimit from "p-limit";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
-import Event from "../models/Event";
 import Photo from "../models/Photo";
-import { Job, enqueue, markDone, markFailed } from "../queue/mongoQueue";
+import Event from "../models/Event";
+import { Job } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
 import { deleteObject } from "../utils/r2";

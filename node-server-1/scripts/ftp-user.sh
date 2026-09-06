@@ -2,7 +2,7 @@
 # Privileged FTP-login helper for camera-to-cloud (Fyndr Live Upload).
 # Root-owned, sudo-whitelisted for exactly this path:
 #   opc ALL=(root) NOPASSWD: /opt/fyndr/scripts/ftp-user.sh *
-# Password arrives on STDIN (never argv — argv is visible in ps).
+# GNU/Linux only (useradd/chpasswd/sed -i) — runs on the Oracle VPS, never locally.
 # Usage: ftp-user.sh add|passwd|del <username>
 set -euo pipefail
 
