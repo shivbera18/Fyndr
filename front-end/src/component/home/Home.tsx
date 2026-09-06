@@ -233,16 +233,19 @@ const PRICING_TIERS = [
   {
     name: "Free Forever",
     price: "$0",
-    period: "no credit card required",
+    inrPrice: "₹0",
+    period: "free for lifetime",
     description: "Perfect for testing Fyndr or small private gatherings.",
     highlighted: false,
     badge: "Starter",
+    compareNote: "Matches FotoOwl Rider free tier",
     features: [
       "1 active event gallery",
       "Up to 1,000 photos per event",
       "Instant QR code & PIN generator",
       "Lightning AI face search",
       "Full original resolution downloads",
+      "100% ephemeral privacy (RAM only)",
       "Community support",
     ],
     cta: "Start free tier",
@@ -250,16 +253,19 @@ const PRICING_TIERS = [
   },
   {
     name: "Studio Pro",
-    price: "$29",
-    period: "per month (or $19/event)",
+    price: "$19",
+    inrPrice: "₹999",
+    period: "per month (billed annually)",
     description: "Built for busy wedding and event photography studios.",
     highlighted: true,
     badge: "Most Popular",
+    compareNote: "20% less than FotoOwl Biker ($24 / ₹1,250)",
     features: [
       "Unlimited active events",
       "Up to 25,000 photos per event",
       "Custom studio branding & WhatsApp lead link",
       "Live analytics & guest contact capture",
+      "Instant multi-photographer upload",
       "Priority AI queue indexing",
       "Dedicated gallery support",
     ],
@@ -267,12 +273,14 @@ const PRICING_TIERS = [
     variant: "default" as const,
   },
   {
-    name: "Agency & Enterprise",
-    price: "Custom",
-    period: "for high-volume agencies",
+    name: "Agency & Scale",
+    price: "$25",
+    inrPrice: "₹1,699",
+    period: "per month (billed annually)",
     description: "For large scale festival, sports, and convention coverage.",
     highlighted: false,
     badge: "Enterprise",
+    compareNote: "20% less than FotoOwl Pilot ($31 / ₹2,083)",
     features: [
       "50,000+ photos per single event",
       "Dedicated GPU indexing cluster",
@@ -280,6 +288,7 @@ const PRICING_TIERS = [
       "Sponsor logo placements & banner ads",
       "Custom SLA & on-site technical support",
       "Direct API access & custom integrations",
+      "Unlimited sub-event folders",
     ],
     cta: "Contact team",
     variant: "outline" as const,
@@ -1108,8 +1117,8 @@ export default function Home(): React.JSX.Element {
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               Simple, transparent pricing for every studio
             </h2>
-            <p className="text-muted-foreground text-sm sm:text-base">
-              Start free with your first event. Upgrade only as your client volume scales.
+            <p className="text-muted-foreground text-sm sm:text-base max-w-xl mx-auto">
+              Transparent plans with 15–20% lower rates than FotoOwl.ai, full original resolution downloads, and 100% ephemeral privacy.
             </p>
           </div>
 
@@ -1135,11 +1144,18 @@ export default function Home(): React.JSX.Element {
                         <p className="text-xs text-muted-foreground mt-1">{tier.description}</p>
                       </div>
 
-                      <div className="flex items-baseline gap-1">
-                        <span className="font-mono text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-                          {tier.price}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-mono">{tier.period}</span>
+                      <div className="space-y-1">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-mono text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                            {tier.price}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            /mo ({tier.inrPrice})
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                          {tier.compareNote}
+                        </p>
                       </div>
 
                       <ul className="space-y-2.5 text-xs text-neutral-700 dark:text-neutral-300 pt-2 border-t border-neutral-200 dark:border-neutral-800">
@@ -1181,12 +1197,18 @@ export default function Home(): React.JSX.Element {
                     </div>
 
                     <p className="text-xs text-muted-foreground">{tier.description}</p>
-
-                    <div className="flex items-baseline gap-1">
-                      <span className="font-mono text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-                        {tier.price}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">{tier.period}</span>
+                    <div className="space-y-1">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-mono text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                          {tier.price}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          /mo ({tier.inrPrice})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        {tier.compareNote}
+                      </p>
                     </div>
 
                     <ul className="space-y-2.5 text-xs text-neutral-700 dark:text-neutral-300 pt-2 border-t border-neutral-200 dark:border-neutral-800">
