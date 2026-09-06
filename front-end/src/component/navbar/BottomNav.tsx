@@ -27,18 +27,15 @@ export default function BottomNav(): React.JSX.Element | null {
       setUser(null);
     }
   }, [location]);
+  // Only render bottom nav bar on dashboard/photographer routes for logged-in users
+  const isDashboardRoute =
+    location.pathname === "/dashboard" ||
+    location.pathname === "/events" ||
+    location.pathname === "/create-event" ||
+    location.pathname === "/analytics" ||
+    location.pathname === "/settings";
 
-  // Only render bottom nav bar on mobile for logged-in photographers
-  if (!user) return null;
-
-  // Hide on guest collection / camera pages
-  if (
-    location.pathname.startsWith("/collect") ||
-    location.pathname.startsWith("/camera") ||
-    location.pathname.startsWith("/select")
-  ) {
-    return null;
-  }
+  if (!user || !isDashboardRoute) return null;
 
   return (
     <nav
@@ -47,11 +44,15 @@ export default function BottomNav(): React.JSX.Element | null {
     >
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
-        const isActive = location.pathname === item.link;
+        const isActive =
+          item.link === "/dashboard"
+            ? location.pathname === "/dashboard" || location.pathname === "/events"
+            : location.pathname === item.link;
         return (
           <Link
             key={item.name}
             to={item.link}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
               "flex flex-col items-center justify-center min-h-[44px] min-w-[60px] px-2 py-1 rounded-xl text-[11px] font-medium transition-all active:scale-95 no-underline",
               isActive
