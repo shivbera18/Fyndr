@@ -248,7 +248,7 @@ const sanitizePaywall = (input: unknown): PaywallResult => {
     };
 };
 
-router.put("/events/:id", async (req: Request, res: Response) => {
+router.put(["/events/:id", "/event/:id"], async (req: Request, res: Response) => {
     const { id } = req.params; // Extract event ID from URL params
     if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid event ID." });

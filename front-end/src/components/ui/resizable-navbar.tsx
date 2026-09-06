@@ -1,10 +1,8 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   motion,
   AnimatePresence,
-  useScroll,
-  useMotionValueEvent,
 } from "motion/react";
 import { Menu, X } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -51,57 +49,28 @@ export interface MobileNavMenuProps {
 }
 
 export const Navbar = ({ children, className }: NavbarProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollY } = useScroll();
-  const [visible, setVisible] = useState<boolean>(false);
-
-  useMotionValueEvent(scrollY, "change", (latest) => {
-    if (latest > 30) {
-      setVisible(true);
-    } else {
-      setVisible(false);
-    }
-  });
-
   return (
-    <motion.header
-      ref={ref}
+    <header
       className={cn(
-        "sticky inset-x-0 top-0 z-40 w-full transition-all duration-200 py-2.5",
-        className
-      )}
-    >
-      {React.Children.map(children, (child) =>
-        React.isValidElement(child)
-          ? React.cloneElement(
-              child as React.ReactElement<{ visible?: boolean }>,
-              { visible }
-            )
-          : child
-      )}
-    </motion.header>
-  );
-};
-
-export const NavBody = ({ children, className, visible }: NavBodyProps) => {
-  return (
-    <motion.div
-      animate={{
-        width: visible ? "min(100%, 920px)" : "min(100%, 980px)",
-        y: visible ? 4 : 0,
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 240,
-        damping: 30,
-      }}
-      className={cn(
-        "relative z-[60] mx-auto hidden w-full flex-row items-center justify-between self-start rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background/80 dark:bg-neutral-900/80 shadow-xs backdrop-blur-md lg:flex",
+        "sticky inset-x-0 top-0 z-40 w-full py-2.5",
         className
       )}
     >
       {children}
-    </motion.div>
+    </header>
+  );
+};
+
+export const NavBody = ({ children, className }: NavBodyProps) => {
+  return (
+    <div
+      className={cn(
+        "relative z-[60] mx-auto hidden w-full max-w-[980px] flex-row items-center justify-between self-start rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background/80 dark:bg-neutral-900/80 shadow-xs backdrop-blur-md lg:flex",
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 };
 
@@ -164,25 +133,16 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
   );
 };
 
-export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
+export const MobileNav = ({ children, className }: MobileNavProps) => {
   return (
-    <motion.div
-      animate={{
-        width: visible ? "calc(100% - 1.5rem)" : "calc(100% - 1rem)",
-        y: visible ? 4 : 0,
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 240,
-        damping: 30,
-      }}
+    <div
       className={cn(
         "relative z-50 mx-auto flex w-full max-w-[calc(100vw-1rem)] flex-col items-center justify-between rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background/90 dark:bg-neutral-900/90 shadow-xs backdrop-blur-md lg:hidden",
         className
       )}
     >
       {children}
-    </motion.div>
+    </div>
   );
 };
 
