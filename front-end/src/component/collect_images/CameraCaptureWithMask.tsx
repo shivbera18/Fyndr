@@ -16,6 +16,7 @@ import { trackEvent, getGuestSession } from "../../utils/analytics";
 import {
   buildMatchedPhotosWhatsAppText,
   buildWhatsAppSendUrl,
+  maskWhatsAppPhone,
 } from "../../utils/whatsapp";
 import {
   ArrowLeft,
@@ -359,6 +360,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     trackEvent(eventId, "whatsapp_send_matched", {
       matchCount: matchedPhotos.length,
       hasPhone: Boolean(guestPhone && guestPhone.trim()),
+      hasDirectTarget: Boolean(maskWhatsAppPhone(guestPhone)),
     });
     window.open(waUrl, "_blank", "noopener,noreferrer");
     setWhatsappOpened(true);
@@ -752,16 +754,31 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                     Your matched photos ({matchedPhotos.length})
                   </h2>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="sm"
-                      onClick={handleSendToWhatsApp}
-                      className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      {whatsappOpened ? "WhatsApp opened" : "Send to my WhatsApp"}
-                    </Button>
+                    {(() => {
+                      const guestSessionPhone = getGuestSession().guestPhone;
+                      const maskedPhone = maskWhatsAppPhone(guestSessionPhone);
+                      return (
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          onClick={handleSendToWhatsApp}
+                          title={
+                            maskedPhone
+                              ? `Send matched photos link to your WhatsApp (${maskedPhone})`
+                              : "Share matched photos link via WhatsApp"
+                          }
+                          className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          {whatsappOpened
+                            ? "WhatsApp opened"
+                            : maskedPhone
+                            ? `Send to my WhatsApp (${maskedPhone})`
+                            : "Share via WhatsApp"}
+                        </Button>
+                      );
+                    })()}
                     <Button
                       type="button"
                       variant="secondary"
