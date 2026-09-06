@@ -25,7 +25,8 @@ router.post("/collect_event", async (req: Request, resp: Response) => {
       // Owner id + ROI counters must never reach guests (requireLead stays: guest UI needs it).
       // pin is scrubbed to 1: the UI gates on confirm_pin, and the real PIN must not leak pre-auth.
       const eventObj: Record<string, unknown> = event.toObject();
-      eventObj.pin = 1;
+      const eventPin = String(event.pin || "").trim();
+      eventObj.pin = eventPin ? 1 : 0;
       delete eventObj.created_id;
       delete eventObj.scanCount;
       delete eventObj.selfieCount;
@@ -63,8 +64,10 @@ router.post("/confirm_pin", async (req: Request, resp: Response) => {
       const event: any = await Event.findById(objectId).select("pin");
 
       if (event) {
-        if (event.pin == pin) {
-          resp.status(200).send({ result: "Pin confirmed", pin: event.pin });
+        const eventPin = String(event.pin || "").trim();
+        const incomingPin = String(pin || "").trim();
+        if (!eventPin || eventPin === incomingPin) {
+          resp.status(200).send({ result: "Pin confirmed", pin: eventPin });
         } else {
           resp.status(404).send({ result: "Pin is wrong! Contact the photographer to provide the correct (Pin)" });
         }

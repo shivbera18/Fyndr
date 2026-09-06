@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
 import { Button } from "../../components/ui/button";
@@ -544,22 +544,40 @@ function Faq() {
 
 export default function Home(): React.JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace("#", "");
+      const element = document.getElementById(id);
+      if (element) {
+        const timer = setTimeout(() => {
+          element.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [location.hash, location.pathname]);
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-emerald-500/20 selection:text-emerald-500 relative">
       {/* Straight vertical boundary lines extending all the way to the top of the viewport */}
       <div className="pointer-events-none fixed inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200 dark:border-neutral-800 z-30" />
 
+      {/* Ambient background dot grid & green glow extending behind navbar and hero */}
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] h-[850px] overflow-hidden z-0">
+        <div className="absolute inset-0 bg-dot-grid opacity-70 mask-radial-fade" />
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[750px] h-[450px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px]" />
+      </div>
+
       <Header />
 
       {/* Main Container framed with Section Boundaries */}
-      <main className="flex-1 w-full max-w-[1240px] mx-auto bg-background/50 pb-20 sm:pb-0">
+      <main className="flex-1 w-full max-w-[1240px] mx-auto pb-20 sm:pb-0 relative z-10">
         {/* ============================================================ */}
         {/* 1. HERO SECTION WITH ACETERNITY AMBIENT LIGHT & BEAMS        */}
         {/* ============================================================ */}
-        <section className="relative py-12 sm:py-20 px-4 sm:px-6 lg:px-8 overflow-hidden border-b border-neutral-200 dark:border-neutral-800">
-          {/* Aceternity signature ambient dot grid with radial fade mask */}
-          <div className="absolute inset-0 bg-dot-grid opacity-70 mask-radial-fade pointer-events-none" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none" />
+        <section className="relative py-12 sm:py-20 px-4 sm:px-6 lg:px-8 border-b border-neutral-200 dark:border-neutral-800">
 
           <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
             {/* Eyebrow Status Pill */}

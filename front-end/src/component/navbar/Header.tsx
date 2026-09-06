@@ -13,7 +13,9 @@ import {
 } from "../../components/ui/resizable-navbar";
 import { LogoMark } from "../brand/LogoMark";
 import { ThemeToggle } from "../landing/Theme";
-
+import AccountMenu from "./AccountMenu";
+import AccountDetailsModal from "./AccountDetailsModal";
+import { User } from "lucide-react";
 function Logo(): React.JSX.Element {
   return (
     <span className="inline-flex items-center gap-2.5">
@@ -26,11 +28,13 @@ function Logo(): React.JSX.Element {
 }
 
 type SessionUser = {
+  _id?: string;
   name?: string;
   email?: string;
 };
 
-function getNavItems(pathname: string): NavItem[] {
+function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
+  // 1. Landing Page (/) -> exact landing page options
   if (pathname === "/") {
     return [
       { name: "Overview", link: "/" },
@@ -41,22 +45,61 @@ function getNavItems(pathname: string): NavItem[] {
     ];
   }
 
-  if (pathname.startsWith("/dashboard")) {
+  // 2. Dashboard / My Events (/dashboard, /events)
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/events")) {
     return [
       { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Settings", link: "/settings" },
       { name: "Home", link: "/" },
-      { name: "How it works", link: "/about" },
     ];
   }
 
+  // 3. Create Event page (/create-event)
+  if (pathname.startsWith("/create-event")) {
+    return [
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Settings", link: "/settings" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 4. Analytics page (/analytics)
+  if (pathname.startsWith("/analytics")) {
+    return [
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Settings", link: "/settings" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 5. Settings page (/settings)
+  if (pathname.startsWith("/settings")) {
+    return [
+      { name: "Settings", link: "/settings" },
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Home", link: "/" },
+    ];
+  }
+
+  // 6. Event photo selection / gallery (/select)
   if (pathname.startsWith("/select")) {
     return [
       { name: "Dashboard", link: "/dashboard" },
-      { name: "Home", link: "/" },
+      { name: "Event Gallery", link: pathname },
       { name: "How it works", link: "/about" },
+      { name: "Home", link: "/" },
     ];
   }
 
+  // 7. Guest scan / selfie (/collect, /camera)
   if (pathname.startsWith("/collect") || pathname.startsWith("/camera")) {
     return [
       { name: "Find Photos", link: pathname },
@@ -64,6 +107,7 @@ function getNavItems(pathname: string): NavItem[] {
     ];
   }
 
+  // 8. About / others
   return [
     { name: "Overview", link: "/" },
     { name: "How it works", link: "/about" },
@@ -77,18 +121,23 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = getNavItems(location.pathname);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const navItems = getNavItems(location.pathname, user);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("user");
-      setUser(raw ? (JSON.parse(raw) as SessionUser) : null);
-    } catch {
-      setUser(null);
-    }
+    const loadUser = () => {
+      try {
+        const raw = localStorage.getItem("user");
+        setUser(raw ? (JSON.parse(raw) as SessionUser) : null);
+      } catch {
+        setUser(null);
+      }
+    };
+    loadUser();
+    window.addEventListener("user-updated", loadUser);
     setMobileOpen(false);
+    return () => window.removeEventListener("user-updated", loadUser);
   }, [location]);
-
   const logout = () => {
     try {
       localStorage.removeItem("user");
@@ -96,6 +145,27 @@ export default function Header(): React.JSX.Element {
     } catch {}
     setUser(null);
     navigate("/login");
+  };
+
+  const handleNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    item: NavItem
+  ) => {
+    if (item.link.includes("#")) {
+      const hash = item.link.split("#")[1];
+      if (location.pathname === "/") {
+        e.preventDefault();
+        const el = document.getElementById(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+        window.history.pushState(null, "", item.link);
+      }
+    } else if (item.link === "/" && location.pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.history.pushState(null, "", "/");
+    }
   };
 
   return (
@@ -106,27 +176,25 @@ export default function Header(): React.JSX.Element {
           <Logo />
         </Link>
 
-        <NavItems items={navItems} />
+        <NavItems items={navItems} onItemClick={handleNavClick} />
 
         <div className="flex items-center gap-2.5">
           {user ? (
             <>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-full px-4 h-9 font-semibold text-xs"
-                onClick={() => navigate("/dashboard")}
-              >
-                Dashboard
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full px-3.5 h-9 font-medium text-xs text-muted-foreground hover:text-foreground"
-                onClick={logout}
-              >
-                Sign out
-              </Button>
+              {location.pathname === "/" && (
+                <Button
+                  size="sm"
+                  className="rounded-full px-4 h-9 font-semibold text-xs shadow-xs"
+                  onClick={() => navigate("/dashboard")}
+                >
+                  Dashboard
+                </Button>
+              )}
+              <AccountMenu
+                user={user}
+                onLogout={logout}
+                onUserUpdated={(updated) => setUser(updated)}
+              />
             </>
           ) : (
             <>
@@ -180,7 +248,10 @@ export default function Header(): React.JSX.Element {
                   href={item.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={(e) => {
+                    setMobileOpen(false);
+                    handleNavClick(e, item);
+                  }}
                   className="flex min-h-[44px] items-center px-3.5 rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
                 >
                   {item.name}
@@ -189,7 +260,10 @@ export default function Header(): React.JSX.Element {
                 <Link
                   key={item.name}
                   to={item.link}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={(e) => {
+                    setMobileOpen(false);
+                    handleNavClick(e, item);
+                  }}
                   className="flex min-h-[44px] items-center px-3.5 rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
                 >
                   {item.name}
@@ -201,9 +275,29 @@ export default function Header(): React.JSX.Element {
           <div className="flex w-full flex-col gap-2 pt-3 border-t border-border">
             {user ? (
               <>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-muted/40 border border-border">
+                  <div className="flex items-center justify-center size-8 rounded-full bg-primary text-primary-foreground font-semibold text-xs">
+                    {user.name ? user.name.charAt(0).toUpperCase() : <User className="size-3.5" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-foreground truncate">{user.name || "Photographer"}</p>
+                    <p className="text-[11px] text-muted-foreground truncate font-mono">{user.email || ""}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full min-h-[44px] rounded-xl text-xs font-medium flex items-center justify-center gap-2"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setAccountModalOpen(true);
+                  }}
+                >
+                  <User className="size-3.5" />
+                  Account Details
+                </Button>
                 <Button
                   variant="secondary"
-                  className="w-full min-h-[44px] rounded-xl font-semibold"
+                  className="w-full min-h-[44px] rounded-xl font-semibold text-xs"
                   onClick={() => {
                     setMobileOpen(false);
                     navigate("/dashboard");
@@ -212,8 +306,8 @@ export default function Header(): React.JSX.Element {
                   Dashboard
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full min-h-[44px] rounded-xl"
+                  variant="ghost"
+                  className="w-full min-h-[44px] rounded-xl text-xs text-destructive hover:bg-destructive/10"
                   onClick={() => {
                     setMobileOpen(false);
                     logout();
@@ -248,6 +342,11 @@ export default function Header(): React.JSX.Element {
           </div>
         </MobileNavMenu>
       </MobileNav>
+      <AccountDetailsModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
+        onUserUpdated={setUser}
+      />
     </Navbar>
   );
 }

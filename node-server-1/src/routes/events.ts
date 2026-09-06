@@ -58,7 +58,9 @@ router.post("/event", eventProfileUpload.any(), async (req: Request, resp: Respo
                 const uploadedFile = files && files.length > 0 ? files[0] : (req.file || null);
                 const event = new Event({
                     event_name: String(event_name).trim(),
-                    pin: pin ? String(pin).trim() : '123456',
+                    pin: req.body && (req.body.no_pin === true || req.body.no_pin === "true" || pin === "" || pin === "none")
+                        ? ""
+                        : (pin ? String(pin).trim() : '123456'),
                     created_id,
                     event_photo: uploadedFile ? uploadedFile.filename : null,
                     ...(folders !== undefined ? { folders } : {}),
@@ -293,10 +295,15 @@ router.put("/events/:id", async (req: Request, res: Response) => {
             set.event_name = rawName.trim();
         }
         if (rawPin !== undefined) {
-            if (typeof rawPin !== "string" || rawPin.trim().length < 4 || rawPin.trim().length > 24) {
-                return res.status(400).json({ message: "pin must be 4-24 characters." });
+            if (rawPin === "" || rawPin === null || rawPin === "none") {
+                set.pin = "";
+            } else {
+                const trimmed = typeof rawPin === "string" ? rawPin.trim() : String(rawPin).trim();
+                if (trimmed.length > 0 && (trimmed.length < 4 || trimmed.length > 24)) {
+                    return res.status(400).json({ message: "pin must be 4-24 characters, or empty to remove PIN." });
+                }
+                set.pin = trimmed;
             }
-            set.pin = rawPin.trim();
         }
         let nextFolders: { name: string }[] | undefined;
         if (rawFolders !== undefined) {
@@ -448,7 +455,8 @@ router.post('/selection', async (req: Request, res: Response) => {
         }
         const event = await Event.findById(_id).select('event_name event_photo pin selectionLimit selectionLocked folders');
         if (!event) return res.status(404).send({ result: "Event not found. Please check the Event ID." });
-        if (typeof pin !== "string" || event.pin !== pin) {
+        const eventPin = String(event.pin || "").trim();
+        if (eventPin && (typeof pin !== "string" || eventPin !== pin)) {
             return res.status(404).send({ result: "Pin is wrong! Contact the photographer to provide the correct (Pin)" });
         }
         // Guest-visible projection only — never embeddings, hashes, or owner ids
@@ -493,7 +501,8 @@ router.post('/events/:id/lock', async (req: Request, res: Response) => {
         const event = await Event.findById(id).select('_id created_id pin selectionLocked');
         if (!event) return res.status(404).json({ message: "Event not found." });
         const isOwner = typeof caller === "string" && caller === event.created_id;
-        const hasPin = typeof pin === "string" && event.pin !== undefined && pin === event.pin;
+        const eventPin = String(event.pin || "").trim();
+        const hasPin = eventPin === "" || (typeof pin === "string" && pin === eventPin);
         if (!isOwner && !hasPin) {
             return res.status(404).json({ message: "Pin is wrong! Contact the photographer to provide the correct (Pin)" });
         }
