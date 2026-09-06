@@ -18,10 +18,9 @@ module.exports = {
         xs: "420px",
       },
       fontFamily: {
-        display: ["Geist", "Space Grotesk", "sans-serif"],
-        default: ["Geist", "Inter", "system-ui", "sans-serif"],
-        sans: ["Geist", "Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
-        mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+        display: ["Space Grotesk", "system-ui", "sans-serif"],
+        default: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
