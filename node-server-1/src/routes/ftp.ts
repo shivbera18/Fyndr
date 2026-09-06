@@ -3,6 +3,7 @@ import { execFile } from "child_process";
 import mongoose from "mongoose";
 import Event from "../models/Event";
 import logger from "../utils/logger";
+import { subscribeLive } from "../ftp/live";
 import { buildUsername, generatePassword, isValidTag, isValidUsername, sha256hex } from "../ftp/credentials";
 
 const router = Router();
@@ -126,9 +127,9 @@ router.post("/events/:id/ftp/logins", async (req: Request, res: Response) => {
     const { event } = found;
 
     event.ftp ??= { enabled: false, logins: [] };
-    const rawTag = body && typeof body === "object" && "tag" in body ? body.tag : undefined;
+    const rawTag: unknown = body && typeof body === "object" && "tag" in body ? body.tag : undefined;
     const used = new Set(event.ftp.logins.map((l) => l.tag));
-    const tag = rawTag === undefined ? ["a", "b", "c", "d", "e"].find((t) => !used.has(t)) : rawTag;
+    const tag: unknown = rawTag === undefined ? ["a", "b", "c", "d", "e"].find((t) => !used.has(t)) : rawTag;
     if (!isValidTag(tag)) return res.status(400).json({ message: "tag must be one of a-e." });
     if (used.has(tag)) return res.status(409).json({ message: `Login ${tag} already exists.` });
     if (event.ftp.logins.length >= MAX_LOGINS) {
@@ -226,6 +227,49 @@ router.get("/events/:id/ftp/status", async (req: Request, res: Response) => {
   } catch {
     logger.error("[ftp] status error");
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//---------------------------------------------------------------------------------------------------
+// GET /events/:id/live?pin= — SSE stream of ingest events (photo.created + keepalive).
+// PIN-gated like the selection gallery: 404 on wrong PIN reveals nothing about existence.
+router.get("/events/:id/live", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (badId(res, id)) return;
+    const pin = typeof req.query.pin === "string" ? req.query.pin : undefined;
+    const event = await Event.findById(id).select("_id pin").catch(() => null);
+    if (!event) return res.status(404).json({ message: "Event not found." });
+    if (typeof pin !== "string" || event.pin !== pin) {
+      return res.status(404).json({ message: "Pin is wrong! Contact the photographer to provide the correct (Pin)" });
+    }
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    res.write(`event: ingest.heartbeat\ndata: {"ok":true}\n\n`);
+    const off = subscribeLive(id as string, (type, data) => {
+      try {
+        res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        // Dead socket — close handler below cleans up.
+      }
+    });
+    const beat = setInterval(() => {
+      try {
+        res.write(`: ping\n\n`);
+      } catch {
+        // Dead socket — close handler below cleans up.
+      }
+    }, 15000);
+    req.on("close", () => {
+      clearInterval(beat);
+      off();
+    });
+  } catch {
+    logger.error("[ftp] live error");
+    if (!res.headersSent) return res.status(500).json({ message: "Internal server error" });
   }
 });
 
