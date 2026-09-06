@@ -30,7 +30,7 @@ type SessionUser = {
   email?: string;
 };
 
-function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
+function getNavItems(pathname: string): NavItem[] {
   if (pathname === "/") {
     return [
       { name: "Overview", link: "/" },
@@ -44,22 +44,20 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
   if (pathname.startsWith("/dashboard")) {
     return [
       { name: "My Events", link: "/dashboard" },
-      { name: "Analytics", link: "/dashboard#analytics" },
       { name: "Home", link: "/" },
-      { name: "Help", link: "/about" },
+      { name: "How it works", link: "/about" },
     ];
   }
 
-  if (pathname.startsWith("/select_event")) {
+  if (pathname.startsWith("/select")) {
     return [
       { name: "Dashboard", link: "/dashboard" },
-      { name: "Gallery", link: "#gallery" },
-      { name: "Upload", link: "#upload" },
       { name: "Home", link: "/" },
+      { name: "How it works", link: "/about" },
     ];
   }
 
-  if (pathname.startsWith("/collect_event") || pathname.startsWith("/capture")) {
+  if (pathname.startsWith("/collect") || pathname.startsWith("/camera")) {
     return [
       { name: "Find Photos", link: pathname },
       { name: "How it works", link: "/about" },
@@ -79,7 +77,7 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = getNavItems(location.pathname, user);
+  const navItems = getNavItems(location.pathname);
 
   useEffect(() => {
     try {
