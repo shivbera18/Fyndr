@@ -203,6 +203,7 @@ const ALLOWED_TYPES = new Set([
   "photo_view",
   "photo_download",
   "retake_selfie",
+  "whatsapp_send_matched",
 ]);
 
 // 2. POST /api/analytics/track
