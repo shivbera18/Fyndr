@@ -55,7 +55,12 @@ npm --prefix node-server-1 run build            # backend tsc compilation
 ## Git & PR Review Workflow
 
 - **Author:** Must be `shivbera18 <164228363+shivbera18@users.noreply.github.com>` to count (see `git config`).
-- **PRs & Review:** Follow the mandatory PR review loop defined in [`pr-review-guidelines.md`](pr-review-guidelines.md) (Granular commits → PR → Independent Sub-Agent Review → `gh pr comment` → Fix Loop → Merge).
+- **PRs & Review:** Follow the mandatory PR review loop defined in [`pr-review-guidelines.md`](pr-review-guidelines.md) (Granular commits → PR → Review → Fix Loop → Merge).
+- **Formal PR Reviews via `gh`:** NEVER use `gh pr comment` for reviews (it uses the Issue Comments API, which does NOT count toward PR reviews or review counts). ALWAYS use `gh pr review`:
+  - Formal review comment: `gh pr review <PR-NUMBER> --comment -b "<REVIEW_BODY>"` (counts as a review on GitHub!)
+  - Approve PR: `gh pr review <PR-NUMBER> --approve -b "<REVIEW_BODY>"`
+  - Request changes: `gh pr review <PR-NUMBER> --request-changes -b "<REVIEW_BODY>"`
+  - *Note on self-reviews:* GitHub disallows approving one's own PR, so PR authors/self-reviews must use `--comment -b "..."` to formally submit a review that counts on the PR timeline.
 - **Granular Commits:** Make very small, granular, logical commits per change rather than large monolithic commits (e.g. typography/styles separate from components, separate from fixes, separate from docs). Every commit must have a clear descriptive message, pass checks, and use author `shivbera18 <164228363+shivbera18@users.noreply.github.com>`.
 - **History:** Squashed `init commit` — don't reintroduce `azeem` history.
 - **Deployment:** Push to `shivbera18/Fyndr` `main` — Oracle `ssh fyndr "cd ~/pic-share && git pull && pm2 restart all"`.
