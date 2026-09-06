@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, PlusCircle, BarChart3, Sliders } from "lucide-react";
+import { Calendar, PlusCircle, BarChart3, Sliders, User } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type SessionUser = {
@@ -12,7 +12,8 @@ const NAV_ITEMS = [
   { name: "My Events", link: "/dashboard", icon: Calendar },
   { name: "Create", link: "/create-event", icon: PlusCircle },
   { name: "Analytics", link: "/analytics", icon: BarChart3 },
-  { name: "Settings", link: "/settings", icon: Sliders },
+  { name: "Studio", link: "/settings", icon: Sliders },
+  { name: "Account", link: "/account", icon: User },
 ];
 
 export default function BottomNav(): React.JSX.Element | null {

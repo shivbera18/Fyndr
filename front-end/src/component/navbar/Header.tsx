@@ -14,7 +14,6 @@ import {
 import { LogoMark } from "../brand/LogoMark";
 import { ThemeToggle } from "../landing/Theme";
 import AccountMenu from "./AccountMenu";
-import AccountDetailsModal from "./AccountDetailsModal";
 import { User } from "lucide-react";
 function Logo(): React.JSX.Element {
   return (
@@ -78,8 +77,8 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
     ];
   }
 
-  // 5. Settings page (/settings)
-  if (pathname.startsWith("/settings")) {
+  // 5. Settings & Account pages (/settings, /account)
+  if (pathname.startsWith("/settings") || pathname.startsWith("/account")) {
     return [
       { name: "Settings", link: "/settings" },
       { name: "My Events", link: "/dashboard" },
@@ -121,7 +120,6 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const navItems = getNavItems(location.pathname, user);
 
   useEffect(() => {
@@ -266,7 +264,7 @@ export default function Header(): React.JSX.Element {
                     setMobileOpen(false);
                     handleNavClick(e, item);
                   }}
-                  className="flex min-h-[44px] items-center px-3.5 rounded-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                  className="flex min-h-[44px] items-center px-3.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
                 >
                   {item.name}
                 </Link>
@@ -291,11 +289,11 @@ export default function Header(): React.JSX.Element {
                   className="w-full min-h-[44px] rounded-xl text-xs font-medium flex items-center justify-center gap-2"
                   onClick={() => {
                     setMobileOpen(false);
-                    setAccountModalOpen(true);
+                    navigate("/account");
                   }}
                 >
                   <User className="size-3.5" />
-                  Account Details
+                  My Account
                 </Button>
                 <Button
                   variant="secondary"
@@ -344,11 +342,6 @@ export default function Header(): React.JSX.Element {
           </div>
         </MobileNavMenu>
       </MobileNav>
-      <AccountDetailsModal
-        open={accountModalOpen}
-        onOpenChange={setAccountModalOpen}
-        onUserUpdated={setUser}
-      />
     </Navbar>
   );
 }
