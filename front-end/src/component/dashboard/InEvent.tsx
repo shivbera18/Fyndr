@@ -12,6 +12,7 @@ import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
 import {
   ArrowLeft,
   BarChart3,
+  ChevronDown,
   Coins,
   Check,
   Copy,
@@ -23,6 +24,7 @@ import {
   QrCode as QrIcon,
   RefreshCw,
   ShieldCheck,
+  Sliders,
   Sparkles,
   Trash2,
   X,
@@ -92,6 +94,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [showPaywallPreview, setShowPaywallPreview] = useState<boolean>(false);
   const [savingPaywall, setSavingPaywall] = useState<boolean>(false);
   const [paywallMsg, setPaywallMsg] = useState<string>("");
+  const [showAdvancedTools, setShowAdvancedTools] = useState<boolean>(false);
   useEffect(() => {
     setFolders(initialFolders || []);
     setActiveFolder("All");
@@ -714,9 +717,29 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           ) : null}
         </CardContent>
       </Card>
-      {/* Client proofing */}
-      <Card>
-        <CardContent className="p-4 sm:p-5 space-y-3">
+      {/* Mobile Collapsible Toggle for Album Tools & Options */}
+      <div className="sm:hidden">
+        <button
+          type="button"
+          onClick={() => setShowAdvancedTools((v) => !v)}
+          className="w-full flex items-center justify-between p-3.5 rounded-xl border border-border bg-card text-foreground font-semibold text-sm shadow-xs active:scale-[0.99] transition-all min-h-[48px]"
+        >
+          <span className="flex items-center gap-2">
+            <Sliders className="size-4 text-emerald-500" />
+            Album Tools &amp; Settings
+          </span>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-normal">
+            <span>{showAdvancedTools ? "Hide options" : "Show tools &amp; paywall"}</span>
+            <ChevronDown className={cn("size-4 transition-transform duration-200", showAdvancedTools && "rotate-180")} />
+          </div>
+        </button>
+      </div>
+
+      {/* Extra tools container: collapsible on mobile, always visible on tablet/desktop */}
+      <div className={cn("space-y-6", !showAdvancedTools && "hidden sm:block")}>
+        {/* Client proofing */}
+        <Card>
+          <CardContent className="p-4 sm:p-5 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-base sm:text-lg font-semibold tracking-tight">Client album picks</h2>
@@ -1048,6 +1071,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       </Card>
 
 
+      </div>
 
       {/* Upload Photos Section */}
       <UploadImg
