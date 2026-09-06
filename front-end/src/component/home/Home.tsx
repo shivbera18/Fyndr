@@ -361,7 +361,7 @@ function InteractiveFaceMatcher() {
           size="sm"
           variant="outline"
           onClick={triggerMatch}
-          className="text-xs rounded-full h-8 px-3 border-neutral-300 dark:border-neutral-700"
+          className="text-xs rounded-full min-h-[44px] px-4 border-neutral-300 dark:border-neutral-700"
         >
           {matching ? "Scanning..." : "Simulate"}
         </Button>
@@ -441,14 +441,16 @@ function DemoPanel({ step }: { step: DemoStep }) {
 
 function DemoCard() {
   const [step, setStep] = useState<DemoStep>("match");
+  const [isAuto, setIsAuto] = useState(true);
 
   useEffect(() => {
+    if (!isAuto) return;
     const order: DemoStep[] = ["upload", "selfie", "match"];
     const id = window.setInterval(() => {
       setStep((prev: DemoStep) => order[(order.indexOf(prev) + 1) % order.length]);
     }, 3600);
     return () => window.clearInterval(id);
-  }, []);
+  }, [isAuto]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md">
@@ -465,9 +467,12 @@ function DemoCard() {
             <button
               key={s.id}
               type="button"
-              onClick={() => setStep(s.id)}
+              onClick={() => {
+                setIsAuto(false);
+                setStep(s.id);
+              }}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap min-h-[36px]",
+                "px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap min-h-[44px] flex items-center justify-center",
                 step === s.id
                   ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -536,14 +541,14 @@ export default function Home(): React.JSX.Element {
       <Header />
 
       {/* Main Container framed with Continuous Vertical Boundaries */}
-      <main className="flex-1 w-full max-w-[1240px] mx-auto border-x border-neutral-200 dark:border-neutral-800 bg-background/50">
+      <main className="flex-1 w-full max-w-[1240px] mx-auto border-x border-neutral-200 dark:border-neutral-800 bg-background/50 pb-20 sm:pb-0">
         {/* ============================================================ */}
         {/* 1. HERO SECTION WITH ACETERNITY AMBIENT LIGHT & BEAMS        */}
         {/* ============================================================ */}
         <section className="relative py-12 sm:py-20 px-4 sm:px-6 lg:px-8 overflow-hidden border-b border-neutral-200 dark:border-neutral-800">
           {/* Aceternity signature ambient dot grid with radial fade mask */}
-          <div className="absolute inset-0 bg-dot-grid opacity-70 mask-radial-fade pointer-events-none -z-10" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none -z-10" />
+          <div className="absolute inset-0 bg-dot-grid opacity-70 mask-radial-fade pointer-events-none" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none" />
 
           <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
             {/* Eyebrow Status Pill */}
@@ -610,7 +615,7 @@ export default function Home(): React.JSX.Element {
         {/* 2. METRICS & IMPACT BAR                                      */}
         {/* ============================================================ */}
         <section className="border-b border-neutral-200 dark:border-neutral-800">
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200 dark:divide-neutral-800 bg-white/40 dark:bg-neutral-950/40 backdrop-blur-md">
+          <div className="grid grid-cols-2 lg:grid-cols-4 bg-white/40 dark:bg-neutral-950/40 backdrop-blur-md [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:not(:last-child)]:border-r border-neutral-200 dark:border-neutral-800">
             {STATS.map((stat) => {
               const Icon = stat.icon;
               return (
@@ -727,7 +732,7 @@ export default function Home(): React.JSX.Element {
             <BentoCard
               className="min-h-[300px]"
               icon={<TrendingUp className="size-4 text-emerald-500" />}
-              title="Live Studio Analytics &amp; Leads"
+              title="Live Studio Analytics & Leads"
               description="Capture verified attendee contacts directly through their gallery session and direct WhatsApp booking prompts."
             >
               <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-800 grid grid-cols-2 gap-2 text-center font-mono">
@@ -1074,7 +1079,7 @@ export default function Home(): React.JSX.Element {
                 className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 p-6 sm:p-8 space-y-4 flex flex-col justify-between"
               >
                 <div className="space-y-4">
-                  <div className="flex items-center gap-1 text-amber-500" aria-label="5 out of 5 stars">
+                  <div className="flex items-center gap-1 text-amber-500" role="img" aria-label="5 out of 5 stars">
                     {[0, 1, 2, 3, 4].map((starIdx) => (
                       <Star key={starIdx} className="size-4 fill-amber-500 text-amber-500" />
                     ))}
@@ -1284,7 +1289,7 @@ export default function Home(): React.JSX.Element {
       </main>
 
       {/* MOBILE STICKY CTA BAR */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-md border-t border-border p-3 flex gap-3 sm:hidden">
+      <div className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-md border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex gap-3 sm:hidden">
         <Button
           size="lg"
           onClick={() => navigate("/login")}
