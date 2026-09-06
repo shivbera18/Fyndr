@@ -12,6 +12,7 @@ import opsRouter from "./routes/ops";
 import photosRouter from "./routes/photos";
 import studioRouter from "./routes/studio";
 import analyticsRouter from "./routes/analytics";
+import ftpRouter from "./routes/ftp";
 
 export function createApp(): express.Express {
   const app = express();
@@ -31,6 +32,7 @@ export function createApp(): express.Express {
   app.use(studioRouter);
   app.use(opsRouter);
   app.use("/api/analytics", analyticsRouter);
+  app.use(ftpRouter);
 
   // Global error logging — main error log is logs/error.log
   // NOTE: 4-arg signature required so Express treats this as error middleware.

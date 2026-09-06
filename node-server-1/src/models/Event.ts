@@ -40,6 +40,30 @@ const eventSchema = new mongoose.Schema(
       unlockedCount: { type: Number, default: 0 },
       totalRevenue: { type: Number, default: 0 },
     },
+    // Camera-to-cloud: per-event FTP logins (evt_<id>[_b..]), jailed to one dir each.
+    // Passwords stored SHA256 (cf. token_hash) — plaintext shown once at creation.
+    ftp: {
+      enabled: { type: Boolean, default: false },
+      // Non-JPEG drops (RAW/HEIC/video) — counted visibly, never silently dropped.
+      skipped: { type: Number, default: 0 },
+      // Drops that passed screening but failed ingest (unreadable, ML down, save error).
+      failed: { type: Number, default: 0 },
+      logins: {
+        type: [
+          {
+            _id: false,
+            tag: { type: String, default: "a", maxlength: 8 },
+            username: { type: String, required: true },
+            passwordHash: { type: String, required: true },
+            createdAt: { type: Date, default: Date.now },
+            lastSeenAt: { type: Date, default: null },
+            bytesIn: { type: Number, default: 0 },
+            allowPlain: { type: Boolean, default: false },
+          },
+        ],
+        default: [],
+      },
+    },
   },
   { timestamps: true }
 );
