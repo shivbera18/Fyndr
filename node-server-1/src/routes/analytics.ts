@@ -290,6 +290,7 @@ router.get("/event/:eventId/summary", async (req: Request, res: Response) => {
       totalDownloads,
       uniqueDownloadsRes,
       guestsWithDownloads,
+      eventDoc,
     ] = await Promise.all([
       AnalyticsEvent.distinct("sessionId", { eventId: eId }),
       GuestAccess.countDocuments({ eventId: eId }),
@@ -318,6 +319,7 @@ router.get("/event/:eventId/summary", async (req: Request, res: Response) => {
         { $count: "count" },
       ]),
       GuestAccess.countDocuments({ eventId: eId, verified: true, downloadsCount: { $gt: 0 } }),
+      Event.findById(eId).select("paywall"),
     ]);
 
     const totalVisitors = Math.max(distinctSessions.length, uniqueGuests);
@@ -341,6 +343,7 @@ router.get("/event/:eventId/summary", async (req: Request, res: Response) => {
       uniquePhotosDownloaded,
       downloadConversionRate,
       searchSuccessRate,
+      paywall: eventDoc?.paywall || null,
     });
   } catch (error: any) {
     logger.error("Error in /summary:", error);

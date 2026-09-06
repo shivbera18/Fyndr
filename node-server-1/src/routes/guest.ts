@@ -30,6 +30,13 @@ router.post("/collect_event", async (req: Request, resp: Response) => {
       delete eventObj.scanCount;
       delete eventObj.selfieCount;
       delete eventObj.downloadCount;
+      // Paywall config is exposed to guest, but internal revenue analytics are scrubbed
+      if (eventObj.paywall && typeof eventObj.paywall === "object") {
+        const pw = { ...(eventObj.paywall as Record<string, unknown>) };
+        delete pw.unlockedCount;
+        delete pw.totalRevenue;
+        eventObj.paywall = pw;
+      }
 
       if (studio) {
         resp.status(200).send({ event: eventObj, studio });

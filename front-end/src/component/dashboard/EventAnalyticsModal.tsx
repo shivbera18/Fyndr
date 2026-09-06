@@ -23,6 +23,9 @@ import {
   MessageCircle,
   Loader2,
   Eye,
+  CreditCard,
+  Coins,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -37,6 +40,17 @@ interface SummaryData {
   uniquePhotosDownloaded: number;
   downloadConversionRate: number;
   searchSuccessRate: number;
+  paywall?: {
+    enabled?: boolean;
+    stage?: string;
+    pricePerPhoto?: number;
+    priceFullAlbum?: number;
+    freePhotoLimit?: number;
+    currency?: string;
+    customMessage?: string;
+    unlockedCount?: number;
+    totalRevenue?: number;
+  } | null;
 }
 
 interface GuestItem {
@@ -99,7 +113,7 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
   const [guests, setGuests] = useState<GuestItem[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"leads" | "timeline" | "activity">("leads");
+  const [activeTab, setActiveTab] = useState<"leads" | "monetization" | "timeline" | "activity">("leads");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"all" | "verified" | "failed">("all");
 
@@ -249,6 +263,17 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
               )}
             >
               Guest Leads ({guests.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("monetization")}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-medium transition-colors text-xs sm:text-sm flex items-center gap-1.5",
+                activeTab === "monetization" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Monetization
             </button>
             <button
               type="button"
@@ -589,6 +614,116 @@ export const EventAnalyticsModal: React.FC<EventAnalyticsModalProps> = ({
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: MONETIZATION & PAYWALL PERFORMANCE */}
+            {activeTab === "monetization" && (
+              <div className="space-y-6">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Coins className="w-3.5 h-3.5 text-amber-500" /> Total Revenue
+                    </span>
+                    <div className="text-2xl font-bold tracking-tight text-foreground">
+                      {summary?.paywall?.currency === "USD"
+                        ? "$"
+                        : summary?.paywall?.currency === "EUR"
+                        ? "€"
+                        : summary?.paywall?.currency === "GBP"
+                        ? "£"
+                        : "₹"}
+                      {summary?.paywall?.totalRevenue ?? 0}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Simulated earnings</p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-blue-500" /> Total Unlocks
+                    </span>
+                    <div className="text-2xl font-bold tracking-tight text-foreground">
+                      {summary?.paywall?.unlockedCount ?? 0}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Completed guest checkouts</p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-500" /> Active Stage
+                    </span>
+                    <div className="text-base font-bold tracking-tight text-foreground capitalize truncate">
+                      {(summary?.paywall?.stage || "download").replace("_", " ")}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {summary?.paywall?.enabled ? "Gating active" : "Paywall disabled"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-green-500" /> Unlock Rate
+                    </span>
+                    <div className="text-2xl font-bold tracking-tight text-foreground">
+                      {summary?.totalSearches
+                        ? Math.min(
+                            100,
+                            Math.round(((summary.paywall?.unlockedCount || 0) / summary.totalSearches) * 100)
+                          )
+                        : 0}
+                      %
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Of selfie searchers</p>
+                  </div>
+                </div>
+
+                {/* Current Paywall Settings Overview */}
+                <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-3">
+                    <div>
+                      <h4 className="font-semibold text-sm text-foreground">Event Paywall Setup</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Configure prices and stage rules in the event detail management view.
+                      </p>
+                    </div>
+                    <Badge variant={summary?.paywall?.enabled ? "brand" : "secondary"}>
+                      {summary?.paywall?.enabled ? "Paywall Active" : "Disabled"}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div className="space-y-1 p-3 rounded-lg bg-muted/40 border border-border">
+                      <span className="text-muted-foreground font-medium">Single Photo Price</span>
+                      <div className="text-base font-bold text-foreground">
+                        {summary?.paywall?.currency ?? "INR"} {summary?.paywall?.pricePerPhoto ?? 49}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 p-3 rounded-lg bg-muted/40 border border-border">
+                      <span className="text-muted-foreground font-medium">Full Album Pack</span>
+                      <div className="text-base font-bold text-foreground">
+                        {summary?.paywall?.currency ?? "INR"} {summary?.paywall?.priceFullAlbum ?? 199}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 p-3 rounded-lg bg-muted/40 border border-border">
+                      <span className="text-muted-foreground font-medium">Free Photo Allowance</span>
+                      <div className="text-base font-bold text-foreground">
+                        {summary?.paywall?.stage === "batch_download"
+                          ? `${summary?.paywall?.freePhotoLimit ?? 2} photos free`
+                          : "N/A for active stage"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {summary?.paywall?.customMessage && (
+                    <div className="text-xs space-y-1 bg-muted/20 p-3 rounded-lg border border-border/50">
+                      <span className="font-semibold text-foreground">Guest Note:</span>
+                      <p className="text-muted-foreground italic">"{summary.paywall.customMessage}"</p>
                     </div>
                   )}
                 </div>

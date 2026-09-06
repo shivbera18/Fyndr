@@ -133,9 +133,21 @@ const CollectEvent = (): React.JSX.Element => {
                   {eventData.event_name}
                 </h1>
                 {studioData && (
-                  <p className="text-xs text-muted-foreground">
-                    Photography by <span className="font-semibold text-foreground">{studioData.studio_name}</span>
-                  </p>
+                  <div className="flex items-center justify-center gap-2 flex-wrap text-xs text-muted-foreground">
+                    <span>
+                      Photography by <span className="font-semibold text-foreground">{studioData.studio_name}</span>
+                    </span>
+                    <a
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                        `Hi ${studioData.studio_name}, I saw your photography for ${eventData.event_name} on Fyndr and would love to inquire about booking a session!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 rounded-full transition-colors"
+                    >
+                      Book Studio ↗
+                    </a>
+                  </div>
                 )}
               </div>
 
@@ -212,6 +224,15 @@ const CollectEvent = (): React.JSX.Element => {
                   <KeyRound className="h-4 w-4" />
                   {verifying ? "Verifying…" : "Unlock Gallery & Find My Photos →"}
                 </Button>
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/select/${eventId}`)}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-4"
+                  >
+                    Can't take a selfie? Browse full event album without selfie →
+                  </button>
+                </div>
               </form>
             </CardContent>
           </Card>
