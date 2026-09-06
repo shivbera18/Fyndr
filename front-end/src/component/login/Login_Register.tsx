@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { API_URL } from "../../utils/api";
+import { Sparkles } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type Mode = "login" | "register";
@@ -90,7 +91,7 @@ const Login_Register = (): React.JSX.Element => {
               aria-hidden="true"
               className="flex h-[32px] w-[32px] items-center justify-center rounded-lg bg-zinc-900 text-brand font-bold text-sm"
             >
-              ✦
+              <Sparkles className="h-4 w-4 text-brand" />
             </span>
             <span className="font-display font-bold text-xl tracking-tight">FYNDR</span>
           </Link>

@@ -15,6 +15,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Heart,
   Loader2,
   QrCode as QrIcon,
   RefreshCw,
@@ -757,7 +758,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               onClick={() => setShowPickedOnly((v) => !v)}
               className="min-h-[44px] flex items-center gap-1.5"
             >
-              ♥ Picked ({images.filter((p) => p.isSelected).length})
+              <Heart className="h-3.5 w-3.5 fill-current" />
+              Picked ({images.filter((p) => p.isSelected).length})
             </Button>
             <Button
               variant={wmOn ? "default" : "outline"}
@@ -816,8 +818,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   title={photo.selectionNote ? `Client note: ${photo.selectionNote}` : undefined}
                 >
                   {photo.isSelected ? (
-                    <span className="absolute top-2 left-2 z-10 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow">
-                      ♥ Picked
+                    <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow">
+                      <Heart className="h-3 w-3 fill-current" /> Picked
                     </span>
                   ) : null}
                   <img

@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { Sun, Moon } from "lucide-react";
 
 export type Theme = "light" | "dark";
 
@@ -73,7 +74,7 @@ export function ThemeToggle(): React.JSX.Element {
       aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
     >
-      <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
+      <span aria-hidden="true">{theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</span>
     </button>
   );
 }
