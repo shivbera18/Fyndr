@@ -9,6 +9,7 @@ import {
   MobileNavHeader,
   MobileNavToggle,
   MobileNavMenu,
+  NavItem,
 } from "../../components/ui/resizable-navbar";
 import { LogoMark } from "../brand/LogoMark";
 import { ThemeToggle } from "../landing/Theme";
@@ -29,12 +30,46 @@ type SessionUser = {
   email?: string;
 };
 
-const NAV_ITEMS = [
-  { name: "Overview", link: "/" },
-  { name: "How it works", link: "/about" },
-  { name: "Dashboard", link: "/dashboard" },
-  { name: "GitHub", link: "https://github.com/shivbera18/Fyndr", external: true },
-];
+function getNavItems(pathname: string): NavItem[] {
+  if (pathname === "/") {
+    return [
+      { name: "Overview", link: "/" },
+      { name: "Features", link: "/#features" },
+      { name: "How it works", link: "/#how-it-works" },
+      { name: "Pricing", link: "/#pricing" },
+      { name: "Dashboard", link: "/dashboard" },
+    ];
+  }
+
+  if (pathname.startsWith("/dashboard")) {
+    return [
+      { name: "My Events", link: "/dashboard" },
+      { name: "Home", link: "/" },
+      { name: "How it works", link: "/about" },
+    ];
+  }
+
+  if (pathname.startsWith("/select")) {
+    return [
+      { name: "Dashboard", link: "/dashboard" },
+      { name: "Home", link: "/" },
+      { name: "How it works", link: "/about" },
+    ];
+  }
+
+  if (pathname.startsWith("/collect") || pathname.startsWith("/camera")) {
+    return [
+      { name: "Find Photos", link: pathname },
+      { name: "How it works", link: "/about" },
+    ];
+  }
+
+  return [
+    { name: "Overview", link: "/" },
+    { name: "How it works", link: "/about" },
+    { name: "Dashboard", link: "/dashboard" },
+  ];
+}
 
 
 export default function Header(): React.JSX.Element {
@@ -42,6 +77,7 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navItems = getNavItems(location.pathname);
 
   useEffect(() => {
     try {
@@ -70,7 +106,7 @@ export default function Header(): React.JSX.Element {
           <Logo />
         </Link>
 
-        <NavItems items={NAV_ITEMS} />
+        <NavItems items={navItems} />
 
         <div className="flex items-center gap-2.5">
           {user ? (
@@ -137,7 +173,7 @@ export default function Header(): React.JSX.Element {
 
         <MobileNavMenu isOpen={mobileOpen} onClose={() => setMobileOpen(false)}>
           <nav className="flex w-full flex-col gap-1" aria-label="Mobile Navigation">
-            {NAV_ITEMS.map((item) =>
+            {navItems.map((item) =>
               item.external ? (
                 <a
                   key={item.name}

@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,24 +5,24 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 0 0% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 0 0% 9%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 9%;
     --radius: 0.625rem;
 
     --nav-h: 68px;
@@ -50,41 +48,40 @@
 
   [data-theme="dark"],
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 98%;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 93%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 93%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 93%;
     --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 13%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --muted: 0 0% 13%;
+    --muted-foreground: 0 0% 63%;
+    --accent: 0 0% 13%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 83%;
     /* dub tokens */
-    --bg-default: 18 18 18;
-    --bg-subtle: 24 24 27;
-    --bg-muted: 39 39 42;
-    --bg-emphasis: 63 63 70;
+    --bg-default: 10 10 10;
+    --bg-subtle: 18 18 18;
+    --bg-muted: 28 28 28;
+    --bg-emphasis: 44 44 44;
     --bg-inverted: 255 255 255;
-    --border-default: 39 39 42;
-    --border-subtle: 24 24 27;
-    --border-muted: 24 24 27;
-    --border-emphasis: 63 63 70;
-    --content-default: 212 212 212;
-    --content-subtle: 163 163 163;
+    --border-default: 38 38 38;
+    --border-subtle: 28 28 28;
+    --border-muted: 28 28 28;
+    --border-emphasis: 60 60 60;
+    --content-default: 237 237 237;
+    --content-subtle: 161 161 161;
     --content-muted: 115 115 115;
-    --content-emphasis: 250 250 250;
-    --content-inverted: 23 23 23;
+    --content-emphasis: 255 255 255;
+    --content-inverted: 10 10 10;
   }
 
   * {
@@ -99,7 +96,7 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+    font-family: var(--font-sans, "Geist", "Inter", system-ui, sans-serif);
     min-height: 100vh;
   }
 
@@ -111,6 +108,31 @@
     select {
       min-height: 44px;
     }
+  }
+}
+
+@layer utilities {
+  .bg-dot-grid {
+    background-image: radial-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .dark .bg-dot-grid,
+  [data-theme="dark"] .bg-dot-grid {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .bg-diagonal-stripes {
+    background-image: repeating-linear-gradient(315deg, rgba(0, 0, 0, 0.03) 0, rgba(0, 0, 0, 0.03) 1px, transparent 0, transparent 50%);
+    background-size: 16px 16px;
+  }
+  .dark .bg-diagonal-stripes,
+  [data-theme="dark"] .bg-diagonal-stripes {
+    background-image: repeating-linear-gradient(315deg, rgba(255, 255, 255, 0.03) 0, rgba(255, 255, 255, 0.03) 1px, transparent 0, transparent 50%);
+    background-size: 16px 16px;
+  }
+  .mask-radial-fade {
+    mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
   }
 }
 

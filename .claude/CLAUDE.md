@@ -32,7 +32,7 @@ Ports: `5000 API`, `5001 ML`, `3000 WEB`, `27017 MONGO`. All `pnpm dev` via `con
 
 ## Project Conventions
 
-- **Git:** `init commit` squashed, `shivbera18 <164228363+shivbera18@users.noreply.github.com>` so counted. Small commits, branch PR.
+- **Git:** `init commit` squashed, `shivbera18 <164228363+shivbera18@users.noreply.github.com>` so counted. Small commits, branch PR. Make commits very granular, logical, and incremental (typography, components, fixes, docs committed separately with clear messages).
 - **Code style:** Delete before add (38MB `public/models` removed), legacy bloat (`antd`, `bootstrap`, `@emotion/css`, `face-api.js`, `landing.css`) purged in favor of pure Tailwind 3.4.4 + Radix + Vaul primitives in `front-end/src/components/ui/*`. Backend fully modularized in TypeScript (`node-server-1/src`). Tap targets must be >= 44x44px.
 - **No new dep without metric:** Qdrant/Milvus/Kafka/K8s not until `queue wait>2h` or `p95>700ms`.
 - **Security:** Guest selfie tmp 60s, `token_hash=SHA256`, `isVerified:true` local, `EMAIL_PASS` env.

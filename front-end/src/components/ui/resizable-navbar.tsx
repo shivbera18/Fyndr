@@ -87,11 +87,7 @@ export const NavBody = ({ children, className, visible }: NavBodyProps) => {
   return (
     <motion.div
       animate={{
-        backdropFilter: visible ? "blur(14px)" : "none",
-        boxShadow: visible
-          ? "0 10px 30px -10px rgba(0, 0, 0, 0.1), 0 0 0 1px hsl(var(--border))"
-          : "none",
-        width: visible ? "min(100%, 960px)" : "100%",
+        width: visible ? "min(100%, 920px)" : "min(100%, 980px)",
         y: visible ? 4 : 0,
       }}
       transition={{
@@ -100,10 +96,7 @@ export const NavBody = ({ children, className, visible }: NavBodyProps) => {
         damping: 30,
       }}
       className={cn(
-        "relative z-[60] mx-auto hidden w-full max-w-[1240px] flex-row items-center justify-between self-start rounded-full border border-transparent px-5 py-2.5 transition-colors lg:flex",
-        visible
-          ? "bg-background/85 border-border shadow-sm backdrop-blur-md"
-          : "bg-transparent",
+        "relative z-[60] mx-auto hidden w-full flex-row items-center justify-between self-start rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background/80 dark:bg-neutral-900/80 shadow-xs backdrop-blur-md lg:flex",
         className
       )}
     >
@@ -175,11 +168,7 @@ export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
   return (
     <motion.div
       animate={{
-        backdropFilter: visible ? "blur(14px)" : "none",
-        boxShadow: visible
-          ? "0 10px 30px -10px rgba(0, 0, 0, 0.1), 0 0 0 1px hsl(var(--border))"
-          : "none",
-        width: visible ? "calc(100% - 1.5rem)" : "100%",
+        width: visible ? "calc(100% - 1.5rem)" : "calc(100% - 1rem)",
         y: visible ? 4 : 0,
       }}
       transition={{
@@ -188,10 +177,7 @@ export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
         damping: 30,
       }}
       className={cn(
-        "relative z-50 mx-auto flex w-full max-w-[calc(100vw-1.5rem)] flex-col items-center justify-between rounded-2xl border border-transparent px-4 py-2 transition-colors lg:hidden",
-        visible
-          ? "bg-background/90 border-border shadow-sm backdrop-blur-md"
-          : "bg-transparent",
+        "relative z-50 mx-auto flex w-full max-w-[calc(100vw-1rem)] flex-col items-center justify-between rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background/90 dark:bg-neutral-900/90 shadow-xs backdrop-blur-md lg:hidden",
         className
       )}
     >
