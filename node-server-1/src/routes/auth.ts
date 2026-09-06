@@ -276,6 +276,20 @@ router.put("/user/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Delete user account
+router.delete("/user/:id", async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+    res.status(200).send({ message: "Account deleted successfully" });
+  } catch (error) {
+    logger.error("[delete-user]", error);
+    res.status(500).send({ message: "Failed to delete account" });
+  }
+});
+
 //----------------------------------------------------------------------------------------------------
 
 export default router;
