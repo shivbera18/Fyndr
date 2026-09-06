@@ -22,7 +22,14 @@ describe("cleanWhatsAppPhone", () => {
     expect(cleanWhatsAppPhone("9876543210")).toBe("");
   });
 
-  it("accepts numbers without + only if they have >= 11 digits (inferred country code)", () => {
+  it("rejects domestic numbers with leading trunk zero (e.g. UK 07... or India 09...)", () => {
+    expect(cleanWhatsAppPhone("09876543210")).toBe("");
+    expect(cleanWhatsAppPhone("07911 123456")).toBe("");
+    expect(cleanWhatsAppPhone("+01234567890")).toBe("");
+    expect(cleanWhatsAppPhone("00044123456789")).toBe("");
+  });
+
+  it("accepts numbers without + only if they have >= 11 digits and no leading trunk zero", () => {
     expect(cleanWhatsAppPhone("919876543210")).toBe("919876543210");
   });
 
@@ -44,6 +51,7 @@ describe("maskWhatsAppPhone", () => {
 
   it("returns empty string if phone is missing or unvalidated local number", () => {
     expect(maskWhatsAppPhone("9876543210")).toBe("");
+    expect(maskWhatsAppPhone("09876543210")).toBe("");
     expect(maskWhatsAppPhone("")).toBe("");
     expect(maskWhatsAppPhone(null)).toBe("");
   });
@@ -87,12 +95,18 @@ describe("buildWhatsAppSendUrl", () => {
     );
   });
 
-  it("falls back to chat picker when phone lacks country code", () => {
-    const url = buildWhatsAppSendUrl({
+  it("falls back to chat picker when phone lacks country code or has trunk zero", () => {
+    const url1 = buildWhatsAppSendUrl({
       phone: "9876543210",
       text: "Hello",
     });
-    expect(url).toBe("https://api.whatsapp.com/send?text=Hello");
+    expect(url1).toBe("https://api.whatsapp.com/send?text=Hello");
+
+    const url2 = buildWhatsAppSendUrl({
+      phone: "09876543210",
+      text: "Hello",
+    });
+    expect(url2).toBe("https://api.whatsapp.com/send?text=Hello");
   });
 
   it("falls back to chat picker without phone", () => {

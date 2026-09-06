@@ -6,8 +6,9 @@
 /**
  * Validates and cleans a phone number for direct wa.me targeting.
  * WhatsApp wa.me requires an international number with country code (E.164 without leading + or zeros).
- * If a 10-digit national number is passed without country code (+), returns ""
- * so the caller falls back to the standard WhatsApp chat picker instead of broken/misrouted links.
+ * E.164 country codes never begin with '0'.
+ * If a domestic number is passed (e.g. 10 digits without country code, or 11 digits with leading trunk 0),
+ * returns "" so the caller falls back to the standard WhatsApp chat picker instead of broken/misrouted links.
  */
 export function cleanWhatsAppPhone(phone: string | undefined | null): string {
   if (!phone) return "";
@@ -18,13 +19,26 @@ export function cleanWhatsAppPhone(phone: string | undefined | null): string {
   // Standard E.164 phone lengths are between 10 and 15 digits
   if (digits.length < 10 || digits.length > 15) return "";
 
-  const hasExplicitCountryPrefix = raw.startsWith("+") || raw.startsWith("00");
+  const hasPlusPrefix = raw.startsWith("+");
+  const has00Prefix = raw.startsWith("00");
 
-  if (hasExplicitCountryPrefix) {
-    // Has country code explicitly (+91..., +1..., 0044...)
-    // If 00 prefix, strip leading 00
-    const normalized = raw.startsWith("00") ? digits.replace(/^00/, "") : digits;
+  if (hasPlusPrefix) {
+    // E.164 country codes start with 1-9, never 0
+    if (digits.startsWith("0")) return "";
+    return digits.length >= 10 && digits.length <= 15 ? digits : "";
+  }
+
+  if (has00Prefix) {
+    const normalized = digits.replace(/^00/, "");
+    // Stripped of 00, country codes must start with 1-9
+    if (normalized.startsWith("0")) return "";
     return normalized.length >= 10 && normalized.length <= 15 ? normalized : "";
+  }
+
+  // Without explicit '+' or '00', domestic trunk prefixes starting with '0'
+  // (e.g. UK 07911 123456, India 09876543210) are domestic, not international.
+  if (digits.startsWith("0")) {
+    return "";
   }
 
   // Without explicit '+', 10 digits is almost universally a domestic/local number (e.g. India, US).
