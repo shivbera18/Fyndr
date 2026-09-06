@@ -8,7 +8,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { API_URL } from "../../utils/api";
-import { Heart, KeyRound, Lock } from "lucide-react";
+import { Check, Heart, KeyRound, Lock } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type SelectPhoto = {
@@ -224,8 +224,8 @@ const SelectEvent = (): React.JSX.Element => {
                 disabled={locked || locking}
                 className="min-h-[44px]"
               >
-                <Lock className="h-4 w-4" />
-                {locked ? "Submitted ✓" : locking ? "Submitting…" : "Lock & submit picks"}
+                {locked ? <Check className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                {locked ? "Submitted" : locking ? "Submitting…" : "Lock & submit picks"}
               </Button>
             </div>
 
@@ -263,7 +263,8 @@ const SelectEvent = (): React.JSX.Element => {
                 onClick={() => setSelectedOnly((v) => !v)}
                 className="min-h-[44px]"
               >
-                ♥ Selected only
+                <Heart className="h-3.5 w-3.5 fill-current mr-1 inline" />
+                Selected only
               </Button>
             </div>
 

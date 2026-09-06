@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { Sun, Moon } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 export type Theme = "light" | "dark";
@@ -133,25 +134,25 @@ export function ThemeToggle(): React.JSX.Element {
     >
       <span
         className={cn(
-          "inline-flex items-center justify-center transition-all duration-300 ease-out transform select-none text-base",
+          "inline-flex items-center justify-center transition-all duration-300 ease-out transform select-none",
           theme === "dark"
             ? "rotate-0 scale-100 opacity-100 text-amber-400"
             : "-rotate-90 scale-0 opacity-0 absolute"
         )}
         aria-hidden="true"
       >
-        ☀
+        <Sun className="h-4 w-4" />
       </span>
       <span
         className={cn(
-          "inline-flex items-center justify-center transition-all duration-300 ease-out transform select-none text-base",
+          "inline-flex items-center justify-center transition-all duration-300 ease-out transform select-none",
           theme === "dark"
             ? "rotate-90 scale-0 opacity-0 absolute"
             : "rotate-0 scale-100 opacity-100 text-sky-500"
         )}
         aria-hidden="true"
       >
-        ☾
+        <Moon className="h-4 w-4" />
       </span>
     </button>
   );
