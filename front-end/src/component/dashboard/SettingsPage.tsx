@@ -44,7 +44,7 @@ export default function SettingsPage(): React.JSX.Element {
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
-          <div className="flex justify-center sm:justify-start">
+          <div className="flex justify-center">
             <TabsList className="grid grid-cols-2 w-full max-w-md h-11 p-1 bg-muted/60 rounded-xl">
               <TabsTrigger
                 value="studio"
