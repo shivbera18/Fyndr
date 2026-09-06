@@ -21,8 +21,13 @@ The reviewing sub-agent MUST conduct an in-depth, line-by-line audit across mult
 - **Over-engineering & Code Smell:** Unnecessary abstractions, bloated dependencies, dead code, or reinvention of standard library functions (apply `ponytail` mode checks).
 - **Architectural Adherence:** Conformance to `AGENTS.md`, `CLAUDE.md`, specific design tokens (e.g., Positivus UI rules), and project paradigms.
 
-## 4. GH PR Comments
-- Because AI agents cannot approve or request changes through the GitHub API's formal review state, the reviewer sub-agent MUST post its exhaustive findings as **GitHub PR Comments** using `gh pr comment <PR-NUMBER> --body "..."`.
+## 4. Formal GH PR Reviews (Not Comments)
+- **Why `gh pr comment` fails:** `gh pr comment` calls the GitHub Issue Comments API, which creates a generic discussion comment on the issue timeline. It does **NOT** register as a formal Pull Request Review, does not update the PR review state (`APPROVED`, `CHANGES_REQUESTED`, `COMMENTED`), and does not satisfy review requirements.
+- **The Correct Command:** Always use `gh pr review`:
+  - **Review Evaluation / Comment:** `gh pr review <PR-NUMBER> --comment -b "<REVIEW_CONTENT>"` (registers as a formal review on GitHub).
+  - **Approval:** `gh pr review <PR-NUMBER> --approve -b "<APPROVAL_SUMMARY>"`
+  - **Request Changes:** `gh pr review <PR-NUMBER> --request-changes -b "<CHANGE_REQUEST_SUMMARY>"`
+- **Self-Reviews:** GitHub does not permit PR authors to approve their own PRs (`422 Can not approve your own pull request`), but authors *can* submit formal review evaluations using `gh pr review <PR-NUMBER> --comment -b "..."`.
 - **Format Requirements:** The review comment must be detailed and structured. For every bug or flaw found, include:
   1. The exact file and line number.
   2. The severity of the issue (Critical, High, Medium, Low, Polish).
