@@ -716,15 +716,35 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       </Card>
       {/* Client proofing */}
       <Card>
-        <CardContent className="p-6 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold tracking-tight">Client album picks</h2>
-            <Badge variant={selectionLocked ? "destructive" : "brand"}>
-              {selectedCount} picked{selectionLocked ? " · locked" : ""}
-            </Badge>
+        <CardContent className="p-4 sm:p-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-semibold tracking-tight">Client album picks</h2>
+              <Badge variant={selectionLocked ? "destructive" : "brand"} className="text-xs">
+                {selectedCount} picked{selectionLocked ? " · locked" : ""}
+              </Badge>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <label htmlFor="fy-sel-limit" className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                Limit (0 = unltd):
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="fy-sel-limit"
+                  value={selectionLimit}
+                  onChange={(e) => setSelectionLimit(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="e.g. 120"
+                  className="w-20 sm:w-24 min-h-[38px] rounded-md border border-input bg-background px-2.5 text-xs font-mono"
+                />
+                <Button type="button" size="sm" onClick={() => void saveSelectionLimit()} disabled={proofBusy} className="min-h-[38px] text-xs h-9 px-3">
+                  Save
+                </Button>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground font-mono break-all">{selectUrl}</p>
-          <div className="flex flex-wrap gap-2">
+          <p className="text-[11px] text-muted-foreground font-mono break-all line-clamp-1">{selectUrl}</p>
+          <div className="flex flex-wrap gap-2 pt-1">
             <Button
               type="button"
               variant="secondary"
@@ -737,31 +757,15 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   fallbackCopy(selectUrl, done);
                 }
               }}
-              className="min-h-[44px]"
+              className="min-h-[40px] text-xs"
             >
-              <Copy className="h-4 w-4" /> Copy selection link
+              <Copy className="h-3.5 w-3.5 mr-1" /> Copy link
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void toggleLock()} disabled={proofBusy} className="min-h-[44px]">
+            <Button type="button" variant="outline" size="sm" onClick={() => void toggleLock()} disabled={proofBusy} className="min-h-[40px] text-xs">
               {selectionLocked ? "Unlock picks" : "Lock picks"}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyLightroom()} disabled={proofBusy} className="min-h-[44px]">
-              <Download className="h-4 w-4" /> Copy for Lightroom
-            </Button>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <label htmlFor="fy-sel-limit" className="text-sm font-medium whitespace-nowrap">
-              Album limit (0 = unlimited)
-            </label>
-            <input
-              id="fy-sel-limit"
-              value={selectionLimit}
-              onChange={(e) => setSelectionLimit(e.target.value)}
-              inputMode="numeric"
-              placeholder="e.g. 120"
-              className="w-full sm:w-32 min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-            />
-            <Button type="button" size="sm" onClick={() => void saveSelectionLimit()} disabled={proofBusy} className="min-h-[44px]">
-              Save limit
+            <Button type="button" variant="outline" size="sm" onClick={() => void copyLightroom()} disabled={proofBusy} className="min-h-[40px] text-xs">
+              <Download className="h-3.5 w-3.5 mr-1" /> Copy for Lightroom
             </Button>
           </div>
           {proofMsg ? <p role="status" className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
@@ -816,7 +820,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
       {/* Monetization & Paywall Configuration Card */}
       <Card id="fy-paywall-card">
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -862,7 +866,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             <label className="text-sm font-semibold text-foreground">
               Choose Paywall Stage
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
               {[
                 {
                   id: "download",
@@ -902,19 +906,19 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                       }))
                     }
                     className={cn(
-                      "p-4 rounded-xl border-2 text-left transition-all space-y-2 flex flex-col justify-between",
+                      "p-3 rounded-xl border-2 text-left transition-all space-y-1.5 flex flex-col justify-between",
                       isSelected
                         ? "border-primary bg-primary/5 shadow-sm"
                         : "border-border hover:border-border/80 bg-muted/20"
                     )}
                   >
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Icon className={cn("w-5 h-5", isSelected ? "text-primary" : "text-muted-foreground")} />
-                        {isSelected && <Badge variant="brand" className="text-[10px] px-1.5 py-0">Active</Badge>}
+                        <Icon className={cn("w-4 h-4 sm:w-5 sm:h-5", isSelected ? "text-primary" : "text-muted-foreground")} />
+                        {isSelected && <Badge variant="brand" className="text-[9px] px-1 py-0">Active</Badge>}
                       </div>
-                      <p className="font-semibold text-sm text-foreground">{stageItem.title}</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{stageItem.desc}</p>
+                      <p className="font-semibold text-xs sm:text-sm text-foreground truncate">{stageItem.title}</p>
+                      <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{stageItem.desc}</p>
                     </div>
                   </button>
                 );
@@ -923,7 +927,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           </div>
 
           {/* Pricing Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 pt-2">
             <div className="space-y-1.5">
               <label htmlFor="fy-pw-curr" className="text-xs font-semibold text-foreground">
                 Currency
@@ -1055,18 +1059,18 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
       {/* Gallery Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
             Event photo gallery ({visibleImages.length}
             {activeFolder === "All" ? "" : ` in ${activeFolder}`})
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={showPickedOnly ? "default" : "outline"}
               size="sm"
               aria-pressed={showPickedOnly}
               onClick={() => setShowPickedOnly((v) => !v)}
-              className="min-h-[44px] flex items-center gap-1.5"
+              className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs sm:text-sm"
             >
               <Heart className="h-3.5 w-3.5 fill-current" />
               Picked ({images.filter((p) => p.isSelected).length})
@@ -1077,7 +1081,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               aria-pressed={wmOn}
               onClick={() => setWmOn((v) => !v)}
               title="Overlay studio watermark on web previews (downloads stay clean)"
-              className="min-h-[44px] flex items-center gap-1.5"
+              className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs sm:text-sm"
             >
               Watermark {wmOn ? "on" : "off"}
             </Button>
@@ -1085,9 +1089,9 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               variant="outline"
               size="sm"
               onClick={fetchImages}
-              className="min-h-[44px] flex items-center gap-1.5"
+              className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs sm:text-sm"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3.5 w-3.5" />
               Refresh
             </Button>
           </div>
