@@ -98,7 +98,6 @@ export default function Header(): React.JSX.Element {
 
         {/* Desktop CTA actions */}
         <div className="hidden md:flex items-center gap-3">
-          <ThemeToggle />
           {user ? (
             <>
               <span className="text-xs text-muted-foreground font-mono truncate max-w-[140px]">
@@ -129,11 +128,11 @@ export default function Header(): React.JSX.Element {
               </Button>
             </>
           )}
+          <ThemeToggle />
         </div>
 
         {/* Mobile menu button and drawer */}
         <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle />
           <Button
             variant="ghost"
             size="icon"
@@ -144,6 +143,7 @@ export default function Header(): React.JSX.Element {
           >
             <Menu className="h-5 w-5" />
           </Button>
+          <ThemeToggle />
         </div>
       </div>
 
