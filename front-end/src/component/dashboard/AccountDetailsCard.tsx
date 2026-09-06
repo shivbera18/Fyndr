@@ -5,6 +5,7 @@ import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
 import { API_URL } from "../../utils/api";
 import { User, Mail, Key, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { PWAStudioCard } from "../../components/pwa";
 
 export default function AccountDetailsCard(): React.JSX.Element {
   const [name, setName] = useState("");
@@ -224,6 +225,9 @@ export default function AccountDetailsCard(): React.JSX.Element {
           </form>
         </CardContent>
       </Card>
+      <div className="mt-6">
+        <PWAStudioCard />
+      </div>
     </div>
   );
 }

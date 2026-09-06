@@ -10,6 +10,7 @@ import { Badge } from "../../components/ui/badge";
 import { API_URL } from "../../utils/api";
 import { Check, Heart, KeyRound, Lock } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { PWAInstallButton } from "../../components/pwa";
 
 type SelectPhoto = {
   _id: string;
@@ -240,15 +241,23 @@ const SelectEvent = (): React.JSX.Element => {
                   {limit > 0 ? ` / ${limit} album photos` : " photos"}
                 </p>
               </div>
-              <Button
-                type="button"
-                onClick={() => void lockSelection()}
-                disabled={locked || locking}
-                className="min-h-[44px]"
-              >
-                {locked ? <Check className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                {locked ? "Submitted" : locking ? "Submitting…" : "Lock & submit picks"}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <PWAInstallButton
+                  variant="button"
+                  size="sm"
+                  label="Install Gallery App"
+                  className="min-h-[44px]"
+                />
+                <Button
+                  type="button"
+                  onClick={() => void lockSelection()}
+                  disabled={locked || locking}
+                  className="min-h-[44px]"
+                >
+                  {locked ? <Check className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                  {locked ? "Submitted" : locking ? "Submitting…" : "Lock & submit picks"}
+                </Button>
+              </div>
             </div>
 
             {locked ? (

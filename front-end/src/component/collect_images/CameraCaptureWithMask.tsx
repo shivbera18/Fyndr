@@ -31,6 +31,7 @@ import {
   MessageCircle,
   ZoomOut,
 } from "lucide-react";
+import { PWAInstallButton } from "../../components/pwa";
 import { cn } from "../../lib/utils";
 
 type MatchedPhoto = {
@@ -752,6 +753,11 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                     Your matched photos ({matchedPhotos.length})
                   </h2>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <PWAInstallButton
+                      variant="header"
+                      label="Install App"
+                      className="min-h-[44px] px-3.5 text-xs font-semibold"
+                    />
                     <Button
                       type="button"
                       variant="default"
@@ -773,6 +779,22 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                       {shareCopied ? "Link Copied!" : "Share My Gallery"}
                     </Button>
                   </div>
+                </div>
+
+                {/* PWA Guest Photo Convenience Banner */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">📱</span>
+                    <p className="text-foreground font-medium">
+                      Install Fyndr to keep your matched photos saved &amp; download in 1 tap anytime.
+                    </p>
+                  </div>
+                  <PWAInstallButton
+                    variant="button"
+                    size="sm"
+                    label="Install App"
+                    className="h-8 text-xs shrink-0 rounded-lg"
+                  />
                 </div>
 
                 {paywallConfig?.enabled && paywallConfig.stage === "entry" && !isAlbumUnlocked(eventId) ? (
@@ -896,6 +918,28 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                     <Download className="h-4 w-4" />
                     Download
                   </Button>
+                  {typeof navigator !== "undefined" && "share" in navigator && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.share({
+                            title: `Photo from ${eventName || "Event"}`,
+                            text: "Found my photo on Fyndr!",
+                            url: previewPhoto.url,
+                          });
+                        } catch {
+                          // User canceled or share unsupported
+                        }
+                      }}
+                      className="min-h-[40px] flex items-center gap-1.5"
+                    >
+                      <Share2 className="h-4 w-4 text-emerald-500" />
+                      Save / Share
+                    </Button>
+                  )}
                 </div>
               </div>
 

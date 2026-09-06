@@ -15,6 +15,7 @@ import { LogoMark } from "../brand/LogoMark";
 import { ThemeToggle } from "../landing/Theme";
 import AccountMenu from "./AccountMenu";
 import { User } from "lucide-react";
+import { PWAInstallButton } from "../../components/pwa";
 function Logo(): React.JSX.Element {
   return (
     <span className="inline-flex items-center gap-2.5">
@@ -151,6 +152,7 @@ export default function Header(): React.JSX.Element {
         <NavItems items={navItems} onItemClick={handleNavClick} />
 
         <div className="flex items-center gap-2.5">
+          <PWAInstallButton variant="header" />
           {user ? (
             <>
               {location.pathname === "/" && (
@@ -311,6 +313,11 @@ export default function Header(): React.JSX.Element {
                 </Button>
               </>
             )}
+            <PWAInstallButton
+              variant="button"
+              size="sm"
+              className="w-full min-h-[44px]"
+            />
           </div>
         </MobileNavMenu>
       </MobileNav>

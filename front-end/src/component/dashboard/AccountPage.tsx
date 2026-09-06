@@ -24,6 +24,7 @@ import {
   Sliders,
   Sparkles,
 } from "lucide-react";
+import { PWAStudioCard } from "../../components/pwa";
 
 export default function AccountPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -459,6 +460,9 @@ export default function AccountPage(): React.JSX.Element {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Progressive Web App / Studio Desktop App */}
+        <PWAStudioCard />
 
         {/* Section 4: Danger Zone */}
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 space-y-4">
