@@ -56,6 +56,7 @@ npm --prefix node-server-1 run build            # backend tsc compilation
 
 - **Author:** Must be `shivbera18 <164228363+shivbera18@users.noreply.github.com>` to count (see `git config`).
 - **PRs & Review:** Follow the mandatory PR review loop defined in [`pr-review-guidelines.md`](pr-review-guidelines.md) (Granular commits → PR → Independent Sub-Agent Review → `gh pr comment` → Fix Loop → Merge).
+- **Granular Commits:** Make very small, granular, logical commits per change rather than large monolithic commits (e.g. typography/styles separate from components, separate from fixes, separate from docs). Every commit must have a clear descriptive message, pass checks, and use author `shivbera18 <164228363+shivbera18@users.noreply.github.com>`.
 - **History:** Squashed `init commit` — don't reintroduce `azeem` history.
 - **Deployment:** Push to `shivbera18/Fyndr` `main` — Oracle `ssh fyndr "cd ~/pic-share && git pull && pm2 restart all"`.
 
