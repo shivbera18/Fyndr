@@ -14,6 +14,7 @@ import { KeyRound, Loader2 } from "lucide-react";
 type EventData = {
   event_name: string;
   event_photo?: string;
+  requireLead?: boolean;
 };
 
 type StudioData = {
@@ -67,7 +68,6 @@ const CollectEvent = (): React.JSX.Element => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
-
   const handlePinSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!eventId) return;
@@ -90,7 +90,10 @@ const CollectEvent = (): React.JSX.Element => {
     try {
       const data = await recordAccessAttempt(eventId, guestName.trim(), guestPhone.trim(), pin.trim());
       if (data.ok && data.verified) {
-        sessionStorage.setItem("fy-last-event", eventId);
+        if (eventId) {
+          sessionStorage.setItem("fy-last-event", eventId);
+          sessionStorage.setItem(`fy-require-lead-${eventId}`, eventData?.requireLead ? "1" : "0");
+        }
         navigate("/camera", { state: eventId });
       } else {
         setErrorMessage(data.message || "Incorrect PIN. Contact the photographer or host.");
