@@ -10,8 +10,19 @@ import {
   MobileNavToggle,
   MobileNavMenu,
 } from "../../components/ui/resizable-navbar";
-import { Sparkles } from "lucide-react";
+import { LogoMark } from "../brand/LogoMark";
 import { ThemeToggle } from "../landing/Theme";
+
+function Logo(): React.JSX.Element {
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <LogoMark className="h-[32px] w-[32px]" />
+      <span className="font-sans font-bold text-lg tracking-tight text-foreground">
+        FYNDR
+      </span>
+    </span>
+  );
+}
 
 type SessionUser = {
   name?: string;
@@ -25,21 +36,6 @@ const NAV_ITEMS = [
   { name: "GitHub", link: "https://github.com/shivbera18/Fyndr", external: true },
 ];
 
-function Logo(): React.JSX.Element {
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      <span
-        aria-hidden="true"
-        className="flex h-[32px] w-[32px] items-center justify-center rounded-xl bg-zinc-950 text-brand font-bold text-sm shadow-sm dark:border dark:border-zinc-800"
-      >
-        <Sparkles className="h-4 w-4 text-brand" />
-      </span>
-      <span className="font-display font-bold text-lg tracking-tight text-foreground">
-        FYNDR
-      </span>
-    </span>
-  );
-}
 
 export default function Header(): React.JSX.Element {
   const navigate = useNavigate();
