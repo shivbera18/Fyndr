@@ -15,6 +15,7 @@ import ForgetPass from './component/login/ForgetPass';
 import CreateEventPage from './component/dashboard/CreateEventPage';
 import AnalyticsPage from './component/dashboard/AnalyticsPage';
 import SettingsPage from './component/dashboard/SettingsPage';
+import BottomNav from './component/navbar/BottomNav';
 
 function App() {
 
@@ -23,6 +24,7 @@ function App() {
     <div className="App min-h-screen bg-background text-foreground">
       <ThemeProvider>
       <BrowserRouter>
+        <BottomNav />
 
 
 

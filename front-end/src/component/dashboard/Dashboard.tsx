@@ -153,7 +153,7 @@ export default function Dashboard(): React.JSX.Element {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
 
-      <main className="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-8">
+      <main className="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-20 md:pb-8 space-y-8">
         {/* Page Head */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-border">
           <div>
@@ -173,9 +173,9 @@ export default function Dashboard(): React.JSX.Element {
           )}
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tab Navigation (Desktop Only) */}
         {!selectedEvent && (
-          <div className="flex items-center gap-2 border-b border-border overflow-x-auto scrollbar-hide py-1">
+          <div className="hidden md:flex items-center gap-2 border-b border-border overflow-x-auto scrollbar-hide py-1">
             {TABS.map((tab) => (
               <button
                 key={tab.id}

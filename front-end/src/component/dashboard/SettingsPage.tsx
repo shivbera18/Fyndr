@@ -28,7 +28,7 @@ export default function SettingsPage(): React.JSX.Element {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
 
-      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-8 space-y-8">
+      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-8 pb-20 md:pb-8 space-y-8">
         {/* Page Heading */}
         <div className="space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-border bg-card">

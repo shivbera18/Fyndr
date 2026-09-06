@@ -549,13 +549,18 @@ export default function Home(): React.JSX.Element {
   useEffect(() => {
     if (location.hash) {
       const id = location.hash.replace("#", "");
-      const element = document.getElementById(id);
-      if (element) {
-        const timer = setTimeout(() => {
+      let attempts = 0;
+      const scrollToElement = () => {
+        const element = document.getElementById(id);
+        if (element) {
           element.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-        return () => clearTimeout(timer);
-      }
+        } else if (attempts < 5) {
+          attempts++;
+          setTimeout(scrollToElement, 100);
+        }
+      };
+      const timer = setTimeout(scrollToElement, 100);
+      return () => clearTimeout(timer);
     }
   }, [location.hash, location.pathname]);
 
