@@ -216,6 +216,66 @@ router.post("/newPassword-verify-otp", async (req: Request, res: Response) => {
   }
 });
 
+//-------------------------------------------------------------------------------------------------------
+
+// Get user account details
+router.get("/user/:id", async (req: Request, res: Response) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+    res.status(200).send(user);
+  } catch (error) {
+    logger.error("[get-user]", error);
+    res.status(500).send({ message: "Failed to fetch user details" });
+  }
+});
+
+// Update user account details
+router.put("/user/:id", async (req: Request, res: Response) => {
+  try {
+    const { name, email, currentPassword, newPassword } = req.body || {};
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    if (email && email.trim() !== user.email) {
+      const existing = await User.findOne({ email: email.trim(), _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(400).send({ message: "Email is already taken" });
+      }
+      user.email = email.trim();
+    }
+
+    if (name && name.trim()) {
+      user.name = name.trim();
+    }
+
+    if (newPassword) {
+      if (!currentPassword || currentPassword !== user.password) {
+        return res.status(400).send({ message: "Current password does not match" });
+      }
+      user.password = newPassword;
+    }
+
+    await user.save();
+    res.status(200).send({
+      message: "Profile updated successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isVerified: user.isVerified,
+      },
+    });
+  } catch (error) {
+    logger.error("[update-user]", error);
+    res.status(500).send({ message: "Failed to update profile" });
+  }
+});
+
 //----------------------------------------------------------------------------------------------------
 
 export default router;
