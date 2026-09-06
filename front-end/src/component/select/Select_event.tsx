@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
@@ -47,6 +47,28 @@ const SelectEvent = (): React.JSX.Element => {
   const selectedCount = photos.filter((p) => p.isSelected).length;
   const limit = eventData?.selectionLimit || 0;
   const locked = eventData?.selectionLocked || false;
+
+  useEffect(() => {
+    if (!eventId) return;
+    const tryPublicAccess = async () => {
+      try {
+        const res = await fetch(`${API_URL}/selection`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ _id: eventId, pin: "" }),
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data && data.event) {
+            setEventData(data.event);
+            setPhotos(Array.isArray(data.photos) ? data.photos : []);
+            setNotice(`Selected ${data.selectedCount || 0} so far — tap the heart to pick album photos.`);
+          }
+        }
+      } catch {}
+    };
+    void tryPublicAccess();
+  }, [eventId]);
 
   const loadSelection = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
