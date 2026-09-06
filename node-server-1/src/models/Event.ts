@@ -20,6 +20,26 @@ const eventSchema = new mongoose.Schema(
     scanCount: { type: Number, default: 0 },
     selfieCount: { type: Number, default: 0 },
     downloadCount: { type: Number, default: 0 },
+    // P0: studio paywall monetization config & mock transactions
+    paywall: {
+      enabled: { type: Boolean, default: false },
+      stage: {
+        type: String,
+        enum: ["download", "batch_download", "watermark_removal", "entry"],
+        default: "download",
+      },
+      pricePerPhoto: { type: Number, default: 49, min: 0, max: 100000 },
+      priceFullAlbum: { type: Number, default: 199, min: 0, max: 100000 },
+      freePhotoLimit: { type: Number, default: 2, min: 0, max: 100 },
+      currency: { type: String, enum: ["INR", "USD", "EUR", "GBP"], default: "INR" },
+      customMessage: {
+        type: String,
+        default: "Support our photography studio & unlock full-resolution originals.",
+        maxlength: 200,
+      },
+      unlockedCount: { type: Number, default: 0 },
+      totalRevenue: { type: Number, default: 0 },
+    },
   },
   { timestamps: true }
 );

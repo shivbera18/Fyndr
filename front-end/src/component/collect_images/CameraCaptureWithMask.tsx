@@ -10,6 +10,7 @@ import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
+import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
 import { API_URL, ML_URL } from "../../utils/api";
 import { trackEvent } from "../../utils/analytics";
 import {
@@ -19,8 +20,10 @@ import {
   ImagePlus,
   Loader2,
   Maximize2,
+  Lock,
   RefreshCw,
   ZoomIn,
+  Share2,
   ZoomOut,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -48,6 +51,11 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     sessionStorage.getItem("fy-last-event");
 
   const [eventId] = useState<string | null>(initialEventId);
+  const [studioName, setStudioName] = useState<string>("");
+  const [eventName, setEventName] = useState<string>("");
+  const [paywallConfig, setPaywallConfig] = useState<PaywallConfig | null>(null);
+  const [showPaywallModal, setShowPaywallModal] = useState<boolean>(false);
+  const [shareCopied, setShareCopied] = useState<boolean>(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -64,6 +72,29 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
           data && typeof data === "object" && "event" in data ? data.event : data;
         const gate = ev && typeof ev === "object" && "requireLead" in ev ? ev.requireLead === true : false;
         sessionStorage.setItem(`fy-require-lead-${eventId}`, gate ? "1" : "0");
+        if (data && typeof data === "object" && "studio" in data && data.studio && typeof data.studio === "object" && "studio_name" in data.studio) {
+          setStudioName(String(data.studio.studio_name));
+        }
+        if (ev && typeof ev === "object" && "event_name" in ev) {
+          setEventName(String(ev.event_name));
+        }
+        if (ev && typeof ev === "object" && "paywall" in ev && ev.paywall && typeof ev.paywall === "object") {
+          const pw = ev.paywall as Record<string, unknown>;
+          const validStages = ["download", "batch_download", "watermark_removal", "entry"] as const;
+          const stageCandidate = typeof pw.stage === "string" ? pw.stage : "download";
+          const isStage = (v: string): v is (typeof validStages)[number] =>
+            (validStages as readonly string[]).includes(v);
+          const stage = isStage(stageCandidate) ? stageCandidate : "download";
+          setPaywallConfig({
+            enabled: pw.enabled === true,
+            stage,
+            pricePerPhoto: typeof pw.pricePerPhoto === "number" ? pw.pricePerPhoto : 49,
+            priceFullAlbum: typeof pw.priceFullAlbum === "number" ? pw.priceFullAlbum : 199,
+            freePhotoLimit: typeof pw.freePhotoLimit === "number" ? pw.freePhotoLimit : 2,
+            currency: typeof pw.currency === "string" ? pw.currency : "INR",
+            customMessage: typeof pw.customMessage === "string" ? pw.customMessage : "",
+          });
+        }
       })
       .catch(() => {});
   }, [eventId]);
@@ -230,7 +261,119 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const gateOn = (id: string | null): boolean =>
     !!id && sessionStorage.getItem(`fy-require-lead-${id}`) === "1" && sessionStorage.getItem(leadKey(id)) !== "1";
 
+  const isAlbumUnlocked = (id: string | null): boolean => {
+    if (!id) return false;
+    return sessionStorage.getItem(`fy-unlocked-album-${id}`) === "1";
+  };
+
+  const isPhotoUnlocked = (id: string | null, filename: string): boolean => {
+    if (!id) return false;
+    if (isAlbumUnlocked(id)) return true;
+    try {
+      const stored = sessionStorage.getItem(`fy-unlocked-photos-${id}`);
+      if (!stored) return false;
+      const list: unknown = JSON.parse(stored);
+      return Array.isArray(list) && list.includes(filename);
+    } catch {
+      return false;
+    }
+  };
+
+  const getDownloadCount = (id: string | null): number => {
+    if (!id) return 0;
+    return Number(sessionStorage.getItem(`fy-dl-count-${id}`) || "0");
+  };
+
+  const incrementDownloadCount = (id: string | null): void => {
+    if (!id) return;
+    const current = getDownloadCount(id);
+    sessionStorage.setItem(`fy-dl-count-${id}`, String(current + 1));
+  };
+
+  const handlePaywallUnlockSuccess = (result: { tier: "single" | "album"; photoName?: string }): void => {
+    if (!eventId) return;
+    if (result.tier === "album") {
+      sessionStorage.setItem(`fy-unlocked-album-${eventId}`, "1");
+    } else if (result.photoName) {
+      try {
+        const stored = sessionStorage.getItem(`fy-unlocked-photos-${eventId}`);
+        const list: string[] = stored ? JSON.parse(stored) : [];
+        if (!list.includes(result.photoName)) {
+          list.push(result.photoName);
+        }
+        sessionStorage.setItem(`fy-unlocked-photos-${eventId}`, JSON.stringify(list));
+      } catch {
+        sessionStorage.setItem(`fy-unlocked-photos-${eventId}`, JSON.stringify([result.photoName]));
+      }
+    }
+
+    if (pendingDl) {
+      const dl = pendingDl;
+      setPendingDl(null);
+      incrementDownloadCount(eventId);
+      void downloadImage(dl.url, dl.filename);
+    }
+  };
+
+  const handleShareGallery = async (): Promise<void> => {
+    const url = window.location.origin + `/collect/${eventId}`;
+    const shareText = `Check out my photos from ${eventName || "the event"} on Fyndr!`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${eventName || "Event"} Photos`,
+          text: shareText,
+          url,
+        });
+        return;
+      } catch {
+        // Fallback to WhatsApp / clipboard below
+      }
+    }
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(`${shareText} ${url}`)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2500);
+      });
+    }
+  };
+
   const requestDownload = (url: string, filename: string): void => {
+    // 1. Paywall stage enforcement
+    if (paywallConfig && paywallConfig.enabled) {
+      if (paywallConfig.stage === "download" || paywallConfig.stage === "watermark_removal") {
+        if (!isPhotoUnlocked(eventId, filename)) {
+          setPendingDl({ url, filename });
+          setPreviewPhoto(null);
+          setIsZoomed(false);
+          setShowPaywallModal(true);
+          return;
+        }
+      }
+      if (paywallConfig.stage === "batch_download") {
+        if (!isAlbumUnlocked(eventId)) {
+          const count = getDownloadCount(eventId);
+          if (count >= paywallConfig.freePhotoLimit && !isPhotoUnlocked(eventId, filename)) {
+            setPendingDl({ url, filename });
+            setPreviewPhoto(null);
+            setIsZoomed(false);
+            setShowPaywallModal(true);
+            return;
+          }
+        }
+      }
+      if (paywallConfig.stage === "entry" && !isAlbumUnlocked(eventId)) {
+        setPendingDl({ url, filename });
+        setPreviewPhoto(null);
+        setIsZoomed(false);
+        setShowPaywallModal(true);
+        return;
+      }
+    }
+
+    // 2. Lead gate check
     if (gateOn(eventId)) {
       setPendingDl({ url, filename });
       setLeadError("");
@@ -239,6 +382,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       setShowLead(true);
       return;
     }
+
+    incrementDownloadCount(eventId);
     void downloadImage(url, filename);
   };
 
@@ -346,8 +491,23 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
               AI selfie match
             </span>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-0.5">
-              Find your photos
+              {eventName ? `${eventName} — Photos` : "Find your photos"}
             </h1>
+            {studioName && (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-xs text-muted-foreground">Photos by {studioName}</span>
+                <a
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                    `Hi ${studioName}, I saw your photography on Fyndr and would love to inquire about booking a session!`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 rounded-full transition-colors"
+                >
+                  Book Studio ↗
+                </a>
+              </div>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -476,6 +636,15 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                     {useUploadMode ? "Switch to camera" : "Or upload a photo instead"}
                   </Button>
                 </div>
+                <div className="pt-3 border-t border-border/40">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/select/${eventId}`)}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-4"
+                  >
+                    Can't take a selfie? Browse full event album without selfie →
+                  </button>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -553,60 +722,102 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             {/* Matched Images Grid */}
             {matchedPhotos.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <h2 className="text-xl font-bold tracking-tight text-foreground">
                     Your matched photos ({matchedPhotos.length})
                   </h2>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleShareGallery()}
+                    className="min-h-[40px] flex items-center gap-1.5 text-xs font-semibold"
+                  >
+                    <Share2 className="w-4 h-4 text-emerald-500" />
+                    {shareCopied ? "Link Copied!" : "Share My Gallery"}
+                  </Button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {matchedPhotos.map((photo, idx) => {
-                    const imgUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
-                    const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
+                {paywallConfig?.enabled && paywallConfig.stage === "entry" && !isAlbumUnlocked(eventId) ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-border p-8 bg-card/60 backdrop-blur-md text-center space-y-4 shadow-sm">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1.5 max-w-md mx-auto">
+                      <h3 className="text-lg font-bold text-foreground">
+                        {matchedPhotos.length} Photos Found for You!
+                      </h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        This event has a gallery access pass enabled by {studioName || "the photographer"}. Unlock full access to view and download all your matched originals.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="lg"
+                      onClick={() => setShowPaywallModal(true)}
+                      className="font-semibold text-sm shadow-md min-h-[44px]"
+                    >
+                      Unlock Gallery Access (
+                      {paywallConfig.currency === "USD"
+                        ? "$"
+                        : paywallConfig.currency === "EUR"
+                        ? "€"
+                        : paywallConfig.currency === "GBP"
+                        ? "£"
+                        : "₹"}
+                      {paywallConfig.priceFullAlbum})
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {matchedPhotos.map((photo, idx) => {
+                      const imgUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                      const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
 
-                    return (
-                      <div
-                        key={photo.id || idx}
-                        className="group relative aspect-square rounded-xl overflow-hidden bg-muted border border-border shadow-sm"
-                      >
-                        <img
-                          src={imgUrl}
-                          alt={`Matched item ${idx + 1}`}
-                          onError={handleImgError}
-                          loading="lazy"
-                          onClick={() => openPreview(imgUrl, photo.name, simPercent)}
-                          className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <Badge
-                          variant="brand"
-                          className="absolute top-2 right-2 text-xs font-semibold shadow"
+                      return (
+                        <div
+                          key={photo.id || idx}
+                          className="group relative aspect-square rounded-xl overflow-hidden bg-muted border border-border"
                         >
-                          {simPercent}% match
-                        </Badge>
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
+                          <img
+                            src={imgUrl}
+                            alt={`Matched item ${idx + 1}`}
+                            onError={handleImgError}
+                            loading="lazy"
                             onClick={() => openPreview(imgUrl, photo.name, simPercent)}
-                            className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
-                            title="View full photo"
-                            aria-label="View full photo"
+                            className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                          />
+                          <Badge
+                            variant="brand"
+                            className="absolute top-2 right-2 text-xs font-semibold shadow"
                           >
-                            <Maximize2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => requestDownload(imgUrl, photo.name)}
-                            className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
-                            title="Download photo"
-                            aria-label="Download photo"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
+                            {simPercent}% match
+                          </Badge>
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => openPreview(imgUrl, photo.name, simPercent)}
+                              className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
+                              title="View full photo"
+                              aria-label="View full photo"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => requestDownload(imgUrl, photo.name)}
+                              className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
+                              title="Download photo"
+                              aria-label="Download photo"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -657,6 +868,18 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                   isZoomed ? "overflow-auto items-start" : "overflow-hidden items-center"
                 )}
               >
+                {paywallConfig?.enabled &&
+                paywallConfig.stage === "watermark_removal" &&
+                !isPhotoUnlocked(eventId, previewPhoto.name) ? (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden"
+                  >
+                    <span className="-rotate-[30deg] whitespace-nowrap text-2xl sm:text-3xl font-bold text-white/35 select-none tracking-widest uppercase">
+                      {studioName.trim() || "PREVIEW ONLY"}
+                    </span>
+                  </span>
+                ) : null}
                 <img
                   src={previewPhoto.url}
                   alt="Full preview"
@@ -720,6 +943,18 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             </Button>
           </form>
         </ResponsiveModal>
+        {paywallConfig && (
+          <PaywallModal
+            open={showPaywallModal}
+            onOpenChange={setShowPaywallModal}
+            config={paywallConfig}
+            studioName={studioName}
+            eventId={eventId}
+            photoName={pendingDl?.filename}
+            matchedPhotoCount={matchedPhotos.length}
+            onUnlockSuccess={handlePaywallUnlockSuccess}
+          />
+        )}
       </main>
 
       <Footer />

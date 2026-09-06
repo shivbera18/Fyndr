@@ -8,17 +8,22 @@ import EventAnalyticsModal from "./EventAnalyticsModal";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
+import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
 import {
   ArrowLeft,
   BarChart3,
+  Coins,
   Check,
   Copy,
   Download,
+  Eye,
   ExternalLink,
   Heart,
   Loader2,
   QrCode as QrIcon,
   RefreshCw,
+  ShieldCheck,
+  Sparkles,
   Trash2,
   X,
   ZoomIn,
@@ -75,6 +80,18 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [selectionLocked, setSelectionLocked] = useState<boolean>(initialLocked || false);
   const [proofBusy, setProofBusy] = useState<boolean>(false);
   const [proofMsg, setProofMsg] = useState<string>("");
+  const [paywallConfig, setPaywallConfig] = useState<PaywallConfig>({
+    enabled: false,
+    stage: "download",
+    pricePerPhoto: 49,
+    priceFullAlbum: 199,
+    freePhotoLimit: 2,
+    currency: "INR",
+    customMessage: "Support our photography studio & unlock full-resolution originals.",
+  });
+  const [showPaywallPreview, setShowPaywallPreview] = useState<boolean>(false);
+  const [savingPaywall, setSavingPaywall] = useState<boolean>(false);
+  const [paywallMsg, setPaywallMsg] = useState<string>("");
   useEffect(() => {
     setFolders(initialFolders || []);
     setActiveFolder("All");
@@ -119,6 +136,26 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             downloads: num("downloadCount" in found ? found.downloadCount : 0),
             gate: "requireLead" in found ? found.requireLead === true : false,
           });
+          if ("paywall" in found && found.paywall && typeof found.paywall === "object") {
+            const pw = found.paywall as Record<string, unknown>;
+            const validStages = ["download", "batch_download", "watermark_removal", "entry"] as const;
+            const stageCandidate = typeof pw.stage === "string" ? pw.stage : "download";
+            const isStage = (v: string): v is (typeof validStages)[number] =>
+              (validStages as readonly string[]).includes(v);
+            const stage = isStage(stageCandidate) ? stageCandidate : "download";
+            setPaywallConfig({
+              enabled: pw.enabled === true,
+              stage,
+              pricePerPhoto: typeof pw.pricePerPhoto === "number" ? pw.pricePerPhoto : 49,
+              priceFullAlbum: typeof pw.priceFullAlbum === "number" ? pw.priceFullAlbum : 199,
+              freePhotoLimit: typeof pw.freePhotoLimit === "number" ? pw.freePhotoLimit : 2,
+              currency: typeof pw.currency === "string" ? pw.currency : "INR",
+              customMessage:
+                typeof pw.customMessage === "string"
+                  ? pw.customMessage
+                  : "Support our photography studio & unlock full-resolution originals.",
+            });
+          }
         }
       })
       .catch(() => {});
@@ -319,6 +356,36 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       setProofBusy(false);
     }
   };
+  const savePaywall = async (configToSave: PaywallConfig): Promise<void> => {
+    setSavingPaywall(true);
+    setPaywallMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          created_id: ownerId,
+          paywall: configToSave,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        setPaywallConfig(configToSave);
+        setPaywallMsg("Paywall settings saved successfully.");
+      } else {
+        const err =
+          data && typeof data === "object" && "message" in data
+            ? String(data.message)
+            : "Failed to save paywall.";
+        setPaywallMsg(err);
+      }
+    } catch {
+      setPaywallMsg("Could not save paywall. Check connection.");
+    } finally {
+      setSavingPaywall(false);
+    }
+  };
+
 
   const csvCell = (v: unknown): string => {
     const s = String(v ?? "");
@@ -513,6 +580,18 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <Button variant="outline" size="sm" onClick={() => setShowAnalytics(true)} className="min-h-[44px] flex items-center gap-1.5">
             <BarChart3 className="h-4 w-4" />
             Guest Analytics
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const el = document.getElementById("fy-paywall-card");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="min-h-[44px] flex items-center gap-1.5"
+          >
+            <Coins className="h-4 w-4 text-amber-500" />
+            Monetization
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[44px] flex items-center gap-1.5">
             <QrIcon className="h-4 w-4" />
@@ -731,6 +810,235 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             >
               <Download className="h-4 w-4" /> Download leads (CSV)
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Monetization & Paywall Configuration Card */}
+      <Card id="fy-paywall-card">
+        <CardContent className="p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold tracking-tight">Monetization & Paywall</h2>
+                <Badge variant={paywallConfig.enabled ? "brand" : "secondary"}>
+                  {paywallConfig.enabled ? "Active" : "Disabled"}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Monetize your photography by charging guests for downloads, premium bundles, or gallery access.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant={paywallConfig.enabled ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  const updated = { ...paywallConfig, enabled: !paywallConfig.enabled };
+                  setPaywallConfig(updated);
+                  void savePaywall(updated);
+                }}
+                disabled={savingPaywall}
+                className="min-h-[44px]"
+              >
+                {paywallConfig.enabled ? "Paywall Enabled" : "Enable Paywall"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowPaywallPreview(true)}
+                className="min-h-[44px] flex items-center gap-1.5"
+              >
+                <Eye className="w-4 h-4" /> Preview as Guest
+              </Button>
+            </div>
+          </div>
+
+          {/* Stage Selector */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-foreground">
+              Choose Paywall Stage
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                {
+                  id: "download",
+                  title: "High-Res Downloads",
+                  desc: "Free browsing; guests pay to download original DSLR files.",
+                  icon: Download,
+                },
+                {
+                  id: "batch_download",
+                  title: "Batch / Freemium",
+                  desc: "First N photos free; pay to unlock remaining matched gallery.",
+                  icon: Sparkles,
+                },
+                {
+                  id: "watermark_removal",
+                  title: "Watermark Removal",
+                  desc: "Previews are watermarked; pay to download clean originals.",
+                  icon: ShieldCheck,
+                },
+                {
+                  id: "entry",
+                  title: "Gallery Entry Pass",
+                  desc: "Paywall gate required before viewing matched photos.",
+                  icon: Coins,
+                },
+              ].map((stageItem) => {
+                const Icon = stageItem.icon;
+                const isSelected = paywallConfig.stage === stageItem.id;
+                return (
+                  <button
+                    key={stageItem.id}
+                    type="button"
+                    onClick={() =>
+                      setPaywallConfig((prev) => ({
+                        ...prev,
+                        stage: stageItem.id as PaywallConfig["stage"],
+                      }))
+                    }
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-left transition-all space-y-2 flex flex-col justify-between",
+                      isSelected
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border hover:border-border/80 bg-muted/20"
+                    )}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Icon className={cn("w-5 h-5", isSelected ? "text-primary" : "text-muted-foreground")} />
+                        {isSelected && <Badge variant="brand" className="text-[10px] px-1.5 py-0">Active</Badge>}
+                      </div>
+                      <p className="font-semibold text-sm text-foreground">{stageItem.title}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{stageItem.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Pricing Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+            <div className="space-y-1.5">
+              <label htmlFor="fy-pw-curr" className="text-xs font-semibold text-foreground">
+                Currency
+              </label>
+              <select
+                id="fy-pw-curr"
+                value={paywallConfig.currency}
+                onChange={(e) =>
+                  setPaywallConfig((prev) => ({ ...prev, currency: e.target.value }))
+                }
+                className="w-full min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="fy-pw-single" className="text-xs font-semibold text-foreground">
+                Single Photo Price
+              </label>
+              <input
+                id="fy-pw-single"
+                type="number"
+                min="0"
+                max="100000"
+                value={paywallConfig.pricePerPhoto}
+                onChange={(e) =>
+                  setPaywallConfig((prev) => ({
+                    ...prev,
+                    pricePerPhoto: Math.max(0, Number(e.target.value) || 0),
+                  }))
+                }
+                className="w-full min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="fy-pw-album" className="text-xs font-semibold text-foreground">
+                Full Album Pass Price
+              </label>
+              <input
+                id="fy-pw-album"
+                type="number"
+                min="0"
+                max="100000"
+                value={paywallConfig.priceFullAlbum}
+                onChange={(e) =>
+                  setPaywallConfig((prev) => ({
+                    ...prev,
+                    priceFullAlbum: Math.max(0, Number(e.target.value) || 0),
+                  }))
+                }
+                className="w-full min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+              />
+            </div>
+
+            {paywallConfig.stage === "batch_download" ? (
+              <div className="space-y-1.5">
+                <label htmlFor="fy-pw-limit" className="text-xs font-semibold text-foreground">
+                  Free Photo Allowance
+                </label>
+                <input
+                  id="fy-pw-limit"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={paywallConfig.freePhotoLimit}
+                  onChange={(e) =>
+                    setPaywallConfig((prev) => ({
+                      ...prev,
+                      freePhotoLimit: Math.max(0, Number(e.target.value) || 0),
+                    }))
+                  }
+                  className="w-full min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {/* Custom Message */}
+          <div className="space-y-1.5">
+            <label htmlFor="fy-pw-msg" className="text-xs font-semibold text-foreground">
+              Custom Guest Note (Max 200 chars)
+            </label>
+            <textarea
+              id="fy-pw-msg"
+              rows={2}
+              maxLength={200}
+              value={paywallConfig.customMessage || ""}
+              onChange={(e) =>
+                setPaywallConfig((prev) => ({ ...prev, customMessage: e.target.value }))
+              }
+              placeholder="Support our photography studio & unlock full-resolution originals."
+              className="w-full rounded-lg border border-input bg-background p-3 text-sm resize-none"
+            />
+          </div>
+
+          {/* Save & Status Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <Button
+              type="button"
+              onClick={() => void savePaywall(paywallConfig)}
+              disabled={savingPaywall}
+              className="min-h-[44px]"
+            >
+              {savingPaywall ? "Saving..." : "Save Paywall Settings"}
+            </Button>
+            {paywallMsg ? (
+              <p role="status" className="text-xs text-muted-foreground font-medium">
+                {paywallMsg}
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -1037,6 +1345,16 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           </div>
         )}
       </ResponsiveModal>
+      <PaywallModal
+        open={showPaywallPreview}
+        onOpenChange={setShowPaywallPreview}
+        config={paywallConfig}
+        studioName={studioName}
+        eventId={eventID}
+        matchedPhotoCount={images.length || 12}
+        testMode={true}
+        onUnlockSuccess={() => {}}
+      />
     </div>
   );
 };

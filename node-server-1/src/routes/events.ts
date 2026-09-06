@@ -162,6 +162,90 @@ const parseFlag = (v: unknown): boolean | undefined => {
     return undefined;
 };
 
+const VALID_PAYWALL_STAGES = ["download", "batch_download", "watermark_removal", "entry"] as const;
+const VALID_PAYWALL_CURRENCIES = ["INR", "USD", "EUR", "GBP"] as const;
+
+type PaywallResult =
+    | {
+          ok: true;
+          paywall: {
+              enabled: boolean;
+              stage: (typeof VALID_PAYWALL_STAGES)[number];
+              pricePerPhoto: number;
+              priceFullAlbum: number;
+              freePhotoLimit: number;
+              currency: (typeof VALID_PAYWALL_CURRENCIES)[number];
+              customMessage: string;
+          };
+      }
+    | { ok: false; error: string };
+
+const sanitizePaywall = (input: unknown): PaywallResult => {
+    let raw = input;
+    if (typeof raw === "string") {
+        try {
+            raw = JSON.parse(raw);
+        } catch {
+            return { ok: false, error: "paywall must be a valid JSON object." };
+        }
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return { ok: false, error: "paywall must be an object." };
+    }
+    const r = raw as Record<string, unknown>;
+    const enabled = parseFlag(r.enabled);
+    if (r.enabled !== undefined && enabled === undefined) {
+        return { ok: false, error: "paywall.enabled must be a boolean." };
+    }
+
+    const stage = r.stage !== undefined ? String(r.stage) : "download";
+    const isStage = (v: string): v is (typeof VALID_PAYWALL_STAGES)[number] =>
+        (VALID_PAYWALL_STAGES as readonly string[]).includes(v);
+    if (!isStage(stage)) {
+        return { ok: false, error: "paywall.stage must be download, batch_download, watermark_removal, or entry." };
+    }
+
+    const pricePerPhoto = r.pricePerPhoto !== undefined ? Number(r.pricePerPhoto) : 49;
+    if (isNaN(pricePerPhoto) || pricePerPhoto < 0 || pricePerPhoto > 100000) {
+        return { ok: false, error: "paywall.pricePerPhoto must be a number between 0 and 100000." };
+    }
+
+    const priceFullAlbum = r.priceFullAlbum !== undefined ? Number(r.priceFullAlbum) : 199;
+    if (isNaN(priceFullAlbum) || priceFullAlbum < 0 || priceFullAlbum > 100000) {
+        return { ok: false, error: "paywall.priceFullAlbum must be a number between 0 and 100000." };
+    }
+
+    const freePhotoLimit = r.freePhotoLimit !== undefined ? Number(r.freePhotoLimit) : 2;
+    if (!Number.isInteger(freePhotoLimit) || freePhotoLimit < 0 || freePhotoLimit > 100) {
+        return { ok: false, error: "paywall.freePhotoLimit must be an integer between 0 and 100." };
+    }
+
+    const currency = r.currency !== undefined ? String(r.currency).toUpperCase() : "INR";
+    const isCurrency = (v: string): v is (typeof VALID_PAYWALL_CURRENCIES)[number] =>
+        (VALID_PAYWALL_CURRENCIES as readonly string[]).includes(v);
+    if (!isCurrency(currency)) {
+        return { ok: false, error: "paywall.currency must be INR, USD, EUR, or GBP." };
+    }
+
+    const customMessage =
+        r.customMessage !== undefined && typeof r.customMessage === "string"
+            ? r.customMessage.trim().slice(0, 200)
+            : "Support our photography studio & unlock full-resolution originals.";
+
+    return {
+        ok: true,
+        paywall: {
+            enabled: enabled ?? false,
+            stage,
+            pricePerPhoto,
+            priceFullAlbum,
+            freePhotoLimit,
+            currency,
+            customMessage,
+        },
+    };
+};
+
 router.put("/events/:id", async (req: Request, res: Response) => {
     const { id } = req.params; // Extract event ID from URL params
     if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
@@ -199,6 +283,8 @@ router.put("/events/:id", async (req: Request, res: Response) => {
             body && typeof body === "object" && "selectionLocked" in body ? body.selectionLocked : undefined;
         const rawLead: unknown =
             body && typeof body === "object" && "requireLead" in body ? body.requireLead : undefined;
+        const rawPaywall: unknown =
+            body && typeof body === "object" && "paywall" in body ? body.paywall : undefined;
         const set: Record<string, unknown> = {};
         if (rawName !== undefined) {
             if (typeof rawName !== "string" || rawName.trim().length === 0 || rawName.trim().length > 120) {
@@ -234,8 +320,19 @@ router.put("/events/:id", async (req: Request, res: Response) => {
             if (leadFlag === undefined) return res.status(400).json({ message: "requireLead must be true or false." });
             set.requireLead = leadFlag;
         }
+        if (rawPaywall !== undefined) {
+            const parsed = sanitizePaywall(rawPaywall);
+            if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+            set["paywall.enabled"] = parsed.paywall.enabled;
+            set["paywall.stage"] = parsed.paywall.stage;
+            set["paywall.pricePerPhoto"] = parsed.paywall.pricePerPhoto;
+            set["paywall.priceFullAlbum"] = parsed.paywall.priceFullAlbum;
+            set["paywall.freePhotoLimit"] = parsed.paywall.freePhotoLimit;
+            set["paywall.currency"] = parsed.paywall.currency;
+            set["paywall.customMessage"] = parsed.paywall.customMessage;
+        }
         if (Object.keys(set).length === 0) {
-            return res.status(400).json({ message: "Not Provide event_name or pin to update." });
+            return res.status(400).json({ message: "No fields provided to update." });
         }
 
         // Update the event
@@ -260,6 +357,83 @@ router.put("/events/:id", async (req: Request, res: Response) => {
     } catch {
         logger.error("Error updating event");
         res.status(500).json({ message: "Internal server error." });
+    }
+});
+
+//---------------------------------------------------------------------------------------------------
+// P0: mock paywall checkout & unlock transaction
+router.post("/events/:id/paywall/unlock", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid event ID." });
+    }
+    try {
+        const body: unknown = req.body || {};
+        const rawTier: unknown = body && typeof body === "object" && "tier" in body ? body.tier : "single";
+        const tier = rawTier === "album" ? "album" : "single";
+        const photoName =
+            body && typeof body === "object" && "photoName" in body && typeof body.photoName === "string"
+                ? body.photoName
+                : undefined;
+        const guestPhone =
+            body && typeof body === "object" && "guestPhone" in body && typeof body.guestPhone === "string"
+                ? body.guestPhone.trim()
+                : undefined;
+        const guestName =
+            body && typeof body === "object" && "guestName" in body && typeof body.guestName === "string"
+                ? body.guestName.trim()
+                : undefined;
+
+        const event = await Event.findById(id).select("_id created_id paywall");
+        if (!event) {
+            return res.status(404).json({ message: "Event not found." });
+        }
+
+        const price =
+            tier === "single"
+                ? (event.paywall?.pricePerPhoto ?? 49)
+                : (event.paywall?.priceFullAlbum ?? 199);
+        const currency = event.paywall?.currency ?? "INR";
+
+        // Increment unlocked count and total revenue atomically
+        await Event.findByIdAndUpdate(id, {
+            $inc: {
+                "paywall.unlockedCount": 1,
+                "paywall.totalRevenue": price,
+            },
+        });
+
+        // Optionally record guest lead if phone was provided
+        if (guestPhone && guestPhone.length >= 5) {
+            try {
+                await Lead.findOneAndUpdate(
+                    { event_id: id, phone: guestPhone },
+                    {
+                        $set: {
+                            name: guestName || "Guest (Paid)",
+                            photographer_id: event.created_id,
+                        },
+                        $inc: { photos_found: 1 },
+                    },
+                    { upsert: true, new: true }
+                );
+            } catch (err) {
+                logger.error("Error upserting lead during paywall unlock:", err);
+            }
+        }
+
+        return res.status(200).json({
+            ok: true,
+            unlocked: true,
+            tier,
+            price,
+            currency,
+            photoName,
+            transactionId: "mock_tx_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+        });
+    } catch (error) {
+        logger.error("Error processing paywall unlock:", error);
+        return res.status(500).json({ message: "Internal server error." });
     }
 });
 //---------------------------------------------------------------------------------------------------
