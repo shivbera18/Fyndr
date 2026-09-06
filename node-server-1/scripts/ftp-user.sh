@@ -18,6 +18,7 @@ EVTDIR="/srv/fyndr-ftp/$USERNAME"
 case "$ACTION" in
   add)
     groupadd -f ftpcam
+    usermod -aG ftpcam opc 2>/dev/null || true
     if ! id "$USERNAME" >/dev/null 2>&1; then
       useradd -M -d "$EVTDIR" -s /usr/sbin/nologin -G ftpcam "$USERNAME"
     fi

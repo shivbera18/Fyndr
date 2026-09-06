@@ -43,7 +43,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     label: "Canon",
     steps: [
       "Menu → Network (yellow tab) → Connection settings → SET* → Communication settings → FTP.",
-      "Server: the Host below, port 21. Login with your Username + Password. Set encryption to FTPS and mode to PASV.",
+      "Server: the Host or IP below, port 21. Login with your Username + Password. Mode: PASV.",
       "Transfer settings → Auto transfer: ON. Transfer type: JPEG only (RAW is skipped).",
     ],
   },
@@ -52,7 +52,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     label: "Nikon",
     steps: [
       "Setup / Network menu → Connect to FTP server → New profile.",
-      "Address: the Host below. Login with your Username + Password, FTPS-explicit, PASV mode.",
+      "Address: the Host or IP below. Login with your Username + Password, PASV mode.",
       "Auto upload: ON. Send JPEGs only — RAW files are counted as skipped.",
     ],
   },
@@ -61,7 +61,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     label: "Sony",
     steps: [
       "Network → Transfer/Remote → FTP Transfer Func. → Server Setting → New.",
-      "Host: the Host below, with your Username + Password. Secure transfer (FTPS): ON.",
+      "Host: the Host or IP below, with your Username + Password. Mode: PASV.",
       "Auto FTP Transfer: ON. Shoot JPEG (or JPEG+RAW with JPEG transfer) — RAW-only is skipped.",
     ],
   },
@@ -69,7 +69,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     id: "laptop",
     label: "No camera? Test",
     steps: [
-      "FileZilla → Quickconnect with the Host, Username and Password below (port 21, require explicit FTP over TLS).",
+      "FileZilla → Quickconnect with the Host (or IP), Username and Password below (port 21).",
       "Or one command: curl -T photo.jpg ftp://USERNAME:PASSWORD@HOST/ (replace caps with your values).",
       "Drop up to 100 photos — they flow through the same pipeline as the dashboard uploader.",
     ],
@@ -291,6 +291,20 @@ const CameraUploadCard = ({ eventID, ownerId }: Props) => {
                     {copiedKey === "host" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 )}
+                {(() => {
+                  const m = status.host?.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+                  const ip = m ? m[1] : null;
+                  if (!ip || ip === status.host) return null;
+                  return (
+                    <>
+                      <span className="text-muted-foreground ml-2">or IP</span>
+                      <code className="rounded bg-muted px-2 py-1 font-mono">{ip}</code>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => void copy("ip", ip)}>
+                        {copiedKey === "ip" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </>
+                  );
+                })()}
               </div>
               {(status.logins || []).map((l) => {
                 const tone = liveTone(l.lastSeenAt);
