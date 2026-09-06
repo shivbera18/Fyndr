@@ -171,6 +171,7 @@ export function usePWAInstall() {
       if (choice.outcome === 'accepted') {
         setDeferredPrompt(null);
         globalDeferredPrompt = null;
+        promptListeners.forEach((listener) => listener(null));
         setIsInstalled(true);
         setShowGuideModal(false);
       } else {

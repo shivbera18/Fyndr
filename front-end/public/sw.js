@@ -46,7 +46,6 @@ self.addEventListener('install', (event) => {
           )
         );
       })
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -111,11 +110,11 @@ self.addEventListener('fetch', (event) => {
           const cachedRoute = await caches.match(request);
           if (cachedRoute) return cachedRoute;
 
-          const offlinePage = await caches.match('/offline.html');
-          if (offlinePage) return offlinePage;
-
           const cachedShell = await caches.match('/index.html');
           if (cachedShell) return cachedShell;
+
+          const offlinePage = await caches.match('/offline.html');
+          if (offlinePage) return offlinePage;
 
           return new Response('Network unavailable and no offline cache available.', {
             status: 503,
@@ -182,7 +181,8 @@ self.addEventListener('fetch', (event) => {
           })
           .catch(() => null);
 
-        return cachedResponse || (await fetchPromise);
+        const networkResponse = await fetchPromise;
+        return cachedResponse || networkResponse || Response.error();
       })()
     );
   }

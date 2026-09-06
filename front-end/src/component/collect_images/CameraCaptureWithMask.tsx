@@ -793,7 +793,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                     variant="button"
                     size="sm"
                     label="Install App"
-                    className="h-8 text-xs shrink-0 rounded-lg"
+                    className="min-h-[44px] text-xs shrink-0 rounded-lg px-3.5"
                   />
                 </div>
 
@@ -924,6 +924,15 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
+                        if (
+                          (paywallConfig?.enabled &&
+                            !isAlbumUnlocked(eventId) &&
+                            !isPhotoUnlocked(eventId, previewPhoto.name)) ||
+                          gateOn(eventId)
+                        ) {
+                          requestDownload(previewPhoto.url, previewPhoto.name);
+                          return;
+                        }
                         try {
                           await navigator.share({
                             title: `Photo from ${eventName || "Event"}`,
@@ -934,7 +943,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                           // User canceled or share unsupported
                         }
                       }}
-                      className="min-h-[40px] flex items-center gap-1.5"
+                      className="min-h-[44px] flex items-center gap-1.5"
                     >
                       <Share2 className="h-4 w-4 text-emerald-500" />
                       Save / Share

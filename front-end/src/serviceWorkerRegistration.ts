@@ -21,7 +21,7 @@ export function register(config?: Config): void {
       return;
     }
 
-    window.addEventListener('load', () => {
+    const registerSW = () => {
       const swUrl = `${process.env.PUBLIC_URL || ''}/sw.js`;
 
       if (isLocalhost) {
@@ -31,7 +31,13 @@ export function register(config?: Config): void {
         // Production: register directly
         registerValidSW(swUrl, config);
       }
-    });
+    };
+
+    if (document.readyState === 'complete') {
+      registerSW();
+    } else {
+      window.addEventListener('load', registerSW);
+    }
   }
 }
 

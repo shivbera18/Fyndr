@@ -84,7 +84,7 @@ export function PWAStudioCard() {
             <PWAInstallButton
               variant="button"
               label="Install Fyndr Studio"
-              className="min-h-[40px] text-xs px-4"
+              className="min-h-[44px] text-xs px-4"
             />
           )}
         </div>

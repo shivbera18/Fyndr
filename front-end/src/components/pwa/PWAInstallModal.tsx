@@ -192,7 +192,7 @@ export function PWAInstallModal({
             <Button
               variant="ghost"
               size="sm"
-              className="w-full min-h-[38px] text-xs text-muted-foreground hover:text-foreground"
+              className="w-full min-h-[44px] text-xs text-muted-foreground hover:text-foreground"
               onClick={() => onOpenChange(false)}
             >
               Maybe Later

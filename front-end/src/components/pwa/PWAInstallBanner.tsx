@@ -70,7 +70,7 @@ export function PWAInstallBanner() {
               <Button
                 variant="brand"
                 size="sm"
-                className="h-8 px-3 text-xs font-semibold rounded-lg"
+                className="min-h-[44px] px-3.5 text-xs font-semibold rounded-lg"
                 onClick={() => {
                   if (isIOS) {
                     setShowGuideModal(true);
@@ -85,7 +85,7 @@ export function PWAInstallBanner() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                className="min-h-[44px] px-3 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => setShowGuideModal(true)}
               >
                 Learn More
@@ -97,7 +97,7 @@ export function PWAInstallBanner() {
             type="button"
             aria-label="Dismiss banner"
             onClick={() => dismiss(7)}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <X className="size-4" />
           </button>
