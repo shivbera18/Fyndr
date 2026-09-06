@@ -30,33 +30,8 @@ type SessionUser = {
   email?: string;
 };
 
-function getNavItems(pathname: string): NavItem[] {
-  if (pathname === "/") {
-    return [
-      { name: "Overview", link: "/" },
-      { name: "Features", link: "/#features" },
-      { name: "How it works", link: "/#how-it-works" },
-      { name: "Pricing", link: "/#pricing" },
-      { name: "Dashboard", link: "/dashboard" },
-    ];
-  }
-
-  if (pathname.startsWith("/dashboard")) {
-    return [
-      { name: "My Events", link: "/dashboard" },
-      { name: "Home", link: "/" },
-      { name: "How it works", link: "/about" },
-    ];
-  }
-
-  if (pathname.startsWith("/select")) {
-    return [
-      { name: "Dashboard", link: "/dashboard" },
-      { name: "Home", link: "/" },
-      { name: "How it works", link: "/about" },
-    ];
-  }
-
+function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
+  // Guest / capture pages
   if (pathname.startsWith("/collect") || pathname.startsWith("/camera")) {
     return [
       { name: "Find Photos", link: pathname },
@@ -64,10 +39,22 @@ function getNavItems(pathname: string): NavItem[] {
     ];
   }
 
+  // Logged-in Photographer / Admin Navigation
+  if (user) {
+    return [
+      { name: "My Events", link: "/dashboard" },
+      { name: "Create Event", link: "/create-event" },
+      { name: "Studio Analytics", link: "/analytics" },
+      { name: "Settings", link: "/settings" },
+    ];
+  }
+
+  // Public / Visitor Navigation
   return [
     { name: "Overview", link: "/" },
-    { name: "How it works", link: "/about" },
-    { name: "Dashboard", link: "/dashboard" },
+    { name: "Features", link: "/#features" },
+    { name: "How it works", link: "/#how-it-works" },
+    { name: "Pricing", link: "/#pricing" },
   ];
 }
 
@@ -77,7 +64,7 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = getNavItems(location.pathname);
+  const navItems = getNavItems(location.pathname, user);
 
   useEffect(() => {
     try {
@@ -111,14 +98,9 @@ export default function Header(): React.JSX.Element {
         <div className="flex items-center gap-2.5">
           {user ? (
             <>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-full px-4 h-9 font-semibold text-xs"
-                onClick={() => navigate("/dashboard")}
-              >
-                Dashboard
-              </Button>
+              <span className="hidden sm:inline-block text-xs font-medium text-muted-foreground px-1">
+                {user.name || "Photographer"}
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
