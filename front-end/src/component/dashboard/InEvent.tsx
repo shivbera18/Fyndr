@@ -735,9 +735,9 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   onChange={(e) => setSelectionLimit(e.target.value)}
                   inputMode="numeric"
                   placeholder="e.g. 120"
-                  className="w-20 sm:w-24 min-h-[38px] rounded-md border border-input bg-background px-2.5 text-xs font-mono"
+                  className="w-20 sm:w-24 min-h-[44px] rounded-md border border-input bg-background px-2.5 text-xs font-mono"
                 />
-                <Button type="button" size="sm" onClick={() => void saveSelectionLimit()} disabled={proofBusy} className="min-h-[38px] text-xs h-9 px-3">
+                <Button type="button" size="sm" onClick={() => void saveSelectionLimit()} disabled={proofBusy} className="min-h-[44px] text-xs h-11 px-3">
                   Save
                 </Button>
               </div>
@@ -757,14 +757,14 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   fallbackCopy(selectUrl, done);
                 }
               }}
-              className="min-h-[40px] text-xs"
+              className="min-h-[44px] text-xs"
             >
               <Copy className="h-3.5 w-3.5 mr-1" /> Copy link
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void toggleLock()} disabled={proofBusy} className="min-h-[40px] text-xs">
+            <Button type="button" variant="outline" size="sm" onClick={() => void toggleLock()} disabled={proofBusy} className="min-h-[44px] text-xs">
               {selectionLocked ? "Unlock picks" : "Lock picks"}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyLightroom()} disabled={proofBusy} className="min-h-[40px] text-xs">
+            <Button type="button" variant="outline" size="sm" onClick={() => void copyLightroom()} disabled={proofBusy} className="min-h-[44px] text-xs">
               <Download className="h-3.5 w-3.5 mr-1" /> Copy for Lightroom
             </Button>
           </div>
