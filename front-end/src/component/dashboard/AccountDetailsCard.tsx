@@ -21,8 +21,14 @@ export default function AccountDetailsCard(): React.JSX.Element {
   useEffect(() => {
     if (!userId) return;
 
-    setName(parsedUser.name || "");
-    setEmail(parsedUser.email || "");
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u.name) setName(u.name);
+        if (u.email) setEmail(u.email);
+      }
+    } catch {}
 
     const fetchUser = async () => {
       try {
