@@ -9,7 +9,6 @@ import {
   Sliders,
   ShieldCheck,
 } from "lucide-react";
-import AccountDetailsModal from "./AccountDetailsModal";
 
 export interface SessionUser {
   _id?: string;
@@ -29,7 +28,6 @@ export default function AccountMenu({
   onUserUpdated,
 }: AccountMenuProps): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -112,11 +110,12 @@ export default function AccountMenu({
             {/* Menu Items */}
             <div className="py-1.5 space-y-0.5">
               {/* Account Details Action */}
+              {/* My Account Action */}
               <button
                 type="button"
                 onClick={() => {
                   setIsOpen(false);
-                  setModalOpen(true);
+                  navigate("/account");
                 }}
                 className="w-full flex items-center gap-2.5 px-3 min-h-[44px] rounded-xl text-xs font-medium text-foreground hover:bg-muted transition-colors text-left"
               >
@@ -124,8 +123,8 @@ export default function AccountMenu({
                   <User className="size-3.5" />
                 </div>
                 <div>
-                  <div className="font-medium text-foreground">Account Details</div>
-                  <div className="text-[10px] text-muted-foreground">Edit profile name, email & password</div>
+                  <div className="font-medium text-foreground">My Account</div>
+                  <div className="text-[10px] text-muted-foreground">Manage profile, security & credentials</div>
                 </div>
               </button>
 
@@ -222,12 +221,6 @@ export default function AccountMenu({
         )}
       </div>
 
-      {/* Account Details Modal */}
-      <AccountDetailsModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        onUserUpdated={onUserUpdated}
-      />
     </>
   );
 }

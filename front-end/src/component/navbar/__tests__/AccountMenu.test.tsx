@@ -29,7 +29,7 @@ describe("AccountMenu Component", () => {
     expect(screen.queryByText("shiv@example.com")).not.toBeInTheDocument();
   });
 
-  it("opens the account dropdown with quick navigation and Account Details option on click", () => {
+  it("opens the account dropdown with quick navigation and My Account option on click", () => {
     render(
       <BrowserRouter>
         <AccountMenu user={mockUser} onLogout={mockLogout} />
@@ -44,14 +44,13 @@ describe("AccountMenu Component", () => {
     expect(screen.getByText("shiv@example.com")).toBeInTheDocument();
 
     // Menu options
-    expect(screen.getByText("Account Details")).toBeInTheDocument();
+    expect(screen.getByText("My Account")).toBeInTheDocument();
     expect(screen.getByText("Studio Settings & Branding")).toBeInTheDocument();
     expect(screen.getByText("Studio Analytics")).toBeInTheDocument();
     expect(screen.getByText("Create Event")).toBeInTheDocument();
     expect(screen.getByText("My Events")).toBeInTheDocument();
     expect(screen.getByText("Sign out")).toBeInTheDocument();
   });
-
   it("triggers onLogout when Sign out is clicked", () => {
     render(
       <BrowserRouter>

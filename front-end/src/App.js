@@ -16,7 +16,7 @@ import CreateEventPage from './component/dashboard/CreateEventPage';
 import AnalyticsPage from './component/dashboard/AnalyticsPage';
 import SettingsPage from './component/dashboard/SettingsPage';
 import BottomNav from './component/navbar/BottomNav';
-
+import AccountPage from './component/dashboard/AccountPage';
 function App() {
 
 
@@ -44,6 +44,7 @@ function App() {
           <Route path='/create-event' element={<CreateEventPage />} />
           <Route path='/analytics' element={<AnalyticsPage />} />
           <Route path='/settings' element={<SettingsPage />} />
+          <Route path='/account' element={<AccountPage />} />
           <Route path='/collect/:eventId' element={<CollectEvent />} />
           <Route path='/select/:eventId' element={<SelectEvent />} />
           <Route path='/login' element={<LoginRegister />} />
