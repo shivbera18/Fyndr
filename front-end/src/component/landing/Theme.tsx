@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { cn } from "../../lib/utils";
 
 export type Theme = "light" | "dark";
 
@@ -26,8 +27,11 @@ function initialTheme(): Theme {
   }
   return "light";
 }
-
 type ThemeCtx = { theme: Theme; toggle: () => void };
+
+type DocumentWithViewTransition = Document & {
+  startViewTransition?: (updateCallback: () => void) => void;
+};
 
 const Ctx = createContext<ThemeCtx>({ theme: "light", toggle: () => {} });
 
@@ -52,7 +56,21 @@ export function ThemeProvider({
   }, [theme]);
 
   const toggle = useCallback(() => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.add("theme-transition");
+      window.setTimeout(() => {
+        document.documentElement.classList.remove("theme-transition");
+      }, 450);
+    }
+
+    const doc = (typeof document !== "undefined" ? document : null) as DocumentWithViewTransition | null;
+    if (doc && typeof doc.startViewTransition === "function") {
+      doc.startViewTransition(() => {
+        setTheme((prev) => (prev === "light" ? "dark" : "light"));
+      });
+    } else {
+      setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    }
   }, []);
 
   return <Ctx.Provider value={{ theme, toggle }}>{children}</Ctx.Provider>;
@@ -67,13 +85,34 @@ export function ThemeToggle(): React.JSX.Element {
   return (
     <button
       type="button"
-      className="inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      className="relative inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-all duration-300 shadow-sm overflow-hidden"
       onClick={toggle}
       aria-pressed={theme === "dark"}
       aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
     >
-      <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
+      <span
+        className={cn(
+          "inline-flex items-center justify-center transition-all duration-500 ease-out transform select-none text-base",
+          theme === "dark"
+            ? "rotate-0 scale-100 opacity-100 text-amber-400"
+            : "-rotate-90 scale-0 opacity-0 absolute"
+        )}
+        aria-hidden="true"
+      >
+        ☀
+      </span>
+      <span
+        className={cn(
+          "inline-flex items-center justify-center transition-all duration-500 ease-out transform select-none text-base",
+          theme === "dark"
+            ? "rotate-90 scale-0 opacity-0 absolute"
+            : "rotate-0 scale-100 opacity-100 text-sky-500"
+        )}
+        aria-hidden="true"
+      >
+        ☾
+      </span>
     </button>
   );
 }
