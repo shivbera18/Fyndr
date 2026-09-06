@@ -16,6 +16,7 @@ const analyticsEventSchema = new Schema(
         "photo_view",
         "photo_download",
         "retake_selfie",
+        "whatsapp_send_matched",
       ],
       required: true,
       index: true,
