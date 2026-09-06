@@ -535,13 +535,15 @@ function Faq() {
 
 export default function Home(): React.JSX.Element {
   const navigate = useNavigate();
-
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-emerald-500/20 selection:text-emerald-500">
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-emerald-500/20 selection:text-emerald-500 relative">
+      {/* Straight vertical boundary lines extending all the way to the top of the viewport */}
+      <div className="pointer-events-none fixed inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200 dark:border-neutral-800 z-30" />
+
       <Header />
 
-      {/* Main Container framed with Continuous Vertical Boundaries */}
-      <main className="flex-1 w-full max-w-[1240px] mx-auto border-x border-neutral-200 dark:border-neutral-800 bg-background/50 pb-20 sm:pb-0">
+      {/* Main Container framed with Section Boundaries */}
+      <main className="flex-1 w-full max-w-[1240px] mx-auto bg-background/50 pb-20 sm:pb-0">
         {/* ============================================================ */}
         {/* 1. HERO SECTION WITH ACETERNITY AMBIENT LIGHT & BEAMS        */}
         {/* ============================================================ */}
