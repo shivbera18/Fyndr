@@ -275,7 +275,7 @@ const SelectEvent = (): React.JSX.Element => {
               </Card>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {visible.map((photo) => {
+                {visible.map((photo, index) => {
                   const photoUrl = `${API_URL}/uploads/${encodeURIComponent(photo.name)}`;
                   return (
                     <div
@@ -286,7 +286,7 @@ const SelectEvent = (): React.JSX.Element => {
                       )}
                     >
                       <div className="aspect-square">
-                        <img src={photoUrl} alt={photo.name || "Gallery item"} loading="lazy" className="h-full w-full object-cover" />
+                        <img src={photoUrl} alt={`Album candidate ${index + 1}`} loading="lazy" className="h-full w-full object-cover" />
                       </div>
                       <button
                         type="button"
