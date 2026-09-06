@@ -1,12 +1,16 @@
-import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
 import PhotographerDetail from "./Photographer_detail";
-import { Sliders } from "lucide-react";
-
+import AccountDetailsCard from "./AccountDetailsCard";
+import { Sliders, User } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 export default function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "account" ? "account" : "studio";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
     const userString = localStorage.getItem("user");
@@ -14,6 +18,11 @@ export default function SettingsPage(): React.JSX.Element {
       navigate("/login");
     }
   }, [navigate]);
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    setSearchParams({ tab: val });
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -34,7 +43,34 @@ export default function SettingsPage(): React.JSX.Element {
           </p>
         </div>
 
-        <PhotographerDetail />
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
+          <div className="flex justify-center sm:justify-start">
+            <TabsList className="grid grid-cols-2 w-full max-w-md h-11 p-1 bg-muted/60 rounded-xl">
+              <TabsTrigger
+                value="studio"
+                className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground shadow-xs"
+              >
+                <Sliders className="size-3.5" />
+                Studio &amp; Branding
+              </TabsTrigger>
+              <TabsTrigger
+                value="account"
+                className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground shadow-xs"
+              >
+                <User className="size-3.5" />
+                Account Details
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="studio" className="focus-visible:outline-none">
+            <PhotographerDetail />
+          </TabsContent>
+
+          <TabsContent value="account" className="focus-visible:outline-none">
+            <AccountDetailsCard />
+          </TabsContent>
+        </Tabs>
       </main>
 
       <Footer />
