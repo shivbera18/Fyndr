@@ -12,6 +12,9 @@ import CameraCaptureWithMask from './component/collect_images/CameraCaptureWithM
 import EmailVerified from './component/login/EmailVerify';
 import ConfirmVerify from './component/login/ConfirmVerify';
 import ForgetPass from './component/login/ForgetPass';
+import CreateEventPage from './component/dashboard/CreateEventPage';
+import AnalyticsPage from './component/dashboard/AnalyticsPage';
+import SettingsPage from './component/dashboard/SettingsPage';
 
 function App() {
 
@@ -35,6 +38,10 @@ function App() {
           <Route path="/emailverified" element={<EmailVerified />} />
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
           <Route path='/dashboard' element={<Dashboard />} />
+          <Route path='/events' element={<Dashboard />} />
+          <Route path='/create-event' element={<CreateEventPage />} />
+          <Route path='/analytics' element={<AnalyticsPage />} />
+          <Route path='/settings' element={<SettingsPage />} />
           <Route path='/collect/:eventId' element={<CollectEvent />} />
           <Route path='/select/:eventId' element={<SelectEvent />} />
           <Route path='/login' element={<LoginRegister />} />
