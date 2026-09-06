@@ -12,7 +12,11 @@ import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
 import { API_URL, ML_URL } from "../../utils/api";
-import { trackEvent } from "../../utils/analytics";
+import { trackEvent, getGuestSession } from "../../utils/analytics";
+import {
+  buildMatchedPhotosWhatsAppText,
+  buildWhatsAppSendUrl,
+} from "../../utils/whatsapp";
 import {
   ArrowLeft,
   Camera,
@@ -24,6 +28,7 @@ import {
   RefreshCw,
   ZoomIn,
   Share2,
+  MessageCircle,
   ZoomOut,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -56,6 +61,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [paywallConfig, setPaywallConfig] = useState<PaywallConfig | null>(null);
   const [showPaywallModal, setShowPaywallModal] = useState<boolean>(false);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
+  const [whatsappOpened, setWhatsappOpened] = useState<boolean>(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -330,7 +336,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         // Fallback to WhatsApp / clipboard below
       }
     }
-    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(`${shareText} ${url}`)}`;
+    const waUrl = buildWhatsAppSendUrl({ text: `${shareText} ${url}` });
     window.open(waUrl, "_blank", "noopener,noreferrer");
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => {
@@ -338,6 +344,25 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         setTimeout(() => setShareCopied(false), 2500);
       });
     }
+  };
+
+  const handleSendToWhatsApp = (): void => {
+    if (!eventId || matchedPhotos.length === 0) return;
+    const galleryUrl = `${window.location.origin}/collect/${eventId}`;
+    const { guestPhone } = getGuestSession();
+    const text = buildMatchedPhotosWhatsAppText({
+      eventName,
+      matchCount: matchedPhotos.length,
+      galleryUrl,
+    });
+    const waUrl = buildWhatsAppSendUrl({ text, phone: guestPhone });
+    trackEvent(eventId, "whatsapp_send_matched", {
+      matchCount: matchedPhotos.length,
+      hasPhone: Boolean(guestPhone && guestPhone.trim()),
+    });
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+    setWhatsappOpened(true);
+    setTimeout(() => setWhatsappOpened(false), 2500);
   };
 
   const requestDownload = (url: string, filename: string): void => {
@@ -726,16 +751,28 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                   <h2 className="text-xl font-bold tracking-tight text-foreground">
                     Your matched photos ({matchedPhotos.length})
                   </h2>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void handleShareGallery()}
-                    className="min-h-[40px] flex items-center gap-1.5 text-xs font-semibold"
-                  >
-                    <Share2 className="w-4 h-4 text-emerald-500" />
-                    {shareCopied ? "Link Copied!" : "Share My Gallery"}
-                  </Button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      onClick={handleSendToWhatsApp}
+                      className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      {whatsappOpened ? "WhatsApp opened" : "Send to my WhatsApp"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleShareGallery()}
+                      className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold"
+                    >
+                      <Share2 className="w-4 h-4 text-emerald-500" />
+                      {shareCopied ? "Link Copied!" : "Share My Gallery"}
+                    </Button>
+                  </div>
                 </div>
 
                 {paywallConfig?.enabled && paywallConfig.stage === "entry" && !isAlbumUnlocked(eventId) ? (
