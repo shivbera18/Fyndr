@@ -160,7 +160,7 @@ export function ThemeToggle(): React.JSX.Element {
     >
       <SunIcon
         className={cn(
-          "h-4 w-4 text-amber-500 transition-all duration-300 transform",
+          "h-4 w-4 text-foreground transition-all duration-300 transform",
           theme === "dark"
             ? "rotate-0 scale-100 opacity-100"
             : "-rotate-90 scale-0 opacity-0 absolute"
@@ -168,10 +168,10 @@ export function ThemeToggle(): React.JSX.Element {
       />
       <MoonIcon
         className={cn(
-          "h-4 w-4 transition-all duration-300 transform",
+          "h-4 w-4 text-foreground transition-all duration-300 transform",
           theme === "dark"
-            ? "rotate-90 scale-0 opacity-0 absolute text-sky-400"
-            : "rotate-0 scale-100 opacity-100 text-foreground"
+            ? "rotate-90 scale-0 opacity-0 absolute"
+            : "rotate-0 scale-100 opacity-100"
         )}
       />
     </button>
