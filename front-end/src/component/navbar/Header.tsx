@@ -77,7 +77,6 @@ export default function Header(): React.JSX.Element {
         <NavItems items={NAV_ITEMS} />
 
         <div className="flex items-center gap-2.5">
-          <ThemeToggle />
           {user ? (
             <>
               <Button
@@ -116,6 +115,7 @@ export default function Header(): React.JSX.Element {
               </Button>
             </>
           )}
+          <ThemeToggle />
         </div>
       </NavBody>
 
@@ -131,11 +131,11 @@ export default function Header(): React.JSX.Element {
           </Link>
 
           <div className="flex items-center gap-2">
-            <ThemeToggle />
             <MobileNavToggle
               isOpen={mobileOpen}
               onClick={() => setMobileOpen((prev) => !prev)}
             />
+            <ThemeToggle />
           </div>
         </MobileNavHeader>
 
