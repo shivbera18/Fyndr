@@ -2,7 +2,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "../components/ui/badge";
 import { Separator } from "../components/ui/separator";
-import { Sparkles, ShieldCheck, Mail, ExternalLink } from "lucide-react";
+import { ShieldCheck, Mail, ExternalLink } from "lucide-react";
+import { LogoMark } from "./brand/LogoMark";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -22,12 +23,7 @@ export default function Footer(): React.JSX.Element {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 p-4 sm:p-6 rounded-2xl border border-border bg-card/60 backdrop-blur-sm shadow-xs">
           <div className="flex items-center gap-3">
             <Link to="/" className="inline-flex items-center gap-2.5 no-underline text-foreground">
-              <span
-                aria-hidden="true"
-                className="flex h-[34px] w-[34px] items-center justify-center rounded-xl bg-zinc-950 text-brand font-bold text-sm shadow-sm dark:border dark:border-zinc-800"
-              >
-                <Sparkles className="h-4 w-4 text-brand" />
-              </span>
+              <LogoMark className="h-[34px] w-[34px]" />
               <span className="font-display font-bold text-lg tracking-tight text-foreground">
                 FYNDR
               </span>

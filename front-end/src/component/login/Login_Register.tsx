@@ -5,7 +5,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { API_URL } from "../../utils/api";
-import { Sparkles } from "lucide-react";
+import { LogoMark } from "../brand/LogoMark";
 import { cn } from "../../lib/utils";
 
 type Mode = "login" | "register";
@@ -87,12 +87,7 @@ const Login_Register = (): React.JSX.Element => {
         {/* Logo */}
         <div className="text-center pb-2">
           <Link to="/" className="inline-flex items-center gap-2.5 no-underline text-foreground">
-            <span
-              aria-hidden="true"
-              className="flex h-[32px] w-[32px] items-center justify-center rounded-lg bg-zinc-900 text-brand font-bold text-sm"
-            >
-              <Sparkles className="h-4 w-4 text-brand" />
-            </span>
+            <LogoMark className="h-[32px] w-[32px]" />
             <span className="font-display font-bold text-xl tracking-tight">FYNDR</span>
           </Link>
         </div>
