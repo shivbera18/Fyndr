@@ -373,19 +373,19 @@ function DemoPanel({ step }: { step: DemoStep }) {
   }
 
   return (
-    <div className="space-y-3 p-4 bg-zinc-900 text-white rounded-xl border border-zinc-800">
+    <div className="space-y-3 p-4 bg-card text-foreground rounded-xl border border-border">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold tracking-wider text-brand uppercase">
           Your personal gallery
         </span>
         <Badge variant="brand" className="text-xs">14 matches</Badge>
       </div>
-      <p className="text-lg font-bold">Found 14 photos of you</p>
+      <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
       <div className="grid grid-cols-4 gap-2 pt-1">
         {[0, 1, 2, 3].map((n) => (
           <div
             key={n}
-            className="aspect-square rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] text-zinc-400 font-mono"
+            className="aspect-square rounded-lg bg-muted/60 border border-border flex items-center justify-center text-[10px] text-muted-foreground font-mono"
           >
             Photo {n + 1}
           </div>
@@ -805,7 +805,7 @@ export default function Home(): React.JSX.Element {
                 key={s.title}
                 className={cn(
                   "border-border transition-shadow hover:shadow-md",
-                  s.dark ? "bg-zinc-900 text-white" : ""
+                  s.dark ? "border-primary/50 bg-card shadow-md ring-1 ring-primary/20" : "bg-card/60"
                 )}
               >
                 <CardContent className="p-6 sm:p-8 space-y-4">
@@ -815,13 +815,13 @@ export default function Home(): React.JSX.Element {
                   <div>
                     <Badge variant={s.dark ? "brand" : "secondary"}>{s.badge}</Badge>
                   </div>
-                  <h3 className={cn("text-xl font-bold", s.dark ? "text-white" : "text-foreground")}>
+                  <h3 className="text-xl font-bold text-foreground">
                     {s.title}
                   </h3>
-                  <p className={cn("text-sm leading-relaxed", s.dark ? "text-zinc-300" : "text-muted-foreground")}>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
                     {s.body}
                   </p>
-                  <div className={cn("text-xs font-mono pt-2 border-t inline-flex items-center gap-1.5 w-full", s.dark ? "border-zinc-800 text-brand" : "border-border text-muted-foreground")}>
+                  <div className="text-xs font-mono pt-2 border-t border-border inline-flex items-center gap-1.5 w-full text-muted-foreground">
                     <Check className="h-3.5 w-3.5 text-brand shrink-0" /> {s.note}
                   </div>
                 </CardContent>
@@ -1066,40 +1066,40 @@ export default function Home(): React.JSX.Element {
 
         {/* FINAL CTA CARD */}
         <section className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl bg-zinc-950 text-white p-6 sm:p-12 border border-zinc-800 shadow-2xl">
+          <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-accent/20 p-6 sm:p-12 shadow-xl">
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
               <div className="space-y-4">
                 <Badge variant="brand">Get started today</Badge>
-                <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
+                <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-foreground leading-tight font-display">
                   Ready to modernize your photo delivery?
                 </h2>
-                <p className="text-zinc-400 text-sm sm:text-base max-w-lg leading-relaxed">
+                <p className="text-muted-foreground text-sm sm:text-base max-w-lg leading-relaxed">
                   Set up your first event in under 2 minutes. Free to start — no credit card required.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Button
-                    variant="brand"
                     size="lg"
                     onClick={() => navigate("/login")}
-                    className="min-h-[48px] text-base font-semibold px-6"
+                    className="min-h-[48px] text-base font-semibold px-6 shadow-sm flex items-center justify-center gap-2"
                   >
                     Create photographer account
+                    <ArrowRight className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
                     size="lg"
                     onClick={() => navigate("/about")}
-                    className="min-h-[48px] text-base text-white border-zinc-700 hover:bg-zinc-800 hover:text-white"
+                    className="min-h-[48px] text-base font-semibold"
                   >
                     About Fyndr
                   </Button>
                 </div>
               </div>
 
-              <Card className="bg-zinc-900 border-zinc-800 text-white">
-                <CardContent className="p-6 space-y-3">
-                  <span className="font-semibold text-sm text-zinc-300 block">Everything included:</span>
-                  <ul className="space-y-2 text-xs sm:text-sm text-zinc-300">
+              <Card className="border border-border/80 bg-background/80 backdrop-blur-sm shadow-sm">
+                <CardContent className="p-6 space-y-4">
+                  <span className="font-bold text-sm text-foreground block">Everything included:</span>
+                  <ul className="space-y-2.5 text-xs sm:text-sm text-muted-foreground">
                     {[
                       "Instant event QR codes & PIN",
                       "Fast AI face recognition",
@@ -1108,7 +1108,7 @@ export default function Home(): React.JSX.Element {
                       "Complete privacy guarantee",
                       "Custom studio branding",
                     ].map((li) => (
-                      <li key={li} className="flex items-center gap-2">
+                      <li key={li} className="flex items-center gap-2.5 text-foreground/90 font-medium">
                         <Check className="h-4 w-4 text-brand shrink-0" />
                         <span>{li}</span>
                       </li>

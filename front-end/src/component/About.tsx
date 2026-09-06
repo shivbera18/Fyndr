@@ -47,11 +47,11 @@ const About = (): React.JSX.Element => {
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-zinc-900 text-white">
+          <Card className="border-border/80 bg-card text-foreground shadow-sm ring-1 ring-primary/20">
             <CardContent className="p-6 sm:p-8 space-y-3">
               <Badge variant="brand">The solution</Badge>
-              <h3 className="text-xl font-bold text-white">Scan QR → Instant Personal Gallery</h3>
-              <p className="text-sm text-zinc-300 leading-relaxed">
+              <h3 className="text-xl font-bold text-foreground">Scan QR → Instant Personal Gallery</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 Guests scan a QR code at the table, take a quick selfie, and get every photo
                 they appear in within two seconds. High-resolution downloads, complete privacy,
                 zero apps.
