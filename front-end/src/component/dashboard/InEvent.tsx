@@ -9,6 +9,7 @@ import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
+import CameraUploadCard from "./CameraUploadCard";
 import {
   ArrowLeft,
   BarChart3,
@@ -840,6 +841,9 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           </div>
         </CardContent>
       </Card>
+
+      {/* Camera-to-cloud setup guide + LIVE status */}
+      <CameraUploadCard eventID={eventID} ownerId={ownerId} />
 
       {/* Monetization & Paywall Configuration Card */}
       <Card id="fy-paywall-card">
