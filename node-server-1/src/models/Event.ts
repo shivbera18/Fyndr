@@ -46,6 +46,8 @@ const eventSchema = new mongoose.Schema(
       enabled: { type: Boolean, default: false },
       // Non-JPEG drops (RAW/HEIC/video) — counted visibly, never silently dropped.
       skipped: { type: Number, default: 0 },
+      // Drops that passed screening but failed ingest (unreadable, ML down, save error).
+      failed: { type: Number, default: 0 },
       logins: {
         type: [
           {

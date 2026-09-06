@@ -1,6 +1,8 @@
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import Event from "../models/Event";
+import Photo from "../models/Photo";
 import { UPLOAD_DIR } from "../config";
 import { processUploadedFile } from "../photos/processUpload";
 import logger from "../utils/logger";
@@ -46,6 +48,32 @@ function heartbeat(eventId: string, username: string, bytes: number): void {
     { _id: eventId, "ftp.logins.username": username },
     { $set: { "ftp.logins.$.lastSeenAt": new Date() }, $inc: { "ftp.logins.$.bytesIn": b.bytes } }
   ).catch(() => {});
+// processUploadedFile returns unknown (Photo doc or plain status object).
+// Narrow with guards — never cast-and-read.
+function resultStatus(result: unknown): string | null {
+  if (typeof result !== "object" || result === null || !("status" in result)) return null;
+  const s: unknown = result.status;
+  return typeof s === "string" ? s : null;
+}
+
+function resultFailed(result: unknown): boolean {
+  if (typeof result !== "object" || result === null) return false;
+  return resultStatus(result) === "failed" || "error" in result;
+}
+
+}
+
+// processUploadedFile returns unknown (Photo doc or plain status object).
+// Narrow with guards — never cast-and-read.
+function resultStatus(result: unknown): string | null {
+  if (typeof result !== "object" || result === null || !("status" in result)) return null;
+  const s: unknown = result.status;
+  return typeof s === "string" ? s : null;
+}
+
+function resultFailed(result: unknown): boolean {
+  if (typeof result !== "object" || result === null) return false;
+  return resultStatus(result) === "failed" || "error" in result;
 }
 
 async function ingestFile(srcPath: string, username: string, filename: string, bytes: number): Promise<void> {
@@ -60,6 +88,27 @@ async function ingestFile(srcPath: string, username: string, filename: string, b
   if (!IMAGE_EXTS.has(ext)) {
     // v1 JPEG-only: RAW/HEIC/video counted visibly, never silently dropped.
     await Event.updateOne({ _id: eventId }, { $inc: { "ftp.skipped": 1 } }).catch(() => {});
+    await fs.promises.unlink(srcPath).catch(() => {});
+    return;
+  }
+
+  // Hash BEFORE moving: a re-sent card matches an existing Photo, so drop it
+  // here (no second ML call) and stay silent — the gallery already has it.
+  const hash = await new Promise<string>((resolve, reject) => {
+    const h = crypto.createHash("sha256");
+    const s = fs.createReadStream(srcPath);
+    s.on("error", reject);
+    s.on("data", (d) => h.update(d));
+    s.on("end", () => resolve(h.digest("hex")));
+  }).catch(() => "");
+  if (!hash) {
+    logger.error("[ftp] unreadable file", { filename });
+    await Event.updateOne({ _id: eventId }, { $inc: { "ftp.failed": 1 } }).catch(() => {});
+    await fs.promises.unlink(srcPath).catch(() => {});
+    return;
+  }
+  const dupe = await Photo.findOne({ event_id: eventId, hash }).select("_id").catch(() => null);
+  if (dupe) {
     await fs.promises.unlink(srcPath).catch(() => {});
     return;
   }
@@ -81,10 +130,21 @@ async function ingestFile(srcPath: string, username: string, filename: string, b
   }
 
   // Identical pipeline to POST /photo: same hashes, same dedupe, same FAISS flow.
-  await processUploadedFile(
-    { path: dest, filename: diskName, originalname: filename },
-    { event_id: eventId, folder_name: "General" }
-  ).catch((e: Error) => logger.error("[ftp] process failed", { filename, error: e.message }));
+  let result: unknown;
+  try {
+    result = await processUploadedFile(
+      { path: dest, filename: diskName, originalname: filename },
+      { event_id: eventId, folder_name: "General" }
+    );
+  } catch (e: unknown) {
+    result = { status: "failed", error: e instanceof Error ? e.message : String(e) };
+  }
+  if (resultFailed(result)) {
+    await Event.updateOne({ _id: eventId }, { $inc: { "ftp.failed": 1 } }).catch(() => {});
+    emitLive(eventId, "photo.failed", { photoName: diskName });
+    return;
+  }
+  if (resultStatus(result) === "duplicate") return; // lost a save race after our pre-check — nothing changed, stay silent
   emitLive(eventId, "photo.created", { photoName: diskName });
 }
 
