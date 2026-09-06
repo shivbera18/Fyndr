@@ -165,8 +165,8 @@ router.post("/events/:id/ftp/logins", async (req: Request, res: Response) => {
 });
 
 //---------------------------------------------------------------------------------------------------
-// POST /events/:id/ftp/logins/rotate — new password { created_id, username }
-router.post("/events/:id/ftp/logins/rotate", async (req: Request, res: Response) => {
+// POST /events/:id/ftp/logins/rotate (and /events/:id/ftp/rotate alias) — new password { created_id, username }
+router.post(["/events/:id/ftp/logins/rotate", "/events/:id/ftp/rotate"], async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (badId(res, id)) return;

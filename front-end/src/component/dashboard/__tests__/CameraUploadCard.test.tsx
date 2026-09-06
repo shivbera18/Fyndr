@@ -68,4 +68,19 @@ describe("CameraUploadCard", () => {
     expect(screen.getByText("LIVE")).toBeInTheDocument();
     expect(screen.getByText("8.0 MB in")).toBeInTheDocument();
   });
+
+  test("shows IP alongside domain when host is an sslip.io host", async () => {
+    mockFetch((url) => {
+      if (url.includes("/ftp/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ...statusEnabled, host: "129.151.47.214.sslip.io" }),
+        });
+      }
+      return Promise.reject(new Error("unexpected " + url));
+    });
+    render(<CameraUploadCard eventID="e1" ownerId="u1" />);
+    expect(await screen.findByText("129.151.47.214.sslip.io")).toBeInTheDocument();
+    expect(screen.getByText("129.151.47.214")).toBeInTheDocument();
+  });
 });
