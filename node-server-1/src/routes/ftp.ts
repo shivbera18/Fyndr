@@ -24,7 +24,7 @@ interface FtpLogin {
   allowPlain?: boolean;
 }
 
-type OwnedEvent = { _id: mongoose.Types.ObjectId; created_id?: string; ftp?: { enabled: boolean; logins: FtpLogin[] } };
+type OwnedEvent = { _id: mongoose.Types.ObjectId; created_id?: string; ftp?: { enabled: boolean; skipped?: number; failed?: number; logins: FtpLogin[] } };
 
 // Best-effort system-user provisioning. Resolves true when vsftpd knows the
 // login; false on local dev / Windows where the helper doesn't exist — the
@@ -88,6 +88,11 @@ router.post("/events/:id/ftp/enable", async (req: Request, res: Response) => {
     if ("error" in found) return res.status(found.status).json({ message: found.error });
     const { event } = found;
 
+    // Idempotency guard: credentials are shown once — a retry/double-click must
+    // never mint duplicate tags sharing one username (rotate uses positional $).
+    if ((event.ftp?.logins || []).length > 0) {
+      return res.status(409).json({ message: "Camera upload already enabled — use /logins to add shooters." });
+    }
     const rawShooters = body && typeof body === "object" && "shooters" in body ? body.shooters : undefined;
     const shooters = rawShooters === undefined ? 1 : Number(rawShooters);
     if (!Number.isInteger(shooters) || shooters < 1 || shooters > MAX_LOGINS) {
@@ -108,6 +113,12 @@ router.post("/events/:id/ftp/enable", async (req: Request, res: Response) => {
     }
     event.ftp.enabled = true;
     await Event.findByIdAndUpdate(event._id, { $set: { ftp: event.ftp } });
+    if (FTP_SCRIPT && !provisioned) {
+      // Server is configured but provisioning broke: roll back rather than hand out dead credentials.
+      // (Safe: enable 409s whenever logins already exist, so this only clears what we just added.)
+      await Event.findByIdAndUpdate(event._id, { $set: { "ftp.enabled": false, "ftp.logins": [] } });
+      return res.status(502).json({ message: "Camera server provisioning failed. Check FTP_USER_SCRIPT and sudo on the server." });
+    }
     return res.status(200).json({ ...connInfo(), provisioned, logins });
   } catch {
     logger.error("[ftp] enable error");
@@ -142,6 +153,10 @@ router.post("/events/:id/ftp/logins", async (req: Request, res: Response) => {
     event.ftp.enabled = true;
     await Event.findByIdAndUpdate(event._id, { $set: { ftp: event.ftp } });
     const provisioned = await provision("add", username, password);
+    if (FTP_SCRIPT && !provisioned) {
+      await Event.findOneAndUpdate({ _id: event._id }, { $pull: { "ftp.logins": { username } } });
+      return res.status(502).json({ message: "Camera server provisioning failed. Check FTP_USER_SCRIPT and sudo on the server." });
+    }
     return res.status(200).json({ ...connInfo(), provisioned, tag, username, password });
   } catch {
     logger.error("[ftp] add login error");
@@ -166,11 +181,20 @@ router.post("/events/:id/ftp/logins/rotate", async (req: Request, res: Response)
     if (!login) return res.status(404).json({ message: "Login not found for this event." });
 
     const password = generatePassword();
+    const oldHash = login.passwordHash;
     await Event.findOneAndUpdate(
       { _id: event._id, "ftp.logins.username": rawUser },
       { $set: { "ftp.logins.$.passwordHash": sha256hex(password) } }
     );
     const provisioned = await provision("passwd", rawUser, password);
+    if (FTP_SCRIPT && !provisioned) {
+      // Restore the previous hash: the camera's old password is still the live one.
+      await Event.findOneAndUpdate(
+        { _id: event._id, "ftp.logins.username": rawUser },
+        { $set: { "ftp.logins.$.passwordHash": oldHash } }
+      );
+      return res.status(502).json({ message: "Camera server provisioning failed. Check FTP_USER_SCRIPT and sudo on the server." });
+    }
     return res.status(200).json({ provisioned, username: rawUser, password });
   } catch {
     logger.error("[ftp] rotate error");
@@ -217,6 +241,8 @@ router.get("/events/:id/ftp/status", async (req: Request, res: Response) => {
     return res.status(200).json({
       ...connInfo(),
       enabled: event.ftp?.enabled ?? false,
+      skipped: event.ftp?.skipped ?? 0,
+      failed: event.ftp?.failed ?? 0,
       logins: (event.ftp?.logins || []).map((l) => ({
         tag: l.tag,
         username: l.username,
