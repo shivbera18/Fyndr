@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { motion } from "motion/react";
 import { Upload, ScanFace, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -8,6 +9,7 @@ interface BeamLinesProps {
 }
 
 export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
+  const id = useId().replace(/:/g, "-");
   return (
     <div
       className={cn(
@@ -79,7 +81,7 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
             <defs>
               {/* Step 1 Gradient (Upload -> Hub: 0s to 2.2s, 6s loop) */}
               <motion.linearGradient
-                id="beam-gradient-upload"
+                id={`beam-gradient-upload-${id}`}
                 gradientUnits="userSpaceOnUse"
                 initial={{ x1: "0%", x2: "25%", y1: "0%", y2: "0%" }}
                 animate={{
@@ -101,7 +103,7 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
 
               {/* Step 2 Gradient (Selfie -> Hub: 1.8s to 4.0s, 6s loop) */}
               <motion.linearGradient
-                id="beam-gradient-selfie"
+                id={`beam-gradient-selfie-${id}`}
                 gradientUnits="userSpaceOnUse"
                 initial={{ x1: "0%", x2: "25%", y1: "0%", y2: "0%" }}
                 animate={{
@@ -123,7 +125,7 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
 
               {/* Step 3 Gradient (Hub -> Album: 3.6s to 5.8s, 6s loop) */}
               <motion.linearGradient
-                id="beam-gradient-album"
+                id={`beam-gradient-album-${id}`}
                 gradientUnits="userSpaceOnUse"
                 initial={{ x1: "100%", x2: "75%", y1: "0%", y2: "0%" }}
                 animate={{
@@ -167,19 +169,19 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
             {/* Animated multi-step beam paths */}
             <path
               d="M 10 35 C 120 35, 180 100, 290 100"
-              stroke="url(#beam-gradient-upload)"
+              stroke={`url(#beam-gradient-upload-${id})`}
               strokeWidth="3.5"
               strokeLinecap="round"
             />
             <path
               d="M 10 100 L 290 100"
-              stroke="url(#beam-gradient-selfie)"
+              stroke={`url(#beam-gradient-selfie-${id})`}
               strokeWidth="3.5"
               strokeLinecap="round"
             />
             <path
               d="M 10 165 C 120 165, 180 100, 290 100"
-              stroke="url(#beam-gradient-album)"
+              stroke={`url(#beam-gradient-album-${id})`}
               strokeWidth="3.5"
               strokeLinecap="round"
             />
