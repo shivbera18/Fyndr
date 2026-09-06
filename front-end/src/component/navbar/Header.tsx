@@ -44,47 +44,20 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
     ];
   }
 
-  // 2. Dashboard / My Events (/dashboard, /events)
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/events")) {
+  // 2. Photographer pages — stable order, no Home (logo links home)
+  if (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/events") ||
+    pathname.startsWith("/create-event") ||
+    pathname.startsWith("/analytics") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/account")
+  ) {
     return [
       { name: "My Events", link: "/dashboard" },
       { name: "Create Event", link: "/create-event" },
       { name: "Studio Analytics", link: "/analytics" },
       { name: "Settings", link: "/settings" },
-      { name: "Home", link: "/" },
-    ];
-  }
-
-  // 3. Create Event page (/create-event)
-  if (pathname.startsWith("/create-event")) {
-    return [
-      { name: "My Events", link: "/dashboard" },
-      { name: "Create Event", link: "/create-event" },
-      { name: "Studio Analytics", link: "/analytics" },
-      { name: "Settings", link: "/settings" },
-      { name: "Home", link: "/" },
-    ];
-  }
-
-  // 4. Analytics page (/analytics)
-  if (pathname.startsWith("/analytics")) {
-    return [
-      { name: "Studio Analytics", link: "/analytics" },
-      { name: "My Events", link: "/dashboard" },
-      { name: "Create Event", link: "/create-event" },
-      { name: "Settings", link: "/settings" },
-      { name: "Home", link: "/" },
-    ];
-  }
-
-  // 5. Settings & Account pages (/settings, /account)
-  if (pathname.startsWith("/settings") || pathname.startsWith("/account")) {
-    return [
-      { name: "Settings", link: "/settings" },
-      { name: "My Events", link: "/dashboard" },
-      { name: "Create Event", link: "/create-event" },
-      { name: "Studio Analytics", link: "/analytics" },
-      { name: "Home", link: "/" },
     ];
   }
 
@@ -94,7 +67,6 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
       { name: "Dashboard", link: "/dashboard" },
       { name: "Event Gallery", link: pathname },
       { name: "How it works", link: "/about" },
-      { name: "Home", link: "/" },
     ];
   }
 
