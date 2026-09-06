@@ -27,10 +27,15 @@ function initialTheme(): Theme {
   }
   return "light";
 }
-type ThemeCtx = { theme: Theme; toggle: () => void };
+type ThemeCtx = { theme: Theme; toggle: (e?: React.MouseEvent) => void };
+
+type ViewTransitionObject = {
+  ready?: Promise<void>;
+  finished?: Promise<void>;
+};
 
 type DocumentWithViewTransition = Document & {
-  startViewTransition?: (updateCallback: () => void) => void;
+  startViewTransition?: (updateCallback: () => void) => ViewTransitionObject;
 };
 
 const Ctx = createContext<ThemeCtx>({ theme: "light", toggle: () => {} });
@@ -55,23 +60,58 @@ export function ThemeProvider({
     }
   }, [theme]);
 
-  const toggle = useCallback(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.classList.add("theme-transition");
-      window.setTimeout(() => {
-        document.documentElement.classList.remove("theme-transition");
-      }, 450);
-    }
+  const toggle = useCallback(
+    (e?: React.MouseEvent) => {
+      const doc = (typeof document !== "undefined" ? document : null) as DocumentWithViewTransition | null;
 
-    const doc = (typeof document !== "undefined" ? document : null) as DocumentWithViewTransition | null;
-    if (doc && typeof doc.startViewTransition === "function") {
-      doc.startViewTransition(() => {
+      const canAnimate =
+        doc &&
+        typeof doc.startViewTransition === "function" &&
+        typeof window !== "undefined" &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!canAnimate) {
+        setTheme((prev) => (prev === "light" ? "dark" : "light"));
+        return;
+      }
+
+      const x = e?.clientX ?? (typeof window !== "undefined" ? window.innerWidth / 2 : 0);
+      const y = e?.clientY ?? 0;
+      const endRadius = Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y)
+      );
+
+      const transition = doc.startViewTransition!(() => {
         setTheme((prev) => (prev === "light" ? "dark" : "light"));
       });
-    } else {
-      setTheme((prev) => (prev === "light" ? "dark" : "light"));
-    }
-  }, []);
+
+      if (transition && "ready" in transition && transition.ready) {
+        transition.ready
+          .then(() => {
+            const clipPath = [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${endRadius}px at ${x}px ${y}px)`,
+            ];
+            document.documentElement.animate(
+              {
+                clipPath: theme === "dark" ? [...clipPath].reverse() : clipPath,
+              },
+              {
+                duration: 400,
+                easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+                pseudoElement:
+                  theme === "dark"
+                    ? "::view-transition-old(root)"
+                    : "::view-transition-new(root)",
+              }
+            );
+          })
+          .catch(() => {});
+      }
+    },
+    [theme]
+  );
 
   return <Ctx.Provider value={{ theme, toggle }}>{children}</Ctx.Provider>;
 }
@@ -85,15 +125,15 @@ export function ThemeToggle(): React.JSX.Element {
   return (
     <button
       type="button"
-      className="relative inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-all duration-300 shadow-sm overflow-hidden"
-      onClick={toggle}
+      className="relative inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors shadow-sm overflow-hidden"
+      onClick={(e) => toggle(e)}
       aria-pressed={theme === "dark"}
       aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
     >
       <span
         className={cn(
-          "inline-flex items-center justify-center transition-all duration-500 ease-out transform select-none text-base",
+          "inline-flex items-center justify-center transition-all duration-300 ease-out transform select-none text-base",
           theme === "dark"
             ? "rotate-0 scale-100 opacity-100 text-amber-400"
             : "-rotate-90 scale-0 opacity-0 absolute"
@@ -104,7 +144,7 @@ export function ThemeToggle(): React.JSX.Element {
       </span>
       <span
         className={cn(
-          "inline-flex items-center justify-center transition-all duration-500 ease-out transform select-none text-base",
+          "inline-flex items-center justify-center transition-all duration-300 ease-out transform select-none text-base",
           theme === "dark"
             ? "rotate-90 scale-0 opacity-0 absolute"
             : "rotate-0 scale-100 opacity-100 text-sky-500"
@@ -115,4 +155,5 @@ export function ThemeToggle(): React.JSX.Element {
       </span>
     </button>
   );
+
 }
