@@ -100,8 +100,8 @@ router.post("/access-attempt", async (req: Request, res: Response) => {
     }
 
     const cleanPin = String(pin || "").trim();
-    const isMatch = String(event.pin || "").trim() === cleanPin;
-
+    const eventPin = String(event.pin || "").trim();
+    const isMatch = !eventPin || eventPin === cleanPin;
     const ua = (req.headers["user-agent"] as string) || "";
     const clientIp = getClientIp(req);
     const parsedUa = parseUserAgent(ua, deviceInfo?.type);

@@ -212,7 +212,8 @@ router.patch('/photos/:id/select', async (req: Request, res: Response) => {
         }
         const event = await Event.findById(event_id).select('_id pin selectionLocked selectionLimit');
         if (!event) return res.status(404).send({ error: 'event not found' });
-        if (typeof pin !== "string" || event.pin !== pin) {
+        const eventPin = String(event.pin || "").trim();
+        if (eventPin && (typeof pin !== "string" || eventPin !== pin)) {
             return res.status(404).send({ error: 'Pin is wrong! Contact the photographer to provide the correct (Pin)' });
         }
         if (event.selectionLocked) {

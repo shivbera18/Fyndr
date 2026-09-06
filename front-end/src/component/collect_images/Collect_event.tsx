@@ -15,6 +15,7 @@ type EventData = {
   event_name: string;
   event_photo?: string;
   requireLead?: boolean;
+  pin?: number | string;
 };
 
 type StudioData = {
@@ -79,8 +80,9 @@ const CollectEvent = (): React.JSX.Element => {
       setErrorMessage("Please enter your mobile or WhatsApp number.");
       return;
     }
-    if (!pin.trim()) {
-      setErrorMessage("Please enter the 6-digit access PIN.");
+    const isPinFree = Boolean(eventData && (eventData.pin === 0 || !eventData.pin));
+    if (!isPinFree && !pin.trim()) {
+      setErrorMessage("Please enter the access PIN.");
       return;
     }
 
@@ -191,28 +193,39 @@ const CollectEvent = (): React.JSX.Element => {
                     className="h-11 min-h-[44px]"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fy-pin" className="block text-center font-medium">
-                    6-digit event PIN <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="fy-pin"
-                    name="pin"
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    autoComplete="one-time-code"
-                    placeholder="••••••"
-                    value={pin}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPin(e.target.value)}
-                    required
-                    className="h-12 min-h-[48px] text-center tracking-[0.3em] font-mono text-xl font-bold"
-                  />
-                  <p className="text-xs text-muted-foreground text-center">
-                    Check your table card or ask the event host for the PIN.
-                  </p>
-                </div>
+                {Boolean(eventData && (eventData.pin === 0 || !eventData.pin)) ? (
+                  <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-center space-y-1">
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 block font-mono">
+                      Public Event · Zero PIN Needed
+                    </span>
+                    <p className="text-[11px] text-muted-foreground">
+                      Instant access granted by the photographer.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="fy-pin" className="block text-center font-medium">
+                      6-digit event PIN <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="fy-pin"
+                      name="pin"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={24}
+                      autoComplete="one-time-code"
+                      placeholder="••••••"
+                      value={pin}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPin(e.target.value)}
+                      required
+                      className="h-12 min-h-[48px] text-center tracking-[0.3em] font-mono text-xl font-bold"
+                    />
+                    <p className="text-xs text-muted-foreground text-center">
+                      Check your table card or ask the event host for the PIN.
+                    </p>
+                  </div>
+                )}
 
                 <Button
                   type="submit"
