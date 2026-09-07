@@ -43,7 +43,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     label: "Canon",
     steps: [
       "Menu → Network (yellow tab) → Connection settings → SET* → Communication settings → FTP.",
-      "Server: the Host or IP below, port 21. Login with your Username + Password. Mode: PASV.",
+      "Server: the Host or IP below, port 21. Login with your Username + Password. Encryption OFF, mode PASV.",
       "Transfer settings → Auto transfer: ON. Transfer type: JPEG only (RAW is skipped).",
     ],
   },
@@ -52,7 +52,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     label: "Nikon",
     steps: [
       "Setup / Network menu → Connect to FTP server → New profile.",
-      "Address: the Host or IP below. Login with your Username + Password, PASV mode.",
+      "Address: the Host or IP below, port 21. Login with your Username + Password. Encryption OFF, mode PASV.",
       "Auto upload: ON. Send JPEGs only — RAW files are counted as skipped.",
     ],
   },
@@ -61,7 +61,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     label: "Sony",
     steps: [
       "Network → Transfer/Remote → FTP Transfer Func. → Server Setting → New.",
-      "Host: the Host or IP below, with your Username + Password. Mode: PASV.",
+      "Host: the Host or IP below, port 21. Login with your Username + Password. Encryption OFF, mode PASV.",
       "Auto FTP Transfer: ON. Shoot JPEG (or JPEG+RAW with JPEG transfer) — RAW-only is skipped.",
     ],
   },
@@ -69,7 +69,7 @@ const BRAND_STEPS: { id: string; label: string; steps: string[] }[] = [
     id: "laptop",
     label: "No camera? Test",
     steps: [
-      "FileZilla → Quickconnect with the Host (or IP), Username and Password below (port 21).",
+      "FileZilla → Quickconnect with the Host (or IP), Username and Password below (port 21, plain FTP).",
       "Or one command: curl -T photo.jpg ftp://USERNAME:PASSWORD@HOST/ (replace caps with your values).",
       "Drop up to 100 photos — they flow through the same pipeline as the dashboard uploader.",
     ],
@@ -277,6 +277,16 @@ const CameraUploadCard = ({ eventID, ownerId }: Props) => {
                         </Button>
                       </div>
                     ))}
+                    <div className="flex flex-wrap gap-1.5 font-sans">
+                      <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={() => void copy("setup-" + c.username, `${status.host || ""}\n${c.username}\n${c.password}`)}>
+                        {copiedKey === "setup-" + c.username ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                        Copy all 3 fields
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={() => void copy("curl-" + c.username, `curl -T photo.jpg ftp://${c.username}:${c.password}@${status.host || ""}/`)}>
+                        {copiedKey === "curl-" + c.username ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                        Copy test command
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

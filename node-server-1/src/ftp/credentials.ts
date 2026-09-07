@@ -22,13 +22,13 @@ export function buildUsername(eventId: string, tag: string): string {
   return tag === "a" ? `evt_${short}` : `evt_${short}_${tag}`;
 }
 
-/** 24 camera-typeable chars (~143 bits). No symbols — camera keyboards are painful. */
+/** 12 camera-typeable chars (~71 bits), chunked XXXX-XXXX-XXXX. No symbols — camera keyboards are painful. */
 export function generatePassword(): string {
   let out = "";
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 12; i++) {
     out += PASS_ALPHABET[crypto.randomInt(PASS_ALPHABET.length)];
   }
-  return out;
+  return `${out.slice(0, 4)}-${out.slice(4, 8)}-${out.slice(8)}`;
 }
 
 /** SHA256 hex — same convention as token_hash. Plaintext is shown once, never stored. */
