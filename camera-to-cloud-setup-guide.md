@@ -29,15 +29,15 @@ Pick your brand tab in the dashboard card and follow it. The short version:
 
 **Canon** — Menu → Network (yellow tab) → Connection settings → SET\* →
 Communication settings → FTP. Server = Host, port 21, your Username/Password,
-encryption FTPS, mode PASV. Then Transfer settings → **Auto transfer: ON**,
+Encryption OFF, PASV ON, port 21. Then Transfer settings → **Auto transfer: ON**,
 transfer type **JPEG only**.
 
 **Nikon** — Setup/Network menu → Connect to FTP server → New profile. Address =
-Host, your Username/Password, FTPS-explicit, PASV. **Auto upload: ON**,
+Host, your Username/Password, Encryption OFF, PASV ON, port 21. **Auto upload: ON**,
 JPEG only.
 
 **Sony** — Network → Transfer/Remote → FTP Transfer Func. → Server Setting →
-New. Host + Username/Password, secure transfer (FTPS) ON.
+New. Host + Username/Password, Encryption OFF, PASV ON, port 21.
 **Auto FTP Transfer: ON**, JPEG (or JPEG+RAW with JPEG transfer).
 
 In all cases: **transfer JPEG only.** RAW files are skipped and counted on the
@@ -81,7 +81,7 @@ The card's fourth tab (**No camera? Test**) covers it:
 | Symptom | Almost always… | Fix |
 |---|---|---|
 | Dot stays grey, nothing arrives | Typo'd password, or venue Wi-Fi isolation | Re-copy credentials (or rotate); switch camera to phone hotspot |
-| "Connection refused / timed out" | Venue firewall or wrong host | Hotspot first; confirm Host is `ftp.fyndr.in` |
+| "Connection refused / timed out" | Venue firewall or wrong host | Hotspot first; confirm Host is the card Host (or its IP) |
 | Dot green but gallery empty | Shooting RAW-only | Camera → JPEG transfer (card shows skipped count) |
 | Worked, then stopped mid-event | Phone hotspot died / camera slept | Wake hotspot, half-press shutter to reconnect; check "last seen" time |
 | "Server setup pending" banner | Fyndr-side FTP host not configured yet | Not your fault — contact support before shoot day |

@@ -83,4 +83,23 @@ describe("CameraUploadCard", () => {
     expect(await screen.findByText("129.151.47.214.sslip.io")).toBeInTheDocument();
     expect(screen.getByText("129.151.47.214")).toBeInTheDocument();
   });
+  test("enable flow exposes one-tap copy buttons and plain-first copy", async () => {
+    let statusCalls = 0;
+    mockFetch((url) => {
+      if (url.includes("/ftp/enable")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...statusEnabled, logins: freshLogins }) });
+      }
+      if (url.includes("/ftp/status")) {
+        statusCalls += 1;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(statusCalls === 1 ? statusDisabled : statusEnabled) });
+      }
+      return Promise.reject(new Error("unexpected " + url));
+    });
+    render(<CameraUploadCard eventID="e1" ownerId="u1" />);
+    fireEvent.click(await screen.findByText("Enable camera upload"));
+    expect(await screen.findByText("Copy all 3 fields")).toBeInTheDocument();
+    expect(screen.getByText("Copy test command")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Sony" }));
+    expect(screen.getByText(/Encryption OFF/)).toBeInTheDocument();
+  });
 });
