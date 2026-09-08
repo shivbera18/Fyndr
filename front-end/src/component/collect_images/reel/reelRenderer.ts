@@ -4,9 +4,11 @@ import {
   REEL_W,
   ReelAnimation,
   ReelTransition,
+  TextStyle,
   alignHolds,
   clampTransitionDuration,
   coverDraw,
+  reelBitrate,
   reelTotalDuration,
   resolveTimeline,
   withFragment,
@@ -29,6 +31,12 @@ export interface ReelRenderOptions {
   musicUrl: string | null;
   holds?: number[];
   mix?: ReelMix | null;
+  width?: number;
+  height?: number;
+  filter?: string;
+  title?: { text: string; style: TextStyle } | null;
+  endCard?: string | null;
+  totalDuration?: number;
   onProgress?: (ratio: number) => void;
 }
 
@@ -131,7 +139,8 @@ function drawSlide(
   h: number,
   xOff = 0,
   alpha = 1,
-  extraScale = 1
+  extraScale = 1,
+  filter = "none"
 ): void {
   const natW = img.naturalWidth || w;
   const natH = img.naturalHeight || h;
@@ -142,7 +151,62 @@ function drawSlide(
   const dhS = dh * scale;
   ctx.save();
   ctx.globalAlpha = Math.min(1, Math.max(0, alpha));
+  // save()/restore() isolates the filter to slides — text post-pass stays clean.
+  if (filter !== "none" && "filter" in ctx) {
+    try {
+      ctx.filter = filter;
+    } catch {
+      // Older engines ignore unknown filters; render unfiltered.
+    }
+  }
   ctx.drawImage(img, (w - dwS) / 2 + tx + xOff, (h - dhS) / 2 + ty, dwS, dhS);
+  ctx.restore();
+}
+
+function drawTextCard(
+  ctx: CanvasRenderingContext2D,
+  lines: string[],
+  w: number,
+  h: number,
+  style: TextStyle
+): void {
+  if (lines.length === 0) return;
+  const size = Math.round(w * (style === "minimal" ? 0.04 : 0.07));
+  ctx.save();
+  ctx.font = `600 ${size}px Geist, Inter, system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const maxWidth = w * 0.84;
+  const wrapped: string[] = [];
+  for (const line of lines) {
+    const words = line.split(/\s+/).filter(Boolean);
+    let row = "";
+    for (const word of words) {
+      const trial = row === "" ? word : `${row} ${word}`;
+      if (ctx.measureText(trial).width > maxWidth && row !== "") {
+        wrapped.push(row);
+        row = word;
+      } else {
+        row = trial;
+      }
+    }
+    if (row !== "") wrapped.push(row);
+  }
+  if (wrapped.length === 0) {
+    ctx.restore();
+    return;
+  }
+  const lineH = size * 1.25;
+  const blockH = wrapped.length * lineH + size * 0.8;
+  const margin = h * 0.08;
+  const cy = style === "center" ? h / 2 : style === "minimal" ? margin + blockH / 2 : h - margin - blockH / 2;
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  const bw = Math.min(w * 0.92, maxWidth + size);
+  ctx.fillRect((w - bw) / 2, cy - blockH / 2, bw, blockH);
+  ctx.fillStyle = "#fff";
+  wrapped.forEach((row, i) => {
+    ctx.fillText(row, w / 2, cy - blockH / 2 + size * 0.4 + lineH / 2 + i * lineH);
+  });
   ctx.restore();
 }
 
@@ -163,6 +227,7 @@ function paintAt(
   const uniHold = Math.max(0.1, opts.photoDuration);
   const uniTrans =
     opts.transition === "none" ? 0 : clampTransitionDuration(opts.transitionDuration, opts.photoDuration);
+  const filter = opts.filter ?? "none";
   const useHolds = opts.holds && opts.holds.length === n ? opts.holds : null;
   const holdAt = (i: number): number => Math.max(0.1, useHolds ? useHolds[i] : uniHold);
   const transAt = (j: number): number => {
@@ -175,7 +240,8 @@ function paintAt(
     const hold = holdAt(k);
     if (k === n - 1 || timeSec < cursor + hold) {
       const t01 = hold > 0 ? (timeSec - cursor) / hold : 1;
-      drawSlide(ctx, images[k], Math.min(1, Math.max(0, t01)), opts.animation, w, h);
+      drawSlide(ctx, images[k], Math.min(1, Math.max(0, t01)), opts.animation, w, h, 0, 1, 1, filter);
+      paintTextOverlay(ctx, timeSec, opts, w, h);
       return;
     }
     cursor += hold;
@@ -186,25 +252,43 @@ function paintAt(
       const cur = images[k];
       switch (opts.transition) {
         case "fade":
-          drawSlide(ctx, cur, 1, opts.animation, w, h);
-          drawSlide(ctx, next, p, opts.animation, w, h, 0, p);
+          drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1, 1, filter);
+          drawSlide(ctx, next, p, opts.animation, w, h, 0, p, 1, filter);
           break;
         case "slide":
-          drawSlide(ctx, cur, 1, opts.animation, w, h, -p * w);
-          drawSlide(ctx, next, p, opts.animation, w, h, (1 - p) * w);
+          drawSlide(ctx, cur, 1, opts.animation, w, h, -p * w, 1, 1, filter);
+          drawSlide(ctx, next, p, opts.animation, w, h, (1 - p) * w, 1, 1, filter);
           break;
         case "zoom":
-          drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1 - p, 1 + 0.15 * p);
-          drawSlide(ctx, next, p, opts.animation, w, h, 0, p);
+          drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1 - p, 1 + 0.15 * p, filter);
+          drawSlide(ctx, next, p, opts.animation, w, h, 0, p, 1, filter);
           break;
         case "none":
         default:
-          drawSlide(ctx, next, 0, opts.animation, w, h);
+          drawSlide(ctx, next, 0, opts.animation, w, h, 0, 1, 1, filter);
           break;
       }
+      paintTextOverlay(ctx, timeSec, opts, w, h);
       return;
     }
     cursor += trans;
+  }
+}
+
+function paintTextOverlay(
+  ctx: CanvasRenderingContext2D,
+  timeSec: number,
+  opts: ReelRenderOptions,
+  w: number,
+  h: number
+): void {
+  const T = opts.totalDuration ?? Number.POSITIVE_INFINITY;
+  if (opts.title && opts.title.text !== "") {
+    const titleEnd = Math.min(1.5, Math.max(0, T - (opts.endCard ? 1.2 : 0)));
+    if (timeSec < titleEnd) drawTextCard(ctx, [opts.title.text], w, h, opts.title.style);
+  }
+  if (opts.endCard && opts.endCard !== "" && timeSec >= T - 1.2) {
+    drawTextCard(ctx, [opts.endCard], w, h, "center");
   }
 }
 
@@ -217,8 +301,10 @@ export function previewReel(
   images: HTMLImageElement[],
   opts: ReelRenderOptions
 ): ReelPreviewHandle {
-  canvas.width = REEL_W;
-  canvas.height = REEL_H;
+  const pw = opts.width ?? REEL_W;
+  const ph = opts.height ?? REEL_H;
+  canvas.width = pw;
+  canvas.height = ph;
   const ctx = canvas.getContext("2d");
   if (!ctx) return { stop: () => undefined };
   const holds = alignHolds(opts.holds, images.length);
@@ -228,14 +314,19 @@ export function previewReel(
       ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, holds).total
       : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
   );
-  const paintOpts: ReelRenderOptions = { ...opts, holds: holds ?? undefined, onProgress: undefined };
+  const paintOpts: ReelRenderOptions = {
+    ...opts,
+    holds: holds ?? undefined,
+    totalDuration: total,
+    onProgress: undefined,
+  };
   let raf = 0;
   let stopped = false;
   const t0 = performance.now();
   const frame = (now: number): void => {
     if (stopped) return;
     const elapsed = ((now - t0) / 1000) % total;
-    paintAt(ctx, images, elapsed, paintOpts, REEL_W, REEL_H);
+    paintAt(ctx, images, elapsed, paintOpts, pw, ph);
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
@@ -256,10 +347,19 @@ export async function renderReelToFile(
   if (!mimeType) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");
   if (images.length === 0) throw new Error("Select at least 2 photos to export.");
 
-  canvas.width = REEL_W;
-  canvas.height = REEL_H;
+  const ew = opts.width ?? REEL_W;
+  const eh = opts.height ?? REEL_H;
+  canvas.width = ew;
+  canvas.height = eh;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");
+  if (opts.title || opts.endCard) {
+    try {
+      await document.fonts?.ready;
+    } catch {
+      // System-font fallback renders regardless.
+    }
+  }
 
   const exportHolds = alignHolds(opts.holds, images.length);
   const total = Math.max(
@@ -321,7 +421,7 @@ export async function renderReelToFile(
     }
   }
 
-  const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 8_000_000 });
+  const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: reelBitrate(ew, eh) });
   const chunks: BlobPart[] = [];
   recorder.ondataavailable = (e: BlobEvent) => {
     if (e.data && e.data.size > 0) chunks.push(e.data);
@@ -337,7 +437,7 @@ export async function renderReelToFile(
     }
   };
 
-  const paintOpts: ReelRenderOptions = { ...opts, holds: exportHolds ?? undefined, onProgress: undefined };
+  const paintOpts: ReelRenderOptions = { ...opts, holds: exportHolds ?? undefined, totalDuration: total, onProgress: undefined };
   let raf = 0;
   const t0 = performance.now();
   try {
@@ -345,7 +445,7 @@ export async function renderReelToFile(
     await new Promise<void>((resolve) => {
       const frame = (now: number): void => {
         const elapsed = (now - t0) / 1000;
-        paintAt(ctx, images, Math.min(elapsed, total), paintOpts, REEL_W, REEL_H);
+        paintAt(ctx, images, Math.min(elapsed, total), paintOpts, ew, eh);
         opts.onProgress?.(Math.min(1, elapsed / total));
         if (elapsed >= total) {
           resolve();
@@ -389,4 +489,32 @@ export async function renderReelToFile(
   }
   opts.onProgress?.(1);
   return blob;
+}
+
+// Paused-frame capture for the <video> poster (cover picker). Poster-only: the
+// exported file is unchanged.
+export function renderCoverFrame(
+  canvas: HTMLCanvasElement,
+  images: HTMLImageElement[],
+  index: number,
+  opts: ReelRenderOptions
+): string | null {
+  const ctx = canvas.getContext("2d");
+  if (!ctx || images.length === 0) return null;
+  const k = Math.min(Math.max(0, index), images.length - 1);
+  const holds = alignHolds(opts.holds, images.length) ?? images.map(() => Math.max(0.1, opts.photoDuration));
+  const tl = resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, holds);
+  let t = 0;
+  for (let i = 0; i < k; i++) t += tl.holds[i] + (tl.joins[i] ?? 0);
+  t += tl.holds[k] / 2;
+  const w = opts.width ?? REEL_W;
+  const h = opts.height ?? REEL_H;
+  canvas.width = w;
+  canvas.height = h;
+  paintAt(ctx, images, Math.min(t, tl.total), { ...opts, totalDuration: tl.total }, w, h);
+  try {
+    return canvas.toDataURL("image/jpeg", 0.8);
+  } catch {
+    return null;
+  }
 }
