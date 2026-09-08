@@ -9,7 +9,7 @@ feature, each through the independent-review loop before merge. P3 dropped (see 
 | F2 | Music picker UI | `reel/musicPicker.tsx` (list, inline preview, upload; search/chips deferred) | #94 | #95 | done |
 | F3 | Trim + mix engine | `reel/waveform.tsx`, presets helpers, fragment-loop mix, audible preview (no engine module, no decode) | #96 | #97 | done |
 | F4 | Timeline control | inline tray (reorder arrows, duration pill), holds math, no-refetch cache (anims/cuts → F5) | #98 | #99 | done |
-| F5 | Competitive polish | F5a templates/filters/ratios/cover/drafts/text/4-step (#100/#101, done); F5b joins/anims | #100 | #101 (F5a) | F5a done |
+| F5 | Competitive polish | F5a templates/filters/ratios/cover/drafts/text/4-step; F5b joins/anims | #100 | #101 + #102 | done |
 
 Rules: client-side only, no new npm dep without metric, every PR gets an independent
 reviewer (`gh pr review --comment`, never self-approve), merge with regular merge commits.
