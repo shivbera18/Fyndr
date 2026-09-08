@@ -382,22 +382,22 @@ function InteractiveFaceMatcher() {
 /* Interactive Demo Card                                              */
 /* ------------------------------------------------------------------ */
 
-/* Sample wedding photos (Wikimedia Commons) for the demo gallery tiles */
+/* Sample wedding photos vendored under public/demo (Wikimedia Commons — see credit line in DemoPanel) */
 const DEMO_PHOTOS = [
   {
-    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Wedding_couple_in_sunset.jpg/330px-Wedding_couple_in_sunset.jpg",
+    src: "/demo/wedding-sunset.jpg",
     alt: "Sample wedding photo: couple at sunset (Wikimedia Commons)",
   },
   {
-    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/Wedding_dance_of_Azerbaijanian_couple.jpg/330px-Wedding_dance_of_Azerbaijanian_couple.jpg",
+    src: "/demo/wedding-dance.jpg",
     alt: "Sample wedding photo: couple's first dance (Wikimedia Commons)",
   },
   {
-    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Wedding_couple_%281293575%29.jpg/330px-Wedding_couple_%281293575%29.jpg",
+    src: "/demo/wedding-couple-1.jpg",
     alt: "Sample wedding photo: newlywed couple portrait (Wikimedia Commons)",
   },
   {
-    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Wedding_couple_%281294004%29.jpg/330px-Wedding_couple_%281294004%29.jpg",
+    src: "/demo/wedding-couple-2.jpg",
     alt: "Sample wedding photo: wedding couple outdoors (Wikimedia Commons)",
   },
 ];
