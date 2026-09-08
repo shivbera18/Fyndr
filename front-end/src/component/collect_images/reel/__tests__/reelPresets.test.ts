@@ -1,5 +1,6 @@
 import {
   REEL_TRACKS,
+  alignHolds,
   clampTransitionDuration,
   clampTrim,
   coverDraw,
@@ -91,5 +92,12 @@ describe("resolveTimeline", () => {
   it("zeroes joins for none transitions and empties", () => {
     expect(resolveTimeline(2.5, 0.5, "none", [2, 2]).total).toBe(4);
     expect(resolveTimeline(2.5, 0.5, "fade", [])).toEqual({ holds: [], total: 0 });
+  });
+
+  it("aligns holds to loaded images by prefix", () => {
+    expect(alignHolds([1, 2, 2.5], 3)).toEqual([1, 2, 2.5]);
+    expect(alignHolds([1, 2, 2.5], 2)).toEqual([1, 2]);
+    expect(alignHolds([1], 2)).toBeNull();
+    expect(alignHolds(undefined, 2)).toBeNull();
   });
 });

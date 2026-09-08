@@ -264,10 +264,10 @@ const ReelCreatorModal = ({
     const handle = previewReel(
       canvas,
       images,
-      { photoDuration: photoDur, transition, transitionDuration: clampedTrans, animation, musicUrl: null, holds: timeline.holds }
+      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds }
     );
     return () => handle.stop();
-  }, [step, playing, images, photoDur, transition, clampedTrans, animation, timeline.holds]);
+  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds]);
 
   // Audible preview: plain element semantics (no AudioContext — the export owns
   // the single createMediaElementSource graph). Same fragment-loop as export.
@@ -342,7 +342,7 @@ const ReelCreatorModal = ({
       const blob = await renderReelToFile(canvas, images, {
         photoDuration: photoDur,
         transition,
-        transitionDuration: clampedTrans,
+        transitionDuration: transDur,
         animation,
         holds: timeline.holds,
         musicUrl,

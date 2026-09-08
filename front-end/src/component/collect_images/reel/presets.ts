@@ -141,3 +141,10 @@ export function resolveTimeline(
   }
   return { holds, total };
 }
+
+// Holds align to selected order; loaded images are an in-order subset (partial
+// failure). Use the matching prefix so pacing survives partial loads.
+export function alignHolds(holds: number[] | undefined, n: number): number[] | null {
+  if (!holds || n <= 0 || holds.length < n) return null;
+  return holds.slice(0, n);
+}

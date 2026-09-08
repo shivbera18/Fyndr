@@ -4,6 +4,7 @@ import {
   REEL_W,
   ReelAnimation,
   ReelTransition,
+  alignHolds,
   clampTransitionDuration,
   coverDraw,
   reelTotalDuration,
@@ -205,8 +206,6 @@ function paintAt(
     }
     cursor += trans;
   }
-  // Terminal pin: float accumulation must never leave a black final frame.
-  drawSlide(ctx, images[n - 1], 1, opts.animation, w, h);
 }
 
 export interface ReelPreviewHandle {
@@ -222,19 +221,21 @@ export function previewReel(
   canvas.height = REEL_H;
   const ctx = canvas.getContext("2d");
   if (!ctx) return { stop: () => undefined };
+  const holds = alignHolds(opts.holds, images.length);
   const total = Math.max(
     0.1,
-    opts.holds && opts.holds.length === images.length
-      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, opts.holds).total
+    holds
+      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, holds).total
       : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
   );
+  const paintOpts: ReelRenderOptions = { ...opts, holds: holds ?? undefined, onProgress: undefined };
   let raf = 0;
   let stopped = false;
   const t0 = performance.now();
   const frame = (now: number): void => {
     if (stopped) return;
     const elapsed = ((now - t0) / 1000) % total;
-    paintAt(ctx, images, elapsed, { ...opts, onProgress: undefined }, REEL_W, REEL_H);
+    paintAt(ctx, images, elapsed, paintOpts, REEL_W, REEL_H);
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
@@ -260,10 +261,11 @@ export async function renderReelToFile(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");
 
+  const exportHolds = alignHolds(opts.holds, images.length);
   const total = Math.max(
     0.1,
-    opts.holds && opts.holds.length === images.length
-      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, opts.holds).total
+    exportHolds
+      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, exportHolds).total
       : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
   );
   const stream = canvas.captureStream(REEL_FPS);
@@ -335,7 +337,7 @@ export async function renderReelToFile(
     }
   };
 
-  const paintOpts: ReelRenderOptions = { ...opts, onProgress: undefined };
+  const paintOpts: ReelRenderOptions = { ...opts, holds: exportHolds ?? undefined, onProgress: undefined };
   let raf = 0;
   const t0 = performance.now();
   try {
