@@ -11,7 +11,7 @@
 
 | # | Fact (worktree) | Why it hurts |
 |---|---|---|
-| 1 | `presets.ts` `REEL_TRACKS` points at `/reel-music/upbeat.mp3`, `/romantic.mp3`, `/party.mp3`, `/lofi.mp3` — **`front-end/public/` has no `reel-music/` dir at all** (verified: only `demo/`, `images/`, `videos/`, `icons/`). Every bundled pick 404s. | User taps a song, export silently falls back to muted (`mutedFallback=true`, `mutedNotice`). Feels like "music doesn't work". This is the #1 song-selection bug. |
+| 1 | `presets.ts` `REEL_TRACKS` points at `/reel-music/upbeat.mp3`, `/romantic.mp3`, `/party.mp3`, `/lofi.mp3` — **`front-end/public/` has no `reel-music/` dir at all** (verified: `demo/`, `images/`, `videos/`, `icons/` plus `sw.js`, `manifest.json`, `offline.html`, branding — but no `reel-music/`). Every bundled pick 404s. | User taps a song, export silently falls back to muted (`mutedFallback=true`, `mutedNotice`). Feels like "music doesn't work". This is the #1 song-selection bug. |
 | 2 | Preview is always silent: `ReelCreatorModal.tsx:160` calls `previewReel(..., { musicUrl: null })` with a hardcoded `null`. | User picks music blind, only hears it after a full realtime export. Core UX break. |
 | 3 | No search / mood filter / duration / BPM / artist display. 4 opaque labels ("Upbeat Pop"…). No per-track play button in the Style step. | Not competitive with CapCut/Instagram (search + trending + preview-before-apply). |
 | 4 | No trim: full track loops from 0s (`audioEl.loop=true`, `currentTime=0`). A 24s reel over a 3-min song always starts at the intro. No volume, no fade, no "start at chorus". | Every reel sounds identical at the head. |
@@ -48,10 +48,10 @@ Replace the 4-entry `REEL_TRACKS` with a versioned JSON manifest + typed loader:
 ]}
 ```
 
-- **Sources (all open/free, self-host — never hotlink):** FreePD (CC0, no credit), Incompetech/Kevin MacLeod (CC-BY — `credit` shown + burned into export description, never skipped), Pixabay Music content-license tracks (download + self-host, keep license txt in `public/reel-music/LICENSES.md`). Ship ~2MB total: 12 tracks × ~30–60s preview cuts at 96kbps mono is plenty for reels; full-length files live on R2 and stream.
+- **Sources (vendored in git: CC0/CC-BY only):** FreePD (CC0, no credit) + Incompetech/Kevin MacLeod (CC-BY — `credit` shown in picker AND burned into an on-screen end-card, see Attribution below; toasts/descriptions don't survive upload). Pixabay tracks are NOT vendored (Content License bars standalone redistribution + Content ID strike risk on YouTube/Meta) — stream-only if used at all, with license review first. Ship ~2MB total: 12 tracks × ~30–60s cuts at 96kbps mono; full-length files live on R2 and stream.
 - **Why self-host:** hotlinking Pixabay/Jamendo breaks CORS for `MediaElementSource` (`crossOrigin="anonymous"` needs `Access-Control-Allow-Origin`); same-origin/R2-with-CORS keeps export mux working.
 - **Loader:** `loadTrackManifest()` with `localStorage` cache + version check; failure → graceful fallback to the 4 legacy ids + upload-only mode (never a dead screen).
-- **Attribution UI:** one line under the picker (`"Warm Lights — FreePD (CC0)"` / `"Life of Riley — Kevin MacLeod (CC-BY)"`); export toast + download description carry the credit.
+- **Attribution UI:** one line under the picker (`"Warm Lights — FreePD (CC0)"` / `"Life of Riley — Kevin MacLeod (CC-BY)"`); CC-BY tracks additionally get a 1.2s end-card (`"Music: Life of Riley — Kevin MacLeod (CC-BY)"`) rendered into the video — the only attribution that survives Instagram/TikTok/Shorts.
 
 ### 2.2 Picker UX (mobile-first)
 
@@ -79,7 +79,7 @@ Replace the 4-entry `REEL_TRACKS` with a versioned JSON manifest + typed loader:
 
 - **Data model per reel:** `{ trackId, trimStart, trimEnd (default = shortest(track, 60s)), volume 0–1 (default 0.8), fadeIn/fadeOut 0–2s (default 0.8s) }`. Clamp `trimEnd-trimStart ≥ 3s`.
 - **Trim UI:** single waveform strip with two drag handles (pointer events, 24px hit slop, keyboard ←/→ on focused handle). Double-tap a handle resets to full. Time labels update live.
-- **Waveform rendering:** custom `<canvas>` from precomputed `peaks` (or `decodeAudioData` → downsample to ~120 bars on first load, cached in memory). ~80 lines. Verdict vs `wavesurfer.js` + Regions plugin (MIT, docs verified `/katspaugh/wavesurfer.js` — `Regions.create()`, `enableDragSelection`, `region-updated` events): wavesurfer is excellent, but it owns its own player + DOM and fights our canvas-preview sync; custom strip is smaller and theme-exact. **Decision: native strip in P0; adopt wavesurfer only if trim-usability metric fails** (e.g. <40% of music users complete a trim).
+- **Waveform rendering:** custom `<canvas>` from `peaks` computed in-browser (`decodeAudioData` → downsample to ~120 bars on first pick, cached in memory/`localStorage`; manifest `peaks` used when present). ~80 lines. Verdict vs `wavesurfer.js` + Regions plugin (MIT, docs verified `/katspaugh/wavesurfer.js` — `Regions.create()`, `enableDragSelection`, `region-updated` events): wavesurfer is excellent, but it owns its own player + DOM and fights our canvas-preview sync; custom strip is smaller and theme-exact. **Decision: native strip in P0; adopt wavesurfer only if trim-usability metric fails** (e.g. <40% of music users complete a trim).
 - **Mix at export:** `MediaElementSource → GainNode(volume + fade ramps) → MediaStreamDestination`; `fadeIn/fadeOut` via `linearRampToValueAtTime`. Reuse existing `combined = video + dest.audio` mux. Trim = `audioEl.currentTime = trimStart` at export start + `pause()` at `trimEnd` (loop only if reel outlasts trim: `loopSegment` flag).
 
 ## 3. Competitive reel features (client-side only)
@@ -90,7 +90,7 @@ Replace the 4-entry `REEL_TRACKS` with a versioned JSON manifest + typed loader:
 | Per-photo duration | P1 | Tap thumb → `0.8 / 1.5 / 2.5s` segmented control + "apply to all". Global slider remains as master. |
 | Per-cut transition | P1 | Global default + optional per-join override (`fade/slide/zoom/none`, duration inherits global). Renderer already cross-blends (`paintAt`); extend `opts` with `cuts[]`. |
 | Ken Burns per photo | P1 | Keep 5 global animations; add per-photo override in the same thumb sheet ("Same as global" default). Zero renderer rewrite — `animTransform` already parameterized. |
-| Filters | P2 | 6 CSS-grade presets via `ctx.filter`: None / Warm / Vivid (`saturate(1.25) contrast(1.05)`) / Soft (`brightness(1.05) saturate(.9)`) / B&W / Vintage (`sepia(.35)`). One global + per-photo override. Live in preview (canvas `filter` is cheap at 1080p? gate to preview-res, full-res at export). |
+| Filters | P2 | 6 presets (None / Warm / Vivid / Soft / B&W / Vintage) applied via `ctx.filter` ONLY when feature-detected (`'filter' in ctx`, Safari 18+); otherwise silently skipped. Perf gate: filters render at preview-res live, full 1080×1920 only at export, auto-fallback to None if export frame time >66ms (software rasterization melts low-end phones otherwise). One global + per-photo override. |
 | Text overlay | P2 | Title card (event name + date, 3 styles: lower-third / centered / minimal) + optional per-photo caption (≤60 chars). Canvas fillText with Geist fallback; safe-area padding 8%. Reduced-motion users still get static text. |
 | Aspect ratios | P2 | 9:16 (default, Reels/Shorts) / 1:1 / 4:5. `REEL_W/H` become per-export params; preview canvas letterboxes via `object-contain`. Keep 1080-wide ladder; 720p toggle for low-end (see §6). |
 | Cover frame | P2 | Scrubber over loaded images → "Use as cover" (poster for `<video>` + first exported frame hold 0.3s). |
@@ -141,8 +141,8 @@ scripts/reel-music.mjs # OPTIONAL dev script: mp3 → peaks JSON + manifest vali
 - [ ] Pre-export check: `isReelExportSupported()` messaging *before* user configures (step 1 banner on unsupported browsers, not step 4 surprise).
 - [ ] Perf: decode images at display size for grid (`loading=lazy` kept) + full-res only at export; `720p` auto-suggest when `deviceMemory≤4` or 1080p frame >40ms (measure first preview second).
 - [ ] Motion: `prefers-reduced-motion` → animation **and** transitions → `none`; waveform/progress still update (information, not motion).
-- [ ] Offline: service-worker cache `manifest.json` + selected mp3 on pick (workbox range-compatible — test; else document online-required for music).
-- [ ] Errors: 404 track → auto-skip + toast + muted export (today's silent path becomes explicit); mic denied (P3) → voiceover lane disabled, music unaffected.
+- [ ] Offline: extend the existing custom `public/sw.js` (no Workbox) to cache `manifest.json` + picked mp3; iOS Safari needs HTTP 206 range responses for `<audio>` seeking — implement byte-range replies in the SW fetch handler, else document online-required for music.
+- [ ] Errors: 404 track → auto-skip + toast + muted export (today's silent path becomes explicit); mic denied (P3) → voiceover lane disabled, music unaffected; in-app webview (IG/WA) download blocked (no `blob:`/`a[download]`) → "Open in Safari/Chrome" + long-press-video-to-save hint.
 
 ## 7. Open-source inventory (use / reuse-pattern / reject)
 
@@ -150,25 +150,25 @@ scripts/reel-music.mjs # OPTIONAL dev script: mp3 → peaks JSON + manifest vali
 |---|---|---|
 | FreePD music | CC0 | **USE** — seed romantic/lofi/cinematic beds, no credit needed |
 | Incompetech (Kevin MacLeod) | CC-BY | **USE** — party/upbeat depth; credit UI mandatory |
-| Pixabay Music downloads | Pixabay Content License (free, self-host) | **USE** — wedding/devotional breadth; keep license txt |
+| Pixabay Music downloads | Pixabay Content License | **NOT VENDORED** — no standalone redistribution in a public repo + Content ID strike risk; stream-only with license review, or skip for FreePD/Incompetech depth. |
 | wavesurfer.js + Regions | MIT | **PATTERN-REUSE, no dep** — drag-trim interaction copied into native `waveform.tsx`; adopt lib only on trim-fail metric |
 | dnd-kit sortable + TouchSensor | MIT | **DEFERRED dep** — arrow-reorder first; add iff reorder demand metric hits |
-| Radix Slider/Tabs, Vaul Drawer, lucide, sonner | MIT/ISC | **ALREADY INSTALLED — use** (replace raw `<input range>` with Radix Slider for a11y + thumb size) |
+| Radix Tabs, Vaul Drawer, lucide, sonner | MIT/ISC | **ALREADY INSTALLED — use.** Sliders stay native range inputs (Radix Slider NOT installed; add only on metric). |
 | tone.js / aubio.js / essentia.js (beat/onset) | MIT/GPL-ish — check per file | **REJECT P0–P2** — BPM-tap + manifest bpm covers auto-cut; revisit P3 |
 | ffmpeg.wasm | MIT | **REJECT** — weight + mobile CPU; MediaRecorder path holds |
 | Howler.js | MIT | **REJECT** — single shared `AudioElement` + one `GainNode` covers preview/export; no sprite/3D needs |
 
 ## 8. Phased delivery (review gate after each)
 
-- **P0 — Song selection that works (the ask).** `manifest.json` + 12 self-hosted tracks + `tracks.ts` + `musicPicker.tsx` + `waveform.tsx` + `audioEngine.ts` (preview+export share) + fix silent preview + volume/fade/trim + upload parity + credits. *Accept:* airplane-test — pick any track, hear it in preview, trim 12s chorus, export mp4/webm with audible music, credit line shown. Tests: manifest loader + `smartStart` + clamp unit tests; extend `reelPresets.test.ts`.
+- **P0 — Song selection that works (the ask).** `manifest.json` + 12 self-hosted tracks + `tracks.ts` + `musicPicker.tsx` + `waveform.tsx` + `audioEngine.ts` (preview+export share) + fix silent preview + volume/fade/trim + upload parity + credits incl. CC-BY end-card. *Accept:* airplane-test — pick any track, hear it in preview, trim 12s chorus, export mp4 with audible music, credit line + end-card shown where applicable. Tests: manifest loader + `smartStart` + clamp unit tests; extend `reelPresets.test.ts`.
 - **P1 — Timeline control.** `timeline.tsx`, per-photo duration/anim, per-cut transitions, reorder arrows, reducer state. *Accept:* reorder 6 photos keyboard-only, per-photo durations reflected in `≈ Ns` total + export. Tests: reducer + total-duration-with-per-photo math.
-- **P2 — Competitive polish.** Templates, filters, text, ratios, cover, drafts, Radix Slider swap, 720p gate. *Accept:* one-tap Wedding template → styled 9:16 reel; draft resumes after close. Tests: template-apply + draft round-trip.
-- **P3 — Beat-fit + voiceover (only if P0–P2 land).** BPM-tap auto-cut, voiceover lane with ducking. Separate review.
+- **P2 — Competitive polish.** Templates, filters (gated, §3), text, ratios, cover, drafts, 720p gate. *Accept:* one-tap Wedding template → styled 9:16 reel; draft resumes after close. Tests: template-apply + draft round-trip.
+- **P3 — Beat-fit + voiceover (DROPPED by default).** Stays out unless P0–P2 metrics + maintainer approval say otherwise (YAGNI; see §10.4). Separate review if revived.
 
 ## 9. Risks & mitigations
 
 - **CORS kills music mux** → same-origin/R2-with-`Access-Control-Allow-Origin:*` only; `decodeAudioData` fetch preflight in loader surfaces breakage at pick-time, not export-time.
-- **iOS Safari <17 / in-app browsers (Instagram/WhatsApp webview)** → pre-check banner + "Open in Safari/Chrome" hint; webm fallback kept.
+- **iOS Safari <17 / in-app browsers (Instagram/WhatsApp webview)** → pre-check banner + "Open in Safari/Chrome" hint; webm fallback kept but labeled gallery-only (never Instagram-ready); webview download fallback = long-press video to save.
 - **Autoplay policy** → all audio starts inside tap handlers (keep existing "play in click tick" pattern in `renderReelToFile`).
 - **Repo bloat** → mp3s capped (~2MB P0); full-length audio streams from R2, never git. `node --check`-equivalent (`tsc --noEmit`) before push per repo rules.
 
@@ -178,3 +178,5 @@ scripts/reel-music.mjs # OPTIONAL dev script: mp3 → peaks JSON + manifest vali
 2. Native-trim vs wavesurfer call (§2.3) — default is native; say the word to flip.
 3. Arrow-reorder-first vs dnd-kit-day-one (§3) — default defers the dep.
 4. Whether P3 (beat-fit/voiceover) stays in scope at all.
++
++*Rev 1 (PR #88 review): fixed 12 findings — analytics allowlist, Radix Slider, Node-MP3 peaks, export abort-on-hide, IG MP4-only, ctx.filter gating, custom-SW ranges, CC-BY end-card, webview fallback, Pixabay non-vendoring, P3 dropped-by-default, public/ listing.*
