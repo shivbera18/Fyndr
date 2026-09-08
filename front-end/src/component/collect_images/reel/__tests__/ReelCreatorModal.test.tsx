@@ -293,4 +293,29 @@ describe("ReelCreatorModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next →" }));
     expect(await screen.findByText(/Cover 2\/3/)).toBeInTheDocument();
   });
+
+  it("does not clobber a saved draft on open", () => {
+    const seed = JSON.stringify({
+      v: 1, selected: ["a.jpg", "b.jpg"], musicId: "none", trim: null,
+      volume: 0.5, fadeOn: false, durations: {}, transition: "slide",
+      animation: "zoom-out", photoDur: 3, transDur: 1, ratio: "1:1",
+      filter: "bw", textStyle: "center", templateId: null,
+    });
+    localStorage.setItem("fyndr:reel:draft:evt1", seed);
+    renderModal();
+    expect(localStorage.getItem("fyndr:reel:draft:evt1")).toBe(seed);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    localStorage.clear();
+  });
+
+  it("ignores corrupt or shapeless drafts without crashing", () => {
+    localStorage.setItem("fyndr:reel:draft:evt1", "{bad json");
+    const { unmount } = renderModal();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    unmount();
+    localStorage.setItem("fyndr:reel:draft:evt1", JSON.stringify({ v: 2, selected: "nope" }));
+    renderModal();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    localStorage.clear();
+  });
 });

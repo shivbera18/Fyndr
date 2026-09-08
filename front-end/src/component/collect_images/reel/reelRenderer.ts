@@ -353,13 +353,6 @@ export async function renderReelToFile(
   canvas.height = eh;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");
-  if (opts.title || opts.endCard) {
-    try {
-      await document.fonts?.ready;
-    } catch {
-      // System-font fallback renders regardless.
-    }
-  }
 
   const exportHolds = alignHolds(opts.holds, images.length);
   const total = Math.max(
@@ -418,6 +411,16 @@ export async function renderReelToFile(
       mutedFallback = true;
       audioEl = null;
       combined = stream;
+    }
+  }
+
+  // Font readiness waits here — after audioEl.play() was invoked in the user
+  // gesture tick (autoplay), immediately before recording starts.
+  if (opts.title || opts.endCard) {
+    try {
+      await document.fonts?.ready;
+    } catch {
+      // System-font fallback renders regardless.
     }
   }
 

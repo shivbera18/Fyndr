@@ -84,6 +84,30 @@ interface ReelDraft {
   templateId: string | null;
 }
 
+function isValidDraft(d: unknown): d is ReelDraft {
+  if (!d || typeof d !== "object") return false;
+  if (!("v" in d) || d.v !== 1) return false;
+  if (!("selected" in d) || !Array.isArray(d.selected)) return false;
+  if (!d.selected.every((s: unknown): s is string => typeof s === "string")) return false;
+  if (!("musicId" in d) || typeof d.musicId !== "string") return false;
+  if (!("volume" in d) || typeof d.volume !== "number") return false;
+  if (!("fadeOn" in d) || typeof d.fadeOn !== "boolean") return false;
+  if (!("durations" in d) || typeof d.durations !== "object" || d.durations === null) return false;
+  if (!("transition" in d) || typeof d.transition !== "string") return false;
+  if (!("animation" in d) || typeof d.animation !== "string") return false;
+  if (!("photoDur" in d) || typeof d.photoDur !== "number") return false;
+  if (!("transDur" in d) || typeof d.transDur !== "number") return false;
+  if (!("ratio" in d) || typeof d.ratio !== "string") return false;
+  if (!("filter" in d) || typeof d.filter !== "string") return false;
+  if (!("textStyle" in d) || typeof d.textStyle !== "string") return false;
+  if (!("templateId" in d) || (d.templateId !== null && typeof d.templateId !== "string")) return false;
+  if ("trim" in d && d.trim !== null) {
+    if (typeof d.trim !== "object") return false;
+    if (!("start" in d.trim) || typeof d.trim.start !== "number") return false;
+    if (!("end" in d.trim) || typeof d.trim.end !== "number") return false;
+  }
+  return true;
+}
 type Step = "photos" | "music" | "style" | "export";
 
 const ReelCreatorModal = ({
@@ -249,24 +273,33 @@ const ReelCreatorModal = ({
     setFilter(d.filter);
     setTextStyle(d.textStyle);
     setTemplateId(d.templateId);
+    suppressSaveRef.current = false;
     setDraft(null);
   };
+
+  // Suppresses auto-save while a loaded draft awaits Resume/Discard, and on the
+  // mounting commit where effects observe pre-load state. Cleared on decision.
+  const suppressSaveRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
       setDraft(null);
       return;
     }
+    suppressSaveRef.current = false;
     try {
       const raw = localStorage.getItem(`fyndr:reel:draft:${eventId}`);
-      setDraft(raw ? (JSON.parse(raw) as ReelDraft) : null);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      const d = isValidDraft(parsed) ? parsed : null;
+      setDraft(d);
+      suppressSaveRef.current = d !== null;
     } catch {
       setDraft(null);
     }
   }, [open, eventId]);
 
   useEffect(() => {
-    if (!open || draft !== null || selected.length < REEL_MIN_PHOTOS) return;
+    if (!open || suppressSaveRef.current || selected.length < REEL_MIN_PHOTOS) return;
     try {
       const d: ReelDraft = {
         v: 1, selected, musicId, trim, volume, fadeOn, durations,
@@ -582,6 +615,7 @@ const ReelCreatorModal = ({
                   } catch {
                     // Best-effort cleanup.
                   }
+                  suppressSaveRef.current = false;
                   setDraft(null);
                 }}
               >
