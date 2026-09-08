@@ -11,6 +11,37 @@ const isLocalhost = Boolean(
     window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
 );
 
+// Long-lived PWA sessions (installed app resumed from background, camera open
+// for hours) perform no navigations, so the browser never checks sw.js for
+// updates on its own. Poll explicitly plus on visibility/focus/online.
+const UPDATE_POLL_MS = 60 * 60 * 1000;
+let updatePollingStarted = false;
+
+function notifyUpdate(registration: ServiceWorkerRegistration, config?: Config): void {
+  window.dispatchEvent(
+    new CustomEvent('pwa-update-available', { detail: registration })
+  );
+  if (config && config.onUpdate) {
+    config.onUpdate(registration);
+  }
+}
+
+function startUpdatePolling(registration: ServiceWorkerRegistration): void {
+  if (updatePollingStarted) return;
+  updatePollingStarted = true;
+  const checkForUpdate = () => {
+    registration.update().catch(() => {
+      // Offline or transient failure — the next poll retries.
+    });
+  };
+  window.setInterval(checkForUpdate, UPDATE_POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+  window.addEventListener('focus', checkForUpdate);
+  window.addEventListener('online', checkForUpdate);
+}
+
 export function register(config?: Config): void {
   if ('serviceWorker' in navigator) {
     // Only register in production OR if explicitly enabled in local development
@@ -45,6 +76,11 @@ function registerValidSW(swUrl: string, config?: Config): void {
   navigator.serviceWorker
     .register(swUrl, { scope: '/' })
     .then((registration) => {
+      // An update may already be waiting (found while the page was loading).
+      if (registration.waiting) {
+        notifyUpdate(registration, config);
+      }
+      startUpdatePolling(registration);
       registration.onupdatefound = () => {
         const installingWorker = registration.installing;
         if (installingWorker == null) {
@@ -56,13 +92,7 @@ function registerValidSW(swUrl: string, config?: Config): void {
               // At this point, the updated precached content has been fetched,
               // but the previous service worker will serve content until all
               // client tabs are closed.
-              window.dispatchEvent(
-                new CustomEvent('pwa-update-available', { detail: registration })
-              );
-
-              if (config && config.onUpdate) {
-                config.onUpdate(registration);
-              }
+              notifyUpdate(registration, config);
             } else {
               // At this point, everything has been precached.
               // It's the perfect time to display a "Content is cached for offline use." message.
