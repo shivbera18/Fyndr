@@ -1,8 +1,12 @@
 import {
   REEL_TRACKS,
   clampTransitionDuration,
+  clampTrim,
   coverDraw,
+  formatTrimTime,
   reelTotalDuration,
+  smartStart,
+  withFragment,
 } from "../presets";
 import { pickMimeType } from "../reelRenderer";
 
@@ -40,5 +44,31 @@ describe("reel presets", () => {
     } finally {
       g.MediaRecorder = saved;
     }
+  });
+});
+
+describe("reel trim helpers", () => {
+  it("clamps trim inside duration with a 3s minimum", () => {
+    expect(clampTrim(10, 25, 60)).toEqual({ start: 10, end: 25 });
+    expect(clampTrim(-5, 70, 60)).toEqual({ start: 0, end: 60 });
+    expect(clampTrim(20, 21, 60)).toEqual({ start: 20, end: 23 });
+    expect(clampTrim(0, 1, 2)).toEqual({ start: 0, end: 2 });
+  });
+
+  it("finds the loudest window for smart start", () => {
+    const peaks = [0.1, 0.1, 0.9, 0.8, 0.1, 0.1];
+    expect(smartStart(peaks, 60, 20)).toBeCloseTo(20, 0);
+    expect(smartStart([], 60)).toBeCloseTo(6, 10);
+  });
+
+  it("formats trim times as m:ss", () => {
+    expect(formatTrimTime(0)).toBe("0:00");
+    expect(formatTrimTime(12.7)).toBe("0:12");
+    expect(formatTrimTime(64)).toBe("1:04");
+  });
+
+  it("builds media-fragment URLs only when trimmed", () => {
+    expect(withFragment("/x.mp3", null)).toBe("/x.mp3");
+    expect(withFragment("/x.mp3", { start: 12, end: 27 })).toBe("/x.mp3#t=12.0,27.0");
   });
 });
