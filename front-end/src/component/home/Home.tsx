@@ -382,6 +382,26 @@ function InteractiveFaceMatcher() {
 /* Interactive Demo Card                                              */
 /* ------------------------------------------------------------------ */
 
+/* Sample wedding photos (Wikimedia Commons) for the demo gallery tiles */
+const DEMO_PHOTOS = [
+  {
+    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Wedding_couple_in_sunset.jpg/330px-Wedding_couple_in_sunset.jpg",
+    alt: "Sample wedding photo: couple at sunset (Wikimedia Commons)",
+  },
+  {
+    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/Wedding_dance_of_Azerbaijanian_couple.jpg/330px-Wedding_dance_of_Azerbaijanian_couple.jpg",
+    alt: "Sample wedding photo: couple's first dance (Wikimedia Commons)",
+  },
+  {
+    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Wedding_couple_%281293575%29.jpg/330px-Wedding_couple_%281293575%29.jpg",
+    alt: "Sample wedding photo: newlywed couple portrait (Wikimedia Commons)",
+  },
+  {
+    src: "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Wedding_couple_%281294004%29.jpg/330px-Wedding_couple_%281294004%29.jpg",
+    alt: "Sample wedding photo: wedding couple outdoors (Wikimedia Commons)",
+  },
+];
+
 function DemoPanel({ step }: { step: DemoStep }) {
   if (step === "upload") {
     return (
@@ -434,13 +454,16 @@ function DemoPanel({ step }: { step: DemoStep }) {
       </div>
       <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
       <div className="grid grid-cols-4 gap-2 pt-1">
-        {[0, 1, 2, 3].map((n) => (
-          <div
-            key={n}
-            className="aspect-square rounded-lg bg-neutral-100 dark:bg-neutral-800/70 border border-neutral-200 dark:border-neutral-700/80 flex items-center justify-center text-[10px] text-muted-foreground font-mono"
-          >
-            Photo {n + 1}
-          </div>
+        {DEMO_PHOTOS.map((p) => (
+          <img
+            key={p.src}
+            src={p.src}
+            alt={p.alt}
+            loading="lazy"
+            width={330}
+            height={330}
+            className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800/70"
+          />
         ))}
       </div>
     </div>
