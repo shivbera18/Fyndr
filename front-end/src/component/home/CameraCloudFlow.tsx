@@ -78,6 +78,7 @@ export function CameraCloudFlow() {
   const [tiles, setTiles] = useState([0, 1, 2, 3]);
   const [status, setStatus] = useState("Idle — pipeline warm, waiting for the next shutter.");
   const timers = useRef<number[]>([]);
+  const [shotCam, setShotCam] = useState(1);
 
   useEffect(() => () => {
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -97,6 +98,7 @@ export function CameraCloudFlow() {
       return;
     }
     setLeg(0);
+    setShotCam(selCam ?? 1);
     setStatus("Shutter — photo leaves the camera…");
     timers.current.push(
       window.setTimeout(() => {
@@ -124,7 +126,7 @@ export function CameraCloudFlow() {
   const stageRing = (level: number, cam?: number) =>
     cn(
       "transition-all",
-      leg === level + 1 || (level === 3 && leg === 3)
+      leg === level
         ? "border-emerald-500/70 shadow-[0_0_24px_-6px_rgba(16,185,129,0.6)]"
         : sel !== null &&
             (sel.level !== level || (cam !== undefined && selCam !== undefined && selCam !== cam))
@@ -196,7 +198,7 @@ export function CameraCloudFlow() {
               )}
             {leg === 0 && (
               <Packet
-                path={`M 0 ${IN_EDGE[selCam ?? 1]} C 32 ${IN_EDGE[selCam ?? 1]}, 32 120, 64 120`}
+              path={`M 0 ${IN_EDGE[shotCam]} C 32 ${IN_EDGE[shotCam]}, 32 120, 64 120`}
                 color="#10b981"
                 r={5}
                 dur="0.55s"

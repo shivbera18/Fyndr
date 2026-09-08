@@ -35,6 +35,7 @@ describe('CameraCloudFlow', () => {
     render(<CameraCloudFlow />);
     expect(digits(screen.getByTestId('gallery-count'))).toBe(1248);
     fireEvent.click(screen.getByRole('button', { name: /Fire a test shot/ }));
+    expect(screen.getByRole('button', { name: /Shooter A · Canon/ })).toHaveClass('border-emerald-500/70');
     await act(async () => {
       jest.advanceTimersByTime(600);
     });

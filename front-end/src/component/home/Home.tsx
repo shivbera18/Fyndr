@@ -851,6 +851,7 @@ export default function Home(): React.JSX.Element {
                   Event Guests
                 </TabsTrigger>
                 <TabsTrigger value="organizers" className="rounded-full text-xs font-semibold">
+                  Hosts &amp; Planners
                 </TabsTrigger>
               </TabsList>
             </div>
