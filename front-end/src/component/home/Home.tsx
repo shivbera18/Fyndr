@@ -307,16 +307,15 @@ const CAMERA_SOURCES: [BeamSource, BeamSource, BeamSource] = [
     icon: <Camera className="size-5" />,
     boxClass: "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
     title: "Shooter B · Nikon",
-    sub: "Own FTP login · auto upload ON",
+    sub: "Own FTP login · auto-transfer ON",
   },
   {
     icon: <Camera className="size-5" />,
     boxClass: "bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
     title: "Shooter C · Sony",
-    sub: "Own FTP login · auto FTP ON",
+    sub: "Own FTP login · auto-transfer ON",
   },
 ];
-
 const CAMERA_HUB: BeamHub = {
   icon: <Zap className="size-4" />,
   title: "Live event gallery",
@@ -831,9 +830,8 @@ export default function Home(): React.JSX.Element {
                 </div>
               </div>
             </BentoCard>
-            {/* Bento Card 5: Live Interactive Demo (Full width) */}
             <BentoCard
-              className="lg:col-span-3"
+              className="md:col-span-2 lg:col-span-3"
               header={<DemoCard />}
               title="Try the flow right here"
               description="A miniature of the guest journey — upload, selfie, matched album in seconds. Tap the steps above to jump around."

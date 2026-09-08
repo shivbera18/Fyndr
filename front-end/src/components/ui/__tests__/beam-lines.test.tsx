@@ -22,6 +22,6 @@ describe('BeamLines', () => {
     expect(screen.getByText('Shooter B')).toBeInTheDocument();
     expect(screen.getByText('Shooter C')).toBeInTheDocument();
     expect(screen.getByText('Live gallery')).toBeInTheDocument();
-    expect(screen.queryByText('Direct to Phone')).not.toBeInTheDocument();
+    expect(screen.queryByText('hub pill')).not.toBeInTheDocument();
   });
 });

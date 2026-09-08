@@ -67,10 +67,9 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
       <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4">
         {/* Left Source Nodes — User Experience Journey */}
         <div className="flex flex-col gap-4 w-full md:w-72 z-20">
-          {sources.map((s) => (
+          {sources.map((s, i) => (
             <div
-              key={s.title}
-              className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
+              key={i}
             >
               <div className={cn("size-10 rounded-xl flex items-center justify-center shrink-0", s.boxClass)}>
                 {s.icon}
