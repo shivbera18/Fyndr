@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Camera, ArrowDownToLine, ScanFace, Images, Zap } from "lucide-react";
+import { Camera, ArrowDownToLine, ScanFace, Images, Zap, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 /* ------------------------------------------------------------------ */
 /* Camera-to-Cloud live flow: 3 shooters merge into FTP ingest, then   */
-/* a single trunk runs AI pipeline -> live gallery. Packets travel the */
-/* real path; clicking nodes inspects each level, and the test-shot    */
-/* button flies one photo end to end on a timed drive.                 */
+/* a single trunk runs AI pipeline -> live gallery. A stepper tracks   */
+/* each stage, packets travel the real path, and the test-shot button  */
+/* flies one photo end to end on a timed drive.                        */
 /* ------------------------------------------------------------------ */
 
 const CAMS = [
@@ -15,6 +15,8 @@ const CAMS = [
   { brand: "Nikon", login: "evt_a3f9…_c", tint: "emerald" },
   { brand: "Sony", login: "evt_a3f9…_d", tint: "amber" },
 ] as const;
+
+const STEPS = ["Shoot", "Transfer", "Pipeline", "Gallery"] as const;
 
 const TINTS: Record<string, { box: string; dot: string; text: string }> = {
   blue: { box: "bg-blue-500/10 text-blue-500", dot: "#3b82f6", text: "text-blue-500" },
@@ -24,6 +26,8 @@ const TINTS: Record<string, { box: string; dot: string; text: string }> = {
 
 const IN_EDGE = [40, 120, 200];
 const TRUNK = "M 0 120 L 64 120";
+const inPath = (y: number) => `M 0 ${y} C 32 ${y}, 32 120, 64 120`;
+const photo = (h: number) => `https://picsum.photos/seed/fyndr-live-${h}/160/160`;
 
 const DETAILS: Record<string, { title: string; body: string }> = {
   overview: {
@@ -56,15 +60,17 @@ function Packet({
   dur,
   begin = "0s",
   r = 3.5,
+  glow = false,
 }: {
   path: string;
   color: string;
   dur: string;
   begin?: string;
   r?: number;
+  glow?: boolean;
 }) {
   return (
-    <circle r={r} fill={color} opacity="0.95">
+    <circle r={r} fill={color} opacity="0.95" filter={glow ? "url(#shot-glow)" : undefined}>
       <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} />
     </circle>
   );
@@ -77,14 +83,16 @@ export function CameraCloudFlow() {
   const [shots, setShots] = useState(1248);
   const [tiles, setTiles] = useState([0, 1, 2, 3]);
   const [status, setStatus] = useState("Idle — pipeline warm, waiting for the next shutter.");
-  const timers = useRef<number[]>([]);
   const [shotCam, setShotCam] = useState(1);
+  const timers = useRef<number[]>([]);
 
   useEffect(() => () => {
     timers.current.forEach((t) => window.clearTimeout(t));
   }, []);
 
   const selCam = sel?.cam;
+  // The stepper mirrors inspection when idle and the packet while flying.
+  const activeStep = leg === -1 ? (sel?.level ?? -1) : leg;
   const detailKey =
     sel === null ? "overview" : sel.level === 0 ? "cam" : sel.level === 1 ? "ingest" : sel.level === 2 ? "pipe" : "gallery";
   const detail = DETAILS[detailKey];
@@ -135,14 +143,79 @@ export function CameraCloudFlow() {
     );
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-950/50 p-6 md:p-8 backdrop-blur-sm">
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+      className="relative w-full overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-950/50 p-6 md:p-8 backdrop-blur-sm"
+    >
       <div className="absolute inset-0 bg-dot-grid opacity-60 pointer-events-none" />
       <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10">
+        {/* Stepper */}
+        <ol className="flex items-center gap-1 sm:gap-2 mb-6" aria-label="Pipeline stages">
+          {STEPS.map((label, i) => {
+            const done = leg === 3 || (leg !== -1 && leg > i);
+            const active = activeStep === i;
+            return (
+              <li key={label} className="flex items-center flex-1 last:flex-none">
+                <button
+                  type="button"
+                  aria-label={`Step ${i + 1}: ${label}`}
+                  aria-current={active ? "step" : undefined}
+                  onClick={() => setSel({ level: i })}
+                  className="flex items-center gap-2 min-h-[44px] group"
+                >
+                  <motion.span
+                    animate={active && !reduce ? { scale: [1, 1.15, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.45 }}
+                    className={cn(
+                      "size-7 rounded-full flex items-center justify-center text-[11px] font-bold border transition-colors",
+                      done
+                        ? "bg-emerald-500 border-emerald-500 text-neutral-950"
+                        : active
+                          ? "bg-emerald-500/15 border-emerald-500 text-emerald-500"
+                          : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-muted-foreground"
+                    )}
+                  >
+                    {done ? <Check className="size-3.5" /> : i + 1}
+                  </motion.span>
+                  <span
+                    className={cn(
+                      "text-xs font-semibold hidden sm:inline",
+                      active || done ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {label}
+                  </span>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <span className="flex-1 h-px mx-1 sm:mx-2 bg-neutral-200 dark:bg-neutral-800 overflow-hidden rounded-full">
+                    <motion.span
+                      className="block h-full w-full bg-emerald-500 origin-left"
+                      initial={false}
+                      animate={{ scaleX: done || (leg !== -1 && leg > i) ? 1 : 0 }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                    />
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        {/* Levels */}
         <div className="flex flex-col md:flex-row items-stretch gap-3 md:gap-0">
           {/* L1 cameras */}
-          <div className="flex md:flex-col gap-3 flex-1 justify-center">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, x: -16 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.05 }}
+            className="flex md:flex-col gap-3 flex-1 justify-center"
+          >
             {CAMS.map((c, i) => (
               <button
                 key={c.login}
@@ -165,7 +238,7 @@ export function CameraCloudFlow() {
                 </span>
               </button>
             ))}
-          </div>
+          </motion.div>
 
           {/* Link: 3 merge into 1 */}
           <svg
@@ -175,39 +248,54 @@ export function CameraCloudFlow() {
             preserveAspectRatio="none"
             aria-hidden="true"
           >
-            {IN_EDGE.map((y) => (
-              <path
-                key={`base-${y}`}
-                d={`M 0 ${y} C 32 ${y}, 32 120, 64 120`}
-                className="stroke-neutral-200 dark:stroke-neutral-800"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-              />
-            ))}
+            <defs>
+              <filter id="shot-glow" x="-80%" y="-80%" width="260%" height="260%">
+                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <motion.g
+              initial={reduce ? false : { opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              {IN_EDGE.map((y) => (
+                <path
+                  key={`base-${y}`}
+                  d={inPath(y)}
+                  className="stroke-neutral-200 dark:stroke-neutral-800"
+                  strokeWidth="2"
+                  strokeDasharray="4 4"
+                />
+              ))}
+            </motion.g>
             {!reduce &&
               IN_EDGE.map((y, i) =>
                 selCam === undefined || selCam === i ? (
                   <Packet
                     key={`pkt-${y}`}
-                    path={`M 0 ${y} C 32 ${y}, 32 120, 64 120`}
+                    path={inPath(y)}
                     color={TINTS[CAMS[i].tint].dot}
                     dur={`${2 + i * 0.5}s`}
                     begin={`${i * 0.7}s`}
                   />
                 ) : null
               )}
-            {leg === 0 && (
-              <Packet
-              path={`M 0 ${IN_EDGE[shotCam]} C 32 ${IN_EDGE[shotCam]}, 32 120, 64 120`}
-                color="#10b981"
-                r={5}
-                dur="0.55s"
-              />
-            )}
+            {leg === 0 && <Packet path={inPath(IN_EDGE[shotCam])} color="#10b981" r={5} dur="0.55s" glow />}
           </svg>
 
           {/* L2 ingest */}
-          <div className="flex-1 flex flex-col justify-center">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="flex-1 flex flex-col justify-center"
+          >
             <button
               type="button"
               aria-pressed={sel?.level === 1}
@@ -225,7 +313,7 @@ export function CameraCloudFlow() {
                 <span className="block text-[11px] font-mono text-muted-foreground">port 21 · PASV</span>
               </span>
             </button>
-          </div>
+          </motion.div>
 
           {/* Link: trunk */}
           <svg
@@ -242,11 +330,17 @@ export function CameraCloudFlow() {
                 <Packet path={TRUNK} color="#10b981" dur="1.6s" begin="0.8s" />
               </>
             )}
-            {leg === 1 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
+            {leg === 1 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" glow />}
           </svg>
 
           {/* L3 pipeline */}
-          <div className="flex-1 flex flex-col justify-center">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="flex-1 flex flex-col justify-center"
+          >
             <button
               type="button"
               aria-pressed={sel?.level === 2}
@@ -261,9 +355,10 @@ export function CameraCloudFlow() {
               </span>
               <span className="min-w-0">
                 <span className="block text-xs font-semibold">AI pipeline</span>
+                <span className="block text-[11px] font-mono text-muted-foreground">dedupe · index</span>
               </span>
             </button>
-          </div>
+          </motion.div>
 
           {/* Link: trunk */}
           <svg
@@ -275,11 +370,17 @@ export function CameraCloudFlow() {
           >
             <path d={TRUNK} className="stroke-neutral-200 dark:stroke-neutral-800" strokeWidth="2" strokeDasharray="4 4" />
             {!reduce && <Packet path={TRUNK} color="#10b981" dur="2.2s" begin="0.4s" />}
-            {leg === 2 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
+            {leg === 2 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" glow />}
           </svg>
 
           {/* L4 gallery */}
-          <div className="flex-1 flex flex-col justify-center">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, x: 16 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="flex-1 flex flex-col justify-center"
+          >
             <button
               type="button"
               aria-pressed={sel?.level === 3}
@@ -289,9 +390,13 @@ export function CameraCloudFlow() {
                 stageRing(3)
               )}
             >
-              <span className="size-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <motion.span
+                animate={leg === 3 && !reduce ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className="size-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0"
+              >
                 <Images className="size-4" />
-              </span>
+              </motion.span>
               <span className="min-w-0">
                 <span className="block text-xs font-semibold">Live gallery</span>
                 <span className="block text-[11px] font-mono text-muted-foreground">
@@ -301,18 +406,20 @@ export function CameraCloudFlow() {
             </button>
             <div className="grid grid-cols-4 gap-1.5 mt-2">
               {tiles.map((h, i) => (
-                <motion.div
+                <motion.img
                   key={`${h}-${i}`}
+                  src={photo(h)}
+                  alt={`Guest gallery photo ${i + 1}`}
+                  loading="lazy"
+                  width={160}
+                  height={160}
                   initial={false}
                   animate={{ scale: leg === 3 && i === 0 ? [1, 1.12, 1] : 1 }}
-                  className="aspect-square rounded-md border border-neutral-200 dark:border-neutral-800"
-                  style={{
-                    background: `linear-gradient(135deg, hsl(${(h * 47) % 360} 60% 45%), hsl(${((h * 47) + 60) % 360} 60% 30%))`,
-                  }}
+                  className="aspect-square w-full rounded-md border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800"
                 />
               ))}
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Console */}
@@ -344,7 +451,7 @@ export function CameraCloudFlow() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 export default CameraCloudFlow;

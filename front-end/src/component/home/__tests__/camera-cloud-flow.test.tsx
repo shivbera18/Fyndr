@@ -10,6 +10,16 @@ beforeAll(() => {
       configurable: true,
     });
   }
+  if (!window.IntersectionObserver) {
+    Object.defineProperty(window, 'IntersectionObserver', {
+      value: class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+      configurable: true,
+    });
+  }
 });
 
 const digits = (el: HTMLElement) => Number((el.textContent ?? '').replace(/[^0-9]/g, ''));
@@ -45,5 +55,20 @@ describe('CameraCloudFlow', () => {
     });
     expect(digits(screen.getByTestId('gallery-count'))).toBe(1249);
     expect(screen.getByTestId('flow-status').textContent).toMatch(/live in the gallery/);
+  });
+
+  test('stepper pills select stages by step', () => {
+    render(<CameraCloudFlow />);
+    const pill = screen.getByRole('button', { name: 'Step 3: Pipeline' });
+    fireEvent.click(pill);
+    expect(pill).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByTestId('flow-detail').textContent).toMatch(/face-indexed/);
+  });
+
+  test('gallery tiles are real photos', () => {
+    render(<CameraCloudFlow />);
+    const imgs = screen.getAllByAltText(/Guest gallery photo/);
+    expect(imgs.length).toBe(4);
+    expect((imgs[0] as HTMLImageElement).src).toContain('picsum.photos');
   });
 });
