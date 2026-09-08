@@ -30,6 +30,8 @@ export interface ReelRenderOptions {
   animation: ReelAnimation;
   musicUrl: string | null;
   holds?: number[];
+  joinTransitions?: ReelTransition[];
+  anims?: (ReelAnimation | undefined)[];
   mix?: ReelMix | null;
   width?: number;
   height?: number;
@@ -229,9 +231,17 @@ function paintAt(
     opts.transition === "none" ? 0 : clampTransitionDuration(opts.transitionDuration, opts.photoDuration);
   const filter = opts.filter ?? "none";
   const useHolds = opts.holds && opts.holds.length === n ? opts.holds : null;
+  const useJoins =
+    opts.joinTransitions && opts.joinTransitions.length >= Math.max(0, n - 1)
+      ? opts.joinTransitions.slice(0, Math.max(0, n - 1))
+      : null;
+  const useAnims = opts.anims && opts.anims.length >= n ? opts.anims.slice(0, n) : null;
   const holdAt = (i: number): number => Math.max(0.1, useHolds ? useHolds[i] : uniHold);
+  const animAt = (i: number): ReelAnimation => useAnims?.[i] ?? opts.animation;
+  const joinTypeAt = (j: number): ReelTransition => (useJoins ? useJoins[j] : opts.transition);
   const transAt = (j: number): number => {
-    if (opts.transition === "none") return 0;
+    const jt = joinTypeAt(j);
+    if (jt === "none") return 0;
     if (!useHolds) return uniTrans;
     return clampTransitionDuration(opts.transitionDuration, Math.min(holdAt(j), holdAt(j + 1)));
   };
@@ -240,7 +250,7 @@ function paintAt(
     const hold = holdAt(k);
     if (k === n - 1 || timeSec < cursor + hold) {
       const t01 = hold > 0 ? (timeSec - cursor) / hold : 1;
-      drawSlide(ctx, images[k], Math.min(1, Math.max(0, t01)), opts.animation, w, h, 0, 1, 1, filter);
+      drawSlide(ctx, images[k], Math.min(1, Math.max(0, t01)), animAt(k), w, h, 0, 1, 1, filter);
       paintTextOverlay(ctx, timeSec, opts, w, h);
       return;
     }
@@ -250,22 +260,23 @@ function paintAt(
       const p = Math.min(1, Math.max(0, (timeSec - cursor) / trans));
       const next = images[k + 1];
       const cur = images[k];
-      switch (opts.transition) {
+      const jt = joinTypeAt(k);
+      switch (jt) {
         case "fade":
-          drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1, 1, filter);
-          drawSlide(ctx, next, p, opts.animation, w, h, 0, p, 1, filter);
+          drawSlide(ctx, cur, 1, animAt(k), w, h, 0, 1, 1, filter);
+          drawSlide(ctx, next, p, animAt(k + 1), w, h, 0, p, 1, filter);
           break;
         case "slide":
-          drawSlide(ctx, cur, 1, opts.animation, w, h, -p * w, 1, 1, filter);
-          drawSlide(ctx, next, p, opts.animation, w, h, (1 - p) * w, 1, 1, filter);
+          drawSlide(ctx, cur, 1, animAt(k), w, h, -p * w, 1, 1, filter);
+          drawSlide(ctx, next, p, animAt(k + 1), w, h, (1 - p) * w, 1, 1, filter);
           break;
         case "zoom":
-          drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1 - p, 1 + 0.15 * p, filter);
-          drawSlide(ctx, next, p, opts.animation, w, h, 0, p, 1, filter);
+          drawSlide(ctx, cur, 1, animAt(k), w, h, 0, 1 - p, 1 + 0.15 * p, filter);
+          drawSlide(ctx, next, p, animAt(k + 1), w, h, 0, p, 1, filter);
           break;
         case "none":
         default:
-          drawSlide(ctx, next, 0, opts.animation, w, h, 0, 1, 1, filter);
+          drawSlide(ctx, next, 0, animAt(k + 1), w, h, 0, 1, 1, filter);
           break;
       }
       paintTextOverlay(ctx, timeSec, opts, w, h);
@@ -308,15 +319,24 @@ export function previewReel(
   const ctx = canvas.getContext("2d");
   if (!ctx) return { stop: () => undefined };
   const holds = alignHolds(opts.holds, images.length);
+  const n = images.length;
+  const joins =
+    opts.joinTransitions && opts.joinTransitions.length >= Math.max(0, n - 1)
+      ? opts.joinTransitions.slice(0, Math.max(0, n - 1))
+      : undefined;
+  const anims =
+    opts.anims && opts.anims.length >= n ? opts.anims.slice(0, n) : undefined;
   const total = Math.max(
     0.1,
     holds
-      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, holds).total
+      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, holds, joins).total
       : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
   );
   const paintOpts: ReelRenderOptions = {
     ...opts,
     holds: holds ?? undefined,
+    joinTransitions: joins,
+    anims,
     totalDuration: total,
     onProgress: undefined,
   };
@@ -355,10 +375,17 @@ export async function renderReelToFile(
   if (!ctx) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");
 
   const exportHolds = alignHolds(opts.holds, images.length);
+  const en = images.length;
+  const exportJoins =
+    opts.joinTransitions && opts.joinTransitions.length >= Math.max(0, en - 1)
+      ? opts.joinTransitions.slice(0, Math.max(0, en - 1))
+      : undefined;
+  const exportAnims =
+    opts.anims && opts.anims.length >= en ? opts.anims.slice(0, en) : undefined;
   const total = Math.max(
     0.1,
     exportHolds
-      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, exportHolds).total
+      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, exportHolds, exportJoins).total
       : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
   );
   const stream = canvas.captureStream(REEL_FPS);
@@ -440,7 +467,7 @@ export async function renderReelToFile(
     }
   };
 
-  const paintOpts: ReelRenderOptions = { ...opts, holds: exportHolds ?? undefined, totalDuration: total, onProgress: undefined };
+  const paintOpts: ReelRenderOptions = { ...opts, holds: exportHolds ?? undefined, joinTransitions: exportJoins, anims: exportAnims, totalDuration: total, onProgress: undefined };
   let raf = 0;
   const t0 = performance.now();
   try {
