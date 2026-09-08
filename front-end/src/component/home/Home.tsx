@@ -454,7 +454,7 @@ function DemoPanel({ step }: { step: DemoStep }) {
       </div>
       <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
       <div className="grid grid-cols-4 gap-2 pt-1">
-        {DEMO_PHOTOS.map((p) => (
+        {DEMO_PHOTOS.map((p, i) => (
           <img
             key={p.src}
             src={p.src}
@@ -462,10 +462,23 @@ function DemoPanel({ step }: { step: DemoStep }) {
             loading="lazy"
             width={330}
             height={330}
+            onError={(e) => {
+              const el = e.currentTarget;
+              if (!el.dataset.fallback) {
+                el.dataset.fallback = "1";
+                el.src = `https://picsum.photos/seed/fyndr-demo-${i}/330/330`;
+              }
+            }}
             className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800/70"
           />
         ))}
       </div>
+      <p className="text-[10px] text-muted-foreground font-mono pt-1">
+        Sample photos:{" "}
+        <a className="underline" href="https://commons.wikimedia.org/wiki/File:Wedding_couple_in_sunset.jpg" target="_blank" rel="noreferrer">Beercha (CC BY 2.0)</a>,{" "}
+        <a className="underline" href="https://commons.wikimedia.org/wiki/File:Wedding_dance_of_Azerbaijanian_couple.jpg" target="_blank" rel="noreferrer">Orientalist1979 (CC BY-SA 3.0)</a>,{" "}
+        Percy Benzie Abery (CC0) via Wikimedia Commons
+      </p>
     </div>
   );
 }
