@@ -164,7 +164,7 @@ const ReelCreatorModal = ({
 
   useEffect(() => {
     setTrim(null);
-  }, [musicId]);
+  }, [musicId, customMusicUrl]);
 
   useEffect(() => {
     if (musicId !== "custom" || !customMusicUrl) return;
@@ -207,19 +207,27 @@ const ReelCreatorModal = ({
     };
   }, [open, selectedPhotos]);
 
+  // Visual loop: restarts only when the reel itself changes — never on audio tweaks.
+  useEffect(() => {
+    if (step !== "export" || !playing || images.length === 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handle = previewReel(
+      canvas,
+      images,
+      { photoDuration: photoDur, transition, transitionDuration: clampedTrans, animation, musicUrl: null }
+    );
+    return () => handle.stop();
+  }, [step, playing, images, photoDur, transition, clampedTrans, animation]);
+
+  // Audible preview: plain element semantics (no AudioContext — the export owns
+  // the single createMediaElementSource graph). Same fragment-loop as export.
+  // Volume/mute apply live without restarting the canvas loop above.
   useEffect(() => {
     if (step !== "export" || images.length === 0) {
       previewAudioRef.current?.pause();
       return;
     }
-    const canvas = canvasRef.current;
-    const handle = canvas && playing ? previewReel(
-      canvas,
-      images,
-      { photoDuration: photoDur, transition, transitionDuration: clampedTrans, animation, musicUrl: null }
-    ) : null;
-    // Audible preview: plain element semantics (no AudioContext — the export owns
-    // the single createMediaElementSource graph). Same fragment-loop as export.
     let el = previewAudioRef.current;
     if (!el) {
       el = new Audio();
@@ -240,10 +248,9 @@ const ReelCreatorModal = ({
       preview.pause();
     }
     return () => {
-      handle?.stop();
       preview.pause();
     };
-  }, [step, playing, images, photoDur, transition, clampedTrans, animation, musicUrl, trim, volume, muted]);
+  }, [step, playing, images.length, musicUrl, trim, volume, muted]);
 
   const toggleSelect = (name: string): void => {
     setSelected((prev) => {

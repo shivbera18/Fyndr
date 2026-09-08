@@ -54,15 +54,41 @@ export function Waveform({
     }
   }, [peaks, duration, start, end]);
 
-  const xToSec = (clientX: number): number => {
+  const rectOf = (): DOMRect | null => {
     const canvas = canvasRef.current;
-    if (!canvas || !(duration > 0)) return 0;
+    if (!canvas || !(duration > 0)) return null;
     const rect = canvas.getBoundingClientRect();
+    return rect.width > 0 ? rect : null;
+  };
+
+  const xToSec = (clientX: number): number => {
+    const rect = rectOf();
+    if (!rect) return 0;
     return (Math.min(Math.max(0, clientX - rect.left), rect.width) / rect.width) * duration;
   };
 
   const pickHandle = (sec: number): "start" | "end" =>
     Math.abs(sec - start) <= Math.abs(sec - end) ? "start" : "end";
+
+  const moveTo = (sec: number): void => {
+    if (dragRef.current === "start") {
+      const c = clampTrim(sec, end, duration);
+      onChange(c.start, c.end);
+    } else if (dragRef.current === "end") {
+      const c = clampTrim(start, sec, duration);
+      onChange(c.start, c.end);
+    }
+  };
+
+  const handleX = (sec: number): number => {
+    const rect = rectOf();
+    if (!rect) return 0;
+    return rect.left + (sec / duration) * rect.width;
+  };
+
+  const releaseDrag = (): void => {
+    dragRef.current = null;
+  };
 
   return (
     <div className="space-y-2">
@@ -71,8 +97,8 @@ export function Waveform({
         className="h-16 w-full touch-none rounded-lg bg-muted"
         onPointerDown={(e) => {
           const sec = xToSec(e.clientX);
-          const nearStart = Math.abs(e.clientX - startHandleX()) <= HANDLE_SLOP;
-          const nearEnd = Math.abs(e.clientX - endHandleX()) <= HANDLE_SLOP;
+          const nearStart = Math.abs(e.clientX - handleX(start)) <= HANDLE_SLOP;
+          const nearEnd = Math.abs(e.clientX - handleX(end)) <= HANDLE_SLOP;
           dragRef.current = nearStart ? "start" : nearEnd ? "end" : pickHandle(sec);
           try {
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -85,9 +111,8 @@ export function Waveform({
           if (!dragRef.current) return;
           moveTo(xToSec(e.clientX));
         }}
-        onPointerUp={() => {
-          dragRef.current = null;
-        }}
+        onPointerUp={releaseDrag}
+        onPointerCancel={releaseDrag}
       />
       <p className="text-xs text-muted-foreground">
         {formatTrimTime(start)} – {formatTrimTime(end)} of {formatTrimTime(duration)}
@@ -132,28 +157,4 @@ export function Waveform({
       </div>
     </div>
   );
-
-  function moveTo(sec: number): void {
-    if (dragRef.current === "start") {
-      const c = clampTrim(sec, end, duration);
-      onChange(c.start, c.end);
-    } else if (dragRef.current === "end") {
-      const c = clampTrim(start, sec, duration);
-      onChange(c.start, c.end);
-    }
-  }
-
-  function handleX(sec: number): number {
-    const canvas = canvasRef.current;
-    if (!canvas || !(duration > 0)) return 0;
-    return canvas.getBoundingClientRect().left + (sec / duration) * canvas.getBoundingClientRect().width;
-  }
-
-  function startHandleX(): number {
-    return handleX(start);
-  }
-
-  function endHandleX(): number {
-    return handleX(end);
-  }
 }
