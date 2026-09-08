@@ -40,6 +40,8 @@ const SelectEvent = (): React.JSX.Element => {
   const [activeFolder, setActiveFolder] = useState<string>("All");
   const [selectedOnly, setSelectedOnly] = useState<boolean>(false);
   const [locking, setLocking] = useState<boolean>(false);
+  const [confirming, setConfirming] = useState<boolean>(false);
+  const confirmTimer = useRef<number | undefined>(undefined);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
   // Fresh mirror: onBlur/toggle closures read current picks, never a stale render snapshot
   const photosRef = useRef<SelectPhoto[]>([]);
@@ -164,6 +166,15 @@ const SelectEvent = (): React.JSX.Element => {
 
   const lockSelection = async (): Promise<void> => {
     if (locked || !eventId || locking) return;
+    if (!confirming) {
+      setConfirming(true);
+      clearTimeout(confirmTimer.current);
+      confirmTimer.current = window.setTimeout(() => setConfirming(false), 6000);
+      return;
+    }
+    clearTimeout(confirmTimer.current);
+    confirmTimer.current = undefined;
+    setConfirming(false);
     setLocking(true);
     setErrorMessage("");
     try {
@@ -255,7 +266,7 @@ const SelectEvent = (): React.JSX.Element => {
                   className="min-h-[44px]"
                 >
                   {locked ? <Check className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                  {locked ? "Submitted" : locking ? "Submitting…" : "Lock & submit picks"}
+                  {locked ? "Submitted" : locking ? "Submitting…" : confirming ? "Tap again to submit — this locks your picks" : "Lock & submit picks"}
                 </Button>
               </div>
             </div>
