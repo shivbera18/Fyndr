@@ -15,6 +15,24 @@ jest.mock("../reelRenderer", () => ({
   renderReelToFile: jest.fn(async () => new Blob(["frame"], { type: "video/webm" })),
   previewReel: jest.fn(() => ({ stop: jest.fn() })),
 }));
+jest.mock("../tracks", () => ({
+  loadTrackManifest: jest.fn(async () => [
+    { id: "upbeat", title: "Upbeat Pop", src: "/reel-music/upbeat.mp3", duration: 60, license: "CC0" },
+  ]),
+  resolveCatalog: jest.fn(
+    (manifest: Array<{ id: string; title: string; src: string; duration: number; license: string }>) => [
+      { id: "none", label: "No music", src: null, credit: "", license: "none" },
+      ...manifest.map((t) => ({
+        id: t.id,
+        label: t.title,
+        src: t.src,
+        credit: "",
+        license: t.license,
+        duration: t.duration,
+      })),
+    ]
+  ),
+}));
 jest.mock("sonner", () => ({
   toast: {
     success: jest.fn(),
@@ -75,6 +93,27 @@ describe("ReelCreatorModal", () => {
     reel.isReelExportSupported.mockReturnValue(true);
     reel.previewReel.mockReturnValue({ stop: jest.fn() });
     reel.extensionForMime.mockReturnValue("webm");
+    const tracks = jest.requireMock("../tracks") as {
+      loadTrackManifest: jest.Mock;
+      resolveCatalog: jest.Mock;
+    };
+    const manifest = [
+      { id: "upbeat", title: "Upbeat Pop", src: "/reel-music/upbeat.mp3", duration: 60, license: "CC0" },
+    ];
+    tracks.loadTrackManifest.mockResolvedValue(manifest);
+    tracks.resolveCatalog.mockImplementation(
+      (items: Array<{ id: string; title: string; src: string; duration: number; license: string }>) => [
+        { id: "none", label: "No music", src: null, credit: "", license: "none" },
+        ...items.map((t) => ({
+          id: t.id,
+          label: t.title,
+          src: t.src,
+          credit: "",
+          license: t.license,
+          duration: t.duration,
+        })),
+      ]
+    );
   });
 
   afterEach(() => {
@@ -107,6 +146,8 @@ describe("ReelCreatorModal", () => {
 
   it("exports and fires reel_export analytics with a download link", async () => {
     renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Music & Style/i }));
+    fireEvent.click(await screen.findByText("Upbeat Pop"));
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
 
     const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
@@ -117,7 +158,7 @@ describe("ReelCreatorModal", () => {
     expect(trackEvent).toHaveBeenCalledWith(
       "evt1",
       "reel_export",
-      expect.objectContaining({ photoCount: 3, transition: "fade", hasMusic: true })
+      expect.objectContaining({ photoCount: 3, transition: "fade", hasMusic: true, musicId: "upbeat" })
     );
     expect(link.getAttribute("download")).toBe("fyndr-reel-evt1.webm");
   });
