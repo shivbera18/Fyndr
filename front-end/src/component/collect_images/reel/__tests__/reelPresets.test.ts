@@ -1,10 +1,12 @@
 import {
   REEL_TRACKS,
+  alignHolds,
   clampTransitionDuration,
   clampTrim,
   coverDraw,
   formatTrimTime,
   reelTotalDuration,
+  resolveTimeline,
   smartStart,
   withFragment,
 } from "../presets";
@@ -70,5 +72,32 @@ describe("reel trim helpers", () => {
   it("builds media-fragment URLs only when trimmed", () => {
     expect(withFragment("/x.mp3", null)).toBe("/x.mp3");
     expect(withFragment("/x.mp3", { start: 12, end: 27 })).toBe("/x.mp3#t=12.0,27.0");
+  });
+});
+
+describe("resolveTimeline", () => {
+  it("totals uniform holds plus joins", () => {
+    expect(resolveTimeline(2.5, 0.5, "fade", [undefined, undefined, undefined])).toEqual({
+      holds: [2.5, 2.5, 2.5],
+      total: 8.5,
+    });
+  });
+
+  it("honors per-photo overrides and clamps joins", () => {
+    const t = resolveTimeline(2.5, 1.5, "fade", [1, undefined]);
+    expect(t.holds).toEqual([1, 2.5]);
+    expect(t.total).toBeCloseTo(1 + 2.5 + 0.9, 10);
+  });
+
+  it("zeroes joins for none transitions and empties", () => {
+    expect(resolveTimeline(2.5, 0.5, "none", [2, 2]).total).toBe(4);
+    expect(resolveTimeline(2.5, 0.5, "fade", [])).toEqual({ holds: [], total: 0 });
+  });
+
+  it("aligns holds to loaded images by prefix", () => {
+    expect(alignHolds([1, 2, 2.5], 3)).toEqual([1, 2, 2.5]);
+    expect(alignHolds([1, 2, 2.5], 2)).toEqual([1, 2]);
+    expect(alignHolds([1], 2)).toBeNull();
+    expect(alignHolds(undefined, 2)).toBeNull();
   });
 });
