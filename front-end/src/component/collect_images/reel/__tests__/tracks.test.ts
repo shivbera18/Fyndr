@@ -5,6 +5,7 @@ const manifest = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../../../../../public/reel-music/manifest.json"), "utf8")
 );
 import {
+  APPROVED_AUDIO_ORIGINS,
   loadTrackManifest,
   resolveCatalog,
   validateManifest,
@@ -47,12 +48,21 @@ describe("track catalog", () => {
         { ...goodCC0, id: "uncredited", license: "CC-BY" },
         { ...goodCC0, id: "hotlink", src: "https://unapproved.example/x.mp3" },
         { ...goodCC0, id: "insecure", src: "http://example.com/x.mp3" },
+        { ...goodCC0, id: "proto-relative", src: "//evil.example/x.mp3" },
+        { ...goodCC0, id: "backslash", src: "/\\evil.example/x.mp3" },
+        { ...goodCC0, id: "none" },
         { ...goodCC0, id: "nodur", duration: 0 },
         { ...goodCC0, id: "nolicense", license: "GPL" },
         "not-an-object",
       ],
     });
     expect(tracks.map((t) => t.id)).toEqual(["calm-piano"]);
+  });
+
+  it("keeps tracks with malformed optional peaks but omits them", () => {
+    const tracks = validateManifest({ tracks: [{ ...goodCC0, id: "nanpeaks", peaks: [0.5, NaN] }] });
+    expect(tracks.map((t) => t.id)).toEqual(["nanpeaks"]);
+    expect(tracks[0].peaks).toBeUndefined();
   });
 
   it("rejects non-manifest shapes", () => {
@@ -62,7 +72,8 @@ describe("track catalog", () => {
 
   it("validates the checked-in manifest", () => {
     expect(() => validateManifest(manifest)).not.toThrow();
-    expect(validateManifest(manifest)).toEqual([]);
+    const raw = manifest as { tracks: unknown[] };
+    expect(validateManifest(manifest)).toHaveLength(raw.tracks.length);
   });
 
   it("resolves none-first with metadata preserved", () => {
@@ -102,6 +113,37 @@ describe("track catalog", () => {
       expect(tracks.map((t) => t.id)).toEqual(["calm-piano"]);
     } finally {
       global.fetch = saved;
+    }
+  });
+
+  it("loads [] on network or parse failure", async () => {
+    const saved = global.fetch;
+    try {
+      global.fetch = jest.fn(async () => {
+        throw new Error("offline");
+      }) as unknown as typeof fetch;
+      await expect(loadTrackManifest()).resolves.toEqual([]);
+      global.fetch = jest.fn(async () => ({
+        ok: true,
+        json: async () => {
+          throw new SyntaxError("not json");
+        },
+      })) as unknown as typeof fetch;
+      await expect(loadTrackManifest()).resolves.toEqual([]);
+    } finally {
+      global.fetch = saved;
+    }
+  });
+
+  it("accepts approved https origins", () => {
+    APPROVED_AUDIO_ORIGINS.push("https://cdn.example");
+    try {
+      const tracks = validateManifest({
+        tracks: [{ ...goodCC0, id: "cdn", src: "https://cdn.example/x.mp3" }],
+      });
+      expect(tracks.map((t) => t.id)).toEqual(["cdn"]);
+    } finally {
+      APPROVED_AUDIO_ORIGINS.pop();
     }
   });
 });

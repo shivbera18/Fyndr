@@ -1,4 +1,5 @@
-import { REEL_TRACKS, ReelTrack } from "./presets";
+import { REEL_TRACKS } from "./presets";
+import type { ReelTrack } from "./presets";
 
 export interface ManifestTrack {
   id: string;
@@ -30,7 +31,9 @@ export const TRACK_MANIFEST_URL = "/reel-music/manifest.json";
 export const APPROVED_AUDIO_ORIGINS: string[] = [];
 
 function isAllowedSrc(src: string): boolean {
-  if (src.startsWith("/")) return true;
+  // Protocol-relative ("//evil/x", "/\\evil/x") resolves to an external origin
+  // in browsers — never treat it as same-origin.
+  if (src.startsWith("/") && !src.startsWith("//") && !src.startsWith("/\\")) return true;
   try {
     const url = new URL(src);
     if (url.protocol !== "https:") return false;
@@ -58,7 +61,8 @@ export function validateManifest(data: unknown): ManifestTrack[] {
     warn("manifest must be { tracks: [...] }");
     return [];
   }
-  const seen = new Set<string>();
+  // "none" is reserved for the music-off entry prepended by resolveCatalog.
+  const seen = new Set<string>(["none"]);
   const out: ManifestTrack[] = [];
   for (const entry of data.tracks) {
     if (!isRecord(entry)) continue;
@@ -85,9 +89,12 @@ export function validateManifest(data: unknown): ManifestTrack[] {
       track.mood = entry.mood;
     }
     if (typeof credit === "string" && credit !== "") track.credit = credit;
-    if (typeof entry.bpm === "number" && entry.bpm > 0) track.bpm = entry.bpm;
-    if (Array.isArray(entry.peaks) && entry.peaks.every((p): p is number => typeof p === "number")) {
-      track.peaks = entry.peaks;
+    if (Array.isArray(entry.peaks)) {
+      if (entry.peaks.every((p): p is number => Number.isFinite(p))) {
+        track.peaks = entry.peaks;
+      } else {
+        warn(`track ${id}: ignoring non-finite peaks`);
+      }
     }
     out.push(track);
   }
@@ -107,7 +114,7 @@ export async function loadTrackManifest(): Promise<ManifestTrack[]> {
 // Single source for the music-off entry — mirrors presets so the none-first
 // contract pinned by reelPresets.test.ts cannot drift.
 export function getNoneTrack(): ReelTrack {
-  return REEL_TRACKS[0];
+  return { ...REEL_TRACKS[0] };
 }
 
 export function resolveCatalog(manifest: ManifestTrack[]): CatalogTrack[] {
