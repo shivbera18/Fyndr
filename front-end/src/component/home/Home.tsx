@@ -17,7 +17,7 @@ import {
   TabsContent,
 } from "../../components/ui/tabs";
 import { BeamLines } from "../../components/ui/beam-lines";
-import type { BeamSource, BeamHub } from "../../components/ui/beam-lines";
+import { CameraCloudFlow } from "./CameraCloudFlow";
 import { ConicBorderCard } from "../../components/ui/conic-border-card";
 import {
   BentoGrid,
@@ -295,35 +295,6 @@ const PRICING_TIERS = [
     variant: "outline" as const,
   },
 ];
-/* Camera-to-cloud beams: three shooters merge into one live gallery */
-const CAMERA_SOURCES: [BeamSource, BeamSource, BeamSource] = [
-  {
-    icon: <Camera className="size-5" />,
-    boxClass: "bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
-    title: "Shooter A · Canon",
-    sub: "Own FTP login · auto-transfer ON",
-  },
-  {
-    icon: <Camera className="size-5" />,
-    boxClass: "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-    title: "Shooter B · Nikon",
-    sub: "Own FTP login · auto-transfer ON",
-  },
-  {
-    icon: <Camera className="size-5" />,
-    boxClass: "bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
-    title: "Shooter C · Sony",
-    sub: "Own FTP login · auto-transfer ON",
-  },
-];
-const CAMERA_HUB: BeamHub = {
-  icon: <Zap className="size-4" />,
-  title: "Live event gallery",
-  sub: "New shots land in ~10s",
-  pill: "JPEG-only · Port 21 · No laptop",
-};
-
-/* ------------------------------------------------------------------ */
 /* Interactive Face Matcher Simulation Component                      */
 /* ------------------------------------------------------------------ */
 
@@ -852,7 +823,7 @@ export default function Home(): React.JSX.Element {
             </p>
           </div>
           <div className="max-w-5xl mx-auto">
-            <BeamLines sources={CAMERA_SOURCES} hub={CAMERA_HUB} />
+            <CameraCloudFlow />
           </div>
         </section>
 
@@ -880,7 +851,6 @@ export default function Home(): React.JSX.Element {
                   Event Guests
                 </TabsTrigger>
                 <TabsTrigger value="organizers" className="rounded-full text-xs font-semibold">
-                  Hosts &amp; Planners
                 </TabsTrigger>
               </TabsList>
             </div>
