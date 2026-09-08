@@ -7,6 +7,7 @@ import {
   clampTransitionDuration,
   coverDraw,
   reelTotalDuration,
+  resolveTimeline,
   withFragment,
 } from "./presets";
 
@@ -25,6 +26,7 @@ export interface ReelRenderOptions {
   transitionDuration: number;
   animation: ReelAnimation;
   musicUrl: string | null;
+  holds?: number[];
   mix?: ReelMix | null;
   onProgress?: (ratio: number) => void;
 }
@@ -143,8 +145,8 @@ function drawSlide(
   ctx.restore();
 }
 
-// Additive timeline (matches reelTotalDuration): each slide holds photoDuration,
-// then a transition segment of transDur cross-blends into the next slide.
+// Holds walk (matches resolveTimeline): each slide holds, then a join segment
+// cross-blends into the next slide. Absent holds = legacy uniform arithmetic.
 function paintAt(
   ctx: CanvasRenderingContext2D,
   images: HTMLImageElement[],
@@ -157,42 +159,54 @@ function paintAt(
   ctx.fillRect(0, 0, w, h);
   const n = images.length;
   if (n === 0) return;
-  const hold = Math.max(0.1, opts.photoDuration);
-  const trans =
+  const uniHold = Math.max(0.1, opts.photoDuration);
+  const uniTrans =
     opts.transition === "none" ? 0 : clampTransitionDuration(opts.transitionDuration, opts.photoDuration);
-  if (n === 1 || trans <= 0) {
-    const k = Math.min(n - 1, Math.max(0, Math.floor(timeSec / hold)));
-    drawSlide(ctx, images[k], (timeSec - k * hold) / hold, opts.animation, w, h);
-    return;
+  const useHolds = opts.holds && opts.holds.length === n ? opts.holds : null;
+  const holdAt = (i: number): number => Math.max(0.1, useHolds ? useHolds[i] : uniHold);
+  const transAt = (j: number): number => {
+    if (opts.transition === "none") return 0;
+    if (!useHolds) return uniTrans;
+    return clampTransitionDuration(opts.transitionDuration, Math.min(holdAt(j), holdAt(j + 1)));
+  };
+  let cursor = 0;
+  for (let k = 0; k < n; k++) {
+    const hold = holdAt(k);
+    if (k === n - 1 || timeSec < cursor + hold) {
+      const t01 = hold > 0 ? (timeSec - cursor) / hold : 1;
+      drawSlide(ctx, images[k], Math.min(1, Math.max(0, t01)), opts.animation, w, h);
+      return;
+    }
+    cursor += hold;
+    const trans = transAt(k);
+    if (trans > 0 && timeSec < cursor + trans) {
+      const p = Math.min(1, Math.max(0, (timeSec - cursor) / trans));
+      const next = images[k + 1];
+      const cur = images[k];
+      switch (opts.transition) {
+        case "fade":
+          drawSlide(ctx, cur, 1, opts.animation, w, h);
+          drawSlide(ctx, next, p, opts.animation, w, h, 0, p);
+          break;
+        case "slide":
+          drawSlide(ctx, cur, 1, opts.animation, w, h, -p * w);
+          drawSlide(ctx, next, p, opts.animation, w, h, (1 - p) * w);
+          break;
+        case "zoom":
+          drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1 - p, 1 + 0.15 * p);
+          drawSlide(ctx, next, p, opts.animation, w, h, 0, p);
+          break;
+        case "none":
+        default:
+          drawSlide(ctx, next, 0, opts.animation, w, h);
+          break;
+      }
+      return;
+    }
+    cursor += trans;
   }
-  const stride = hold + trans;
-  const k = Math.min(n - 1, Math.max(0, Math.floor(timeSec / stride)));
-  const local = timeSec - k * stride;
-  if (k >= n - 1 || local < hold) {
-    drawSlide(ctx, images[k], local / hold, opts.animation, w, h);
-    return;
-  }
-  const p = Math.min(1, Math.max(0, (local - hold) / trans));
-  const next = images[k + 1];
-  const cur = images[k];
-  switch (opts.transition) {
-    case "fade":
-      drawSlide(ctx, cur, 1, opts.animation, w, h);
-      drawSlide(ctx, next, p, opts.animation, w, h, 0, p);
-      break;
-    case "slide":
-      drawSlide(ctx, cur, 1, opts.animation, w, h, -p * w);
-      drawSlide(ctx, next, p, opts.animation, w, h, (1 - p) * w);
-      break;
-    case "zoom":
-      drawSlide(ctx, cur, 1, opts.animation, w, h, 0, 1 - p, 1 + 0.15 * p);
-      drawSlide(ctx, next, p, opts.animation, w, h, 0, p);
-      break;
-    case "none":
-    default:
-      drawSlide(ctx, next, 0, opts.animation, w, h);
-      break;
-  }
+  // Terminal pin: float accumulation must never leave a black final frame.
+  drawSlide(ctx, images[n - 1], 1, opts.animation, w, h);
 }
 
 export interface ReelPreviewHandle {
@@ -208,7 +222,12 @@ export function previewReel(
   canvas.height = REEL_H;
   const ctx = canvas.getContext("2d");
   if (!ctx) return { stop: () => undefined };
-  const total = Math.max(0.1, reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration));
+  const total = Math.max(
+    0.1,
+    opts.holds && opts.holds.length === images.length
+      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, opts.holds).total
+      : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
+  );
   let raf = 0;
   let stopped = false;
   const t0 = performance.now();
@@ -241,7 +260,12 @@ export async function renderReelToFile(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");
 
-  const total = Math.max(0.1, reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration));
+  const total = Math.max(
+    0.1,
+    opts.holds && opts.holds.length === images.length
+      ? resolveTimeline(opts.photoDuration, opts.transitionDuration, opts.transition, opts.holds).total
+      : reelTotalDuration(images.length, opts.photoDuration, opts.transitionDuration)
+  );
   const stream = canvas.captureStream(REEL_FPS);
 
   // Audio runs through WebAudio so music lands in the recorded file.
