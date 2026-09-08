@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import UploadImg from "./Upload_Img";
 import Qrcode from "./Qrcode";
 import { QRCodeCanvas } from "qrcode.react";
 import { Card, CardContent } from "../../components/ui/card";
-import EventAnalyticsModal from "./EventAnalyticsModal";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
@@ -62,11 +62,11 @@ type InEventProps = {
 };
 
 const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initialLimit, initialLocked, setRefresh }: InEventProps): React.JSX.Element => {
+  const navigate = useNavigate();
   const [images, setImages] = useState<Photo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
-  const [showAnalytics, setShowAnalytics] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<Preview | null>(null);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
@@ -614,7 +614,16 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             <ArrowLeft className="h-4 w-4" />
             Back to Events
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowAnalytics(true)} className="min-h-[44px] flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              navigate(`/events/${eventID}/analytics`, {
+                state: { eventName: name, ownerId },
+              })
+            }
+            className="min-h-[44px] flex items-center gap-1.5"
+          >
             <BarChart3 className="h-4 w-4" />
             Guest Analytics
           </Button>
@@ -660,14 +669,14 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                       onChange={(e) => setPinInput(e.target.value)}
                       placeholder="Empty = No PIN"
                       maxLength={24}
-                      className="w-36 min-h-[40px] rounded-lg border border-input bg-background px-3 font-mono text-sm"
+                      className="w-36 min-h-[44px] rounded-lg border border-input bg-background px-3 font-mono text-sm"
                     />
                     <Button
                       type="button"
                       size="sm"
                       disabled={savingPin}
                       onClick={() => void handleUpdatePin(pinInput)}
-                      className="min-h-[40px] text-xs font-semibold"
+                      className="min-h-[44px] text-xs font-semibold"
                     >
                       {savingPin ? "Saving…" : "Save"}
                     </Button>
@@ -679,7 +688,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                         const rand = Math.floor(100000 + Math.random() * 900000).toString();
                         setPinInput(rand);
                       }}
-                      className="min-h-[40px] text-xs font-mono text-muted-foreground"
+                      className="min-h-[44px] text-xs font-mono text-muted-foreground"
                     >
                       Random
                     </Button>
@@ -688,7 +697,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                       variant="ghost"
                       size="sm"
                       onClick={() => setPinInput("")}
-                      className="min-h-[40px] text-xs text-muted-foreground"
+                      className="min-h-[44px] text-xs text-muted-foreground"
                     >
                       No PIN
                     </Button>
@@ -700,7 +709,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                         setEditingPin(false);
                         setPinInput(currentPin);
                       }}
-                      className="min-h-[40px] text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       Cancel
                     </Button>
@@ -1344,7 +1353,16 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <Button variant="outline" size="default" onClick={() => setShowAnalytics(true)} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
+        <Button
+          variant="outline"
+          size="default"
+          onClick={() =>
+            navigate(`/events/${eventID}/analytics`, {
+              state: { eventName: name, ownerId },
+            })
+          }
+          className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5"
+        >
           <BarChart3 className="h-4 w-4" />
           Analytics
         </Button>
@@ -1374,14 +1392,6 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <Qrcode url={guestUrl} eventName={name} />
         </div>
       </ResponsiveModal>
-      {/* Event Analytics & Guest Leads Modal */}
-      <EventAnalyticsModal
-        open={showAnalytics}
-        onOpenChange={setShowAnalytics}
-        eventId={eventID}
-        eventName={name}
-        ownerId={ownerId}
-      />
 
 
       {/* Delete Event Confirmation Modal */}

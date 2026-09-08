@@ -19,6 +19,7 @@ import AnalyticsPage from './component/dashboard/AnalyticsPage';
 import SettingsPage from './component/dashboard/SettingsPage';
 import BottomNav from './component/navbar/BottomNav';
 import AccountPage from './component/dashboard/AccountPage';
+import GuestAnalyticsPage from './component/dashboard/GuestAnalyticsPage';
 import { PWAInstallBanner, PWAOfflineIndicator } from './components/pwa';
 function App() {
   useEffect(() => {
@@ -72,6 +73,8 @@ function App() {
           <Route path='/account' element={<AccountPage />} />
           <Route path='/collect/:eventId' element={<CollectEvent />} />
           <Route path='/select/:eventId' element={<SelectEvent />} />
+          <Route path='/events/:eventId/analytics' element={<GuestAnalyticsPage />} />
+          <Route path='/event/:eventId/analytics' element={<GuestAnalyticsPage />} />
           <Route path='/login' element={<LoginRegister />} />
           <Route path='/about' element={<About />} />
 

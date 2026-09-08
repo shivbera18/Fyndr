@@ -248,6 +248,31 @@ const sanitizePaywall = (input: unknown): PaywallResult => {
     };
 };
 
+router.get(["/events/:id", "/event/:id"], async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid event ID." });
+    }
+    try {
+        // Owner-authenticated metadata fetch for dashboard analytics — never leak pin or created_id to unauthenticated callers.
+        const caller =
+            (req.headers["x-created-id"] as string) ||
+            (typeof req.query.created_id === "string" ? req.query.created_id : undefined) ||
+            (typeof req.query.userId === "string" ? req.query.userId : undefined);
+        const event = await Event.findById(id).select("_id event_name created_id pin");
+        if (!event) {
+            return res.status(404).json({ message: "Event not found." });
+        }
+        if (!caller || caller !== event.created_id) {
+            return res.status(403).json({ message: "Only the event owner can view event details." });
+        }
+        // Return only safe public fields — never expose raw pin or owner secret to client.
+        return res.status(200).json({ _id: event._id, event_name: event.event_name });
+    } catch {
+        return res.status(500).json({ message: "Error fetching event details." });
+    }
+});
+
 router.put(["/events/:id", "/event/:id"], async (req: Request, res: Response) => {
     const { id } = req.params; // Extract event ID from URL params
     if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
