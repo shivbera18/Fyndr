@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
+import ReelCreatorModal from "./reel/ReelCreatorModal";
 import { API_URL, ML_URL } from "../../utils/api";
 import { trackEvent, getGuestSession } from "../../utils/analytics";
 import {
@@ -21,6 +22,7 @@ import {
 import {
   ArrowLeft,
   Camera,
+  Clapperboard,
   Download,
   ImagePlus,
   Loader2,
@@ -62,6 +64,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [eventName, setEventName] = useState<string>("");
   const [paywallConfig, setPaywallConfig] = useState<PaywallConfig | null>(null);
   const [showPaywallModal, setShowPaywallModal] = useState<boolean>(false);
+  const [showReel, setShowReel] = useState<boolean>(false);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
   const [whatsappOpened, setWhatsappOpened] = useState<boolean>(false);
 
@@ -415,6 +418,31 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     void downloadImage(url, filename);
   };
 
+  // Reel eligibility mirrors requestDownload with zero new policy: a photo can
+  // appear in an exported reel iff it could be downloaded right now.
+  const isReelPhotoEligible = (filename: string): boolean => {
+    if (paywallConfig?.enabled) {
+      if (paywallConfig.stage === "download" || paywallConfig.stage === "watermark_removal") {
+        if (!isPhotoUnlocked(eventId, filename)) return false;
+      }
+      if (paywallConfig.stage === "batch_download" && !isAlbumUnlocked(eventId)) {
+        const count = getDownloadCount(eventId);
+        if (count >= paywallConfig.freePhotoLimit && !isPhotoUnlocked(eventId, filename)) return false;
+      }
+      if (paywallConfig.stage === "entry" && !isAlbumUnlocked(eventId)) return false;
+    }
+    if (gateOn(eventId)) return false;
+    return true;
+  };
+
+  const handleReelGated = (): void => {
+    if (gateOn(eventId)) {
+      setLeadError("");
+      setShowLead(true);
+      return;
+    }
+    setShowPaywallModal(true);
+  };
   const submitLead = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!eventId || leadBusy) return;
@@ -795,6 +823,16 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                       <Share2 className="w-4 h-4 text-emerald-500" />
                       {shareCopied ? "Link Copied!" : "Share My Gallery"}
                     </Button>
+                    <Button
+                      type="button"
+                      variant="brand"
+                      size="sm"
+                      onClick={() => setShowReel(true)}
+                      className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold"
+                    >
+                      <Clapperboard className="w-4 h-4" />
+                      Create Reel
+                    </Button>
                   </div>
                 </div>
 
@@ -1062,6 +1100,18 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             onUnlockSuccess={handlePaywallUnlockSuccess}
           />
         )}
+        <ReelCreatorModal
+          open={showReel}
+          onOpenChange={setShowReel}
+          eventId={eventId ?? ""}
+          eventName={eventName}
+          photos={matchedPhotos.map((p) => ({
+            name: p.name,
+            url: `${getApiBase()}/uploads/${encodeURIComponent(p.name)}`,
+          }))}
+          isPhotoEligible={isReelPhotoEligible}
+          onGatedPhoto={handleReelGated}
+        />
       </main>
 
       <Footer />
