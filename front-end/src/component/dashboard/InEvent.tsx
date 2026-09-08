@@ -503,6 +503,36 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     }
   };
 
+  const downloadPicks = async (): Promise<void> => {
+    setProofBusy(true);
+    setProofMsg("");
+    try {
+      const res = await fetch(`${getApiBase()}/events/${eventID}/selected-download`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ created_id: ownerId }),
+      });
+      if (!res.ok) {
+        setProofMsg("No picks yet — nothing to download.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `picks-${eventID}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setProofMsg("Picks archive downloaded.");
+    } catch {
+      setProofMsg("Could not download picks. Please check connection.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
   const downloadStandee = (): void => {
     const qrEl = document.querySelector("#fyndr-standee-qr canvas");
     if (!qrEl || !(qrEl instanceof HTMLCanvasElement)) {
@@ -915,6 +945,9 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void copyLightroom()} disabled={proofBusy} className="min-h-[44px] text-xs">
               <Download className="h-3.5 w-3.5 mr-1" /> Copy for Lightroom
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void downloadPicks()} disabled={proofBusy} className="min-h-[44px] text-xs">
+              <Download className="h-3.5 w-3.5 mr-1" /> Download picks (.zip)
             </Button>
           </div>
           {proofMsg ? <p role="status" className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
