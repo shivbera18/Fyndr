@@ -17,6 +17,7 @@ import {
   TabsContent,
 } from "../../components/ui/tabs";
 import { BeamLines } from "../../components/ui/beam-lines";
+import type { BeamSource, BeamHub } from "../../components/ui/beam-lines";
 import { ConicBorderCard } from "../../components/ui/conic-border-card";
 import {
   BentoGrid,
@@ -294,6 +295,34 @@ const PRICING_TIERS = [
     variant: "outline" as const,
   },
 ];
+/* Camera-to-cloud beams: three shooters merge into one live gallery */
+const CAMERA_SOURCES: [BeamSource, BeamSource, BeamSource] = [
+  {
+    icon: <Camera className="size-5" />,
+    boxClass: "bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    title: "Shooter A · Canon",
+    sub: "Own FTP login · auto-transfer ON",
+  },
+  {
+    icon: <Camera className="size-5" />,
+    boxClass: "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+    title: "Shooter B · Nikon",
+    sub: "Own FTP login · auto upload ON",
+  },
+  {
+    icon: <Camera className="size-5" />,
+    boxClass: "bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    title: "Shooter C · Sony",
+    sub: "Own FTP login · auto FTP ON",
+  },
+];
+
+const CAMERA_HUB: BeamHub = {
+  icon: <Zap className="size-4" />,
+  title: "Live event gallery",
+  sub: "New shots land in ~10s",
+  pill: "JPEG-only · Port 21 · No laptop",
+};
 
 /* ------------------------------------------------------------------ */
 /* Interactive Face Matcher Simulation Component                      */
@@ -639,13 +668,10 @@ export default function Home(): React.JSX.Element {
             </div>
           </div>
 
-          {/* Hero Visual Demo Showcase */}
-          <div className="mt-14 w-full max-w-5xl mx-auto space-y-6">
-            <BeamLines />
-            <div className="max-w-md mx-auto">
-              <DemoCard />
-            </div>
-          </div>
+        {/* Hero Visual: journey beams merging into delivery */}
+        <div className="mt-14 w-full max-w-5xl mx-auto">
+          <BeamLines />
+        </div>
         </section>
 
         {/* ============================================================ */}
@@ -805,7 +831,31 @@ export default function Home(): React.JSX.Element {
                 </div>
               </div>
             </BentoCard>
+            {/* Bento Card 5: Live Interactive Demo (Full width) */}
+            <BentoCard
+              className="lg:col-span-3"
+              header={<DemoCard />}
+              title="Try the flow right here"
+              description="A miniature of the guest journey — upload, selfie, matched album in seconds. Tap the steps above to jump around."
+            />
           </BentoGrid>
+        </section>
+        {/* ============================================================ */}
+        {/* 4B. CAMERA-TO-CLOUD (SHOOTERS MERGE INTO LIVE GALLERY)        */}
+        {/* ============================================================ */}
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="text-center space-y-3 max-w-2xl mx-auto">
+            <Badge variant="secondary">Camera-to-Cloud</Badge>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Shoot. It lands in the gallery.
+            </h2>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Every shooter gets their own FTP login. Cameras auto-transfer JPEGs over a phone hotspot — photos appear live, no laptop in the middle.
+            </p>
+          </div>
+          <div className="max-w-5xl mx-auto">
+            <BeamLines sources={CAMERA_SOURCES} hub={CAMERA_HUB} />
+          </div>
         </section>
 
         {/* ============================================================ */}
