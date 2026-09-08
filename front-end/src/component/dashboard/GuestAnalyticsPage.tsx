@@ -4,7 +4,7 @@ import { API_URL } from "../../utils/api";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
 import { Card, CardContent } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
+import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import {
@@ -110,7 +110,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
   const location = useLocation();
 
   // Route state fallbacks
-  const routeState = (location.state as { eventName?: string; ownerId?: string; pin?: string } | null) || {};
+  const routeState = (location.state as { eventName?: string; ownerId?: string } | null) || {};
   const [eventName, setEventName] = useState<string>(routeState.eventName || "Event");
   const [ownerId, setOwnerId] = useState<string>(routeState.ownerId || "");
 
@@ -128,6 +128,9 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [activityFilter, setActivityFilter] = useState<string>("all");
+  const [guestsPage, setGuestsPage] = useState<number>(1);
+  const [guestsTotal, setGuestsTotal] = useState<number>(0);
+  const GUESTS_PAGE_SIZE = 50;
 
   // Authentication & owner resolution
   useEffect(() => {
@@ -146,25 +149,31 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
     }
   }, [navigate, ownerId]);
 
-  // Fetch event name fallback if not present in state
+  // Fetch event name fallback if not present in state — owner-authenticated, never adopts created_id from response.
   useEffect(() => {
     if (!eventId) return;
     if (!routeState.eventName) {
-      fetch(`${API_URL}/events/${eventId}`)
+      const fallbackOwner = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("user") || "{}")._id || "";
+        } catch {
+          return "";
+        }
+      })();
+      const authQ = fallbackOwner ? `?created_id=${encodeURIComponent(fallbackOwner)}` : "";
+      const headers: Record<string, string> = fallbackOwner ? { "x-created-id": fallbackOwner } : {};
+      fetch(`${API_URL}/events/${eventId}${authQ}`, { headers })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.event_name) {
             setEventName(data.event_name);
-          }
-          if (data?.created_id && !ownerId) {
-            setOwnerId(data.created_id);
           }
         })
         .catch(() => {
           // Keep default
         });
     }
-  }, [eventId, routeState.eventName, ownerId]);
+  }, [eventId, routeState.eventName]);
 
   // Primary analytics fetch
   const fetchData = useCallback(async () => {
@@ -182,9 +191,10 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
       const authQueryFirst = resolvedOwner ? `?created_id=${encodeURIComponent(resolvedOwner)}` : "";
       const authHeaders: Record<string, string> = resolvedOwner ? { "x-created-id": resolvedOwner } : {};
 
+      const guestsQuery = `?page=${guestsPage}&limit=${GUESTS_PAGE_SIZE}${authQuery}`;
       const [sumRes, guestsRes, timelineRes, actRes] = await Promise.all([
         fetch(`${API_URL}/api/analytics/event/${eventId}/summary${authQueryFirst}`, { headers: authHeaders }),
-        fetch(`${API_URL}/api/analytics/event/${eventId}/guests?limit=100${authQuery}`, { headers: authHeaders }),
+        fetch(`${API_URL}/api/analytics/event/${eventId}/guests${guestsQuery}`, { headers: authHeaders }),
         fetch(`${API_URL}/api/analytics/event/${eventId}/timeline${authQueryFirst}`, { headers: authHeaders }),
         fetch(`${API_URL}/api/analytics/event/${eventId}/activity${authQueryFirst}`, { headers: authHeaders }),
       ]);
@@ -196,6 +206,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
       if (guestsRes.ok) {
         const data = await guestsRes.json();
         setGuests(data.guests || []);
+        setGuestsTotal(typeof data.total === "number" ? data.total : (data.guests || []).length);
       }
       if (timelineRes.ok) {
         const data = await timelineRes.json();
@@ -212,7 +223,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [eventId, ownerId]);
+  }, [eventId, ownerId, guestsPage]);
 
   useEffect(() => {
     setLoading(true);
@@ -224,6 +235,10 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
     void fetchData();
   };
 
+  useEffect(() => {
+    setGuestsPage(1);
+  }, [searchQuery, filterType]);
+
   // Filtered guest list
   const filteredGuests = useMemo(() => {
     return guests.filter((g) => {
@@ -232,6 +247,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
         !query ||
         (g.guestName && g.guestName.toLowerCase().includes(query)) ||
         (g.guestPhone && g.guestPhone.includes(query)) ||
+        (g.device?.type && g.device.type.toLowerCase().includes(query)) ||
         (g.device?.os && g.device.os.toLowerCase().includes(query)) ||
         (g.device?.browser && g.device.browser.toLowerCase().includes(query));
 
@@ -244,9 +260,10 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
     });
   }, [guests, searchQuery, filterType]);
 
-  // Filtered live activities
+  // Filtered live activities — pin_attempt is virtual filter mapping to pin_success + pin_failure
   const filteredActivities = useMemo(() => {
     if (activityFilter === "all") return activities;
+    if (activityFilter === "pin_attempt") return activities.filter((a) => a.type === "pin_success" || a.type === "pin_failure");
     return activities.filter((a) => a.type === activityFilter);
   }, [activities, activityFilter]);
 
@@ -307,7 +324,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
     }
   };
 
-  const getCleanPhone = (phone: string) => phone.replace(/[^0-9]/g, "");
+  const getCleanPhone = (phone: string | null | undefined) => (typeof phone === "string" ? phone : "").replace(/[^0-9]/g, "");
 
   const resolvedOwner = ownerId || (() => {
     try {
@@ -331,13 +348,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
               Dashboard
             </Link>
             <ChevronRight className="h-4 w-4" />
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="hover:text-foreground transition-colors truncate max-w-[200px]"
-            >
-              {eventName}
-            </button>
+            <span className="font-semibold text-foreground truncate max-w-[200px]">{eventName}</span>
             <ChevronRight className="h-4 w-4" />
             <span className="font-semibold text-foreground">Guest Analytics</span>
           </div>
@@ -345,7 +356,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/dashboard")}
             className="min-h-[44px] flex items-center gap-1.5 text-xs sm:text-sm"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -387,11 +398,9 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
               {refreshing ? "Updating…" : "Refresh"}
             </Button>
 
-            <a href={csvExportUrl} download target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="default" className="min-h-[44px] flex items-center gap-2 text-xs sm:text-sm">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
-                Export CSV Leads
-              </Button>
+            <a href={csvExportUrl} download target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "default", size: "sm" }), "min-h-[44px] inline-flex items-center gap-2 text-xs sm:text-sm")}>
+              <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
+              Export CSV Leads
             </a>
           </div>
         </div>
@@ -669,7 +678,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={filterType === "all" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setFilterType("all")}
-                      className="min-h-[40px] text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       All ({guests.length})
                     </Button>
@@ -678,7 +687,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={filterType === "verified" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setFilterType("verified")}
-                      className="min-h-[40px] text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       Verified ({guests.filter((g) => g.verified).length})
                     </Button>
@@ -696,7 +705,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={filterType === "downloads" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setFilterType("downloads")}
-                      className="min-h-[40px] text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       Downloaded ({guests.filter((g) => (g.downloadsCount || 0) > 0).length})
                     </Button>
@@ -831,7 +840,37 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                           })}
                         </tbody>
                       </table>
-                    </div>
+                  </div>
+                    {guestsTotal > GUESTS_PAGE_SIZE && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border bg-muted/20 text-xs">
+                        <span className="text-muted-foreground">
+                          Showing {(guestsPage - 1) * GUESTS_PAGE_SIZE + 1}–{Math.min(guestsPage * GUESTS_PAGE_SIZE, guestsTotal)} of {guestsTotal} guests
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setGuestsPage((p) => Math.max(1, p - 1))}
+                            disabled={guestsPage <= 1}
+                            className="min-h-[44px]"
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-muted-foreground font-mono">
+                            Page {guestsPage} of {Math.max(1, Math.ceil(guestsTotal / GUESTS_PAGE_SIZE))}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setGuestsPage((p) => p + 1)}
+                            disabled={guestsPage >= Math.ceil(guestsTotal / GUESTS_PAGE_SIZE)}
+                            className="min-h-[44px]"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1076,7 +1115,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={activityFilter === "all" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setActivityFilter("all")}
-                      className="h-8 text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       All ({activities.length})
                     </Button>
@@ -1085,7 +1124,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={activityFilter === "photo_download" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setActivityFilter("photo_download")}
-                      className="h-8 text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       Downloads
                     </Button>
@@ -1094,7 +1133,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={activityFilter === "selfie_search" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setActivityFilter("selfie_search")}
-                      className="h-8 text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       Selfie Searches
                     </Button>
@@ -1103,7 +1142,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={activityFilter === "pin_attempt" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setActivityFilter("pin_attempt")}
-                      className="h-8 text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       PIN Entries
                     </Button>

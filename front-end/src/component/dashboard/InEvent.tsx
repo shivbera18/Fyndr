@@ -619,7 +619,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             size="sm"
             onClick={() =>
               navigate(`/events/${eventID}/analytics`, {
-                state: { eventName: name, ownerId, pin },
+                state: { eventName: name, ownerId },
               })
             }
             className="min-h-[44px] flex items-center gap-1.5"
@@ -1358,7 +1358,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           size="default"
           onClick={() =>
             navigate(`/events/${eventID}/analytics`, {
-              state: { eventName: name, ownerId, pin },
+              state: { eventName: name, ownerId },
             })
           }
           className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5"
