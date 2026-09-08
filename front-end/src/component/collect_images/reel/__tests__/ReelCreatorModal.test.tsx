@@ -170,4 +170,33 @@ describe("ReelCreatorModal", () => {
       })
     );
   });
+
+  it("reorders photos with arrow buttons and announces the move", () => {
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Move b.jpg later" }));
+    expect(screen.getByText("b.jpg, position 3 of 3")).toBeInTheDocument();
+    const laterButtons = screen.getAllByRole("button", { name: /Move .* later/ });
+    expect(laterButtons.map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Move a.jpg later",
+      "Move c.jpg later",
+      "Move b.jpg later",
+    ]);
+  });
+
+  it("cycles per-photo duration and passes holds to export", async () => {
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Duration for a.jpg: auto" }));
+    expect(screen.getByRole("button", { name: "Duration for a.jpg: 1" })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ holds: [1, 2.5, 2.5] })
+    );
+  });
 });

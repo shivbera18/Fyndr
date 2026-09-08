@@ -23,7 +23,7 @@ import {
   ReelTransition,
   clampTransitionDuration,
   clampTrim,
-  reelTotalDuration,
+  resolveTimeline,
   smartStart,
   withFragment,
 } from "./presets";
@@ -92,6 +92,9 @@ const ReelCreatorModal = ({
   );
   const [photoDur, setPhotoDur] = useState<number>(PHOTO_DUR_DEFAULT);
   const [transDur, setTransDur] = useState<number>(TRANS_DUR_DEFAULT);
+  const [durations, setDurations] = useState<Record<string, number>>({});
+  const [liveMsg, setLiveMsg] = useState<string>("");
+  const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState<boolean>(false);
   const [playing, setPlaying] = useState<boolean>(true);
@@ -115,7 +118,11 @@ const ReelCreatorModal = ({
     return catalog.find((t) => t.id === musicId)?.src ?? null;
   }, [musicId, customMusicUrl, catalog]);
   const clampedTrans = clampTransitionDuration(transDur, photoDur);
-  const total = reelTotalDuration(selected.length, photoDur, transDur);
+  const timeline = useMemo(
+    () => resolveTimeline(photoDur, transDur, transition, selected.map((n) => durations[n])),
+    [photoDur, transDur, transition, selected, durations]
+  );
+  const total = timeline.total;
 
   const activeTrack: CatalogTrack | undefined = useMemo(
     () => catalog.find((t) => t.id === musicId),
@@ -123,6 +130,38 @@ const ReelCreatorModal = ({
   );
   const trackDuration = musicId === "custom" ? uploadDuration : activeTrack?.duration ?? 0;
 
+
+  const movePhoto = (name: string, dir: -1 | 1): void => {
+    const i = selected.indexOf(name);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= selected.length) return;
+    const next = selected.filter((n) => n !== name);
+    next.splice(j, 0, name);
+    setSelected(next);
+    setLiveMsg(`${name}, position ${j + 1} of ${next.length}`);
+  };
+
+  const DUR_CYCLE: (number | undefined)[] = [undefined, 1, 2, 3, 4];
+  const cycleDuration = (name: string): void => {
+    setDurations((d) => {
+      const nextVal = DUR_CYCLE[(DUR_CYCLE.indexOf(d[name]) + 1) % DUR_CYCLE.length];
+      const next = { ...d };
+      if (nextVal === undefined) delete next[name];
+      else next[name] = nextVal;
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    setDurations((d) => {
+      const keep = new Set(selected);
+      const stale = Object.keys(d).filter((k) => !keep.has(k));
+      if (stale.length === 0) return d;
+      const next = { ...d };
+      stale.forEach((k) => delete next[k]);
+      return next;
+    });
+  }, [selected]);
   useEffect(() => {
     if (!open) return;
     setStep("photos");
@@ -183,19 +222,29 @@ const ReelCreatorModal = ({
       setImages([]);
       return;
     }
-    if (selectedPhotos.length === 0) {
+    const urls = selectedPhotos.map((p) => p.url);
+    if (urls.length === 0) {
       setImages([]);
+      return;
+    }
+    // URL-keyed cache: reorder re-sorts in place, only new URLs fetch.
+    const cache = imageCacheRef.current;
+    const missing = urls.filter((u) => !cache.has(u));
+    if (missing.length === 0) {
+      setImages(urls.map((u) => cache.get(u) as HTMLImageElement));
       return;
     }
     let cancelled = false;
     setLoadingPhotos(true);
-    loadReelImages(selectedPhotos.map((p) => p.url))
+    loadReelImages(missing)
       .then((imgs) => {
-        if (!cancelled) setImages(imgs);
+        if (cancelled) return;
+        missing.forEach((u, i) => cache.set(u, imgs[i]));
+        setImages(urls.map((u) => cache.get(u) as HTMLImageElement));
       })
       .catch((e: unknown) => {
         if (!cancelled) {
-          setImages([]);
+          setImages(urls.map((u) => cache.get(u)).filter((img): img is HTMLImageElement => Boolean(img)));
           toast.error(e instanceof Error ? e.message : "Could not load photos.");
         }
       })
@@ -215,10 +264,10 @@ const ReelCreatorModal = ({
     const handle = previewReel(
       canvas,
       images,
-      { photoDuration: photoDur, transition, transitionDuration: clampedTrans, animation, musicUrl: null }
+      { photoDuration: photoDur, transition, transitionDuration: clampedTrans, animation, musicUrl: null, holds: timeline.holds }
     );
     return () => handle.stop();
-  }, [step, playing, images, photoDur, transition, clampedTrans, animation]);
+  }, [step, playing, images, photoDur, transition, clampedTrans, animation, timeline.holds]);
 
   // Audible preview: plain element semantics (no AudioContext — the export owns
   // the single createMediaElementSource graph). Same fragment-loop as export.
@@ -295,6 +344,7 @@ const ReelCreatorModal = ({
         transition,
         transitionDuration: clampedTrans,
         animation,
+        holds: timeline.holds,
         musicUrl,
         mix: musicUrl
           ? {
@@ -424,6 +474,52 @@ const ReelCreatorModal = ({
           </div>
           {selected.length < REEL_MIN_PHOTOS && (
             <p className="text-sm text-muted-foreground">Select at least {REEL_MIN_PHOTOS} photos.</p>
+          )}
+          {selected.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Order &amp; pacing</p>
+              <div aria-live="polite" className="sr-only">{liveMsg}</div>
+              {selected.map((name, i) => {
+                const photo = photos.find((p) => p.name === name);
+                const override = durations[name];
+                return (
+                  <div key={name} className="flex min-h-[44px] items-center gap-1 rounded-xl border border-border bg-card px-2 py-1">
+                    <span className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+                      {i + 1}
+                    </span>
+                    {photo && <img src={photo.url} alt="" aria-hidden="true" className="h-10 w-10 rounded-lg object-cover" />}
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Duration for ${name}: ${override ?? "auto"}`}
+                      aria-pressed={override !== undefined}
+                      onClick={() => cycleDuration(name)}
+                      className="min-h-[44px] rounded-lg bg-muted px-2 text-xs font-semibold"
+                    >
+                      {override !== undefined ? `${override}s` : "Auto"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${name} earlier`}
+                      disabled={i === 0}
+                      onClick={() => movePhoto(name, -1)}
+                      className="min-h-[44px] min-w-[44px] rounded-lg bg-muted text-sm disabled:opacity-40"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${name} later`}
+                      disabled={i === selected.length - 1}
+                      onClick={() => movePhoto(name, 1)}
+                      className="min-h-[44px] min-w-[44px] rounded-lg bg-muted text-sm disabled:opacity-40"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           )}
           <Button
             type="button"
