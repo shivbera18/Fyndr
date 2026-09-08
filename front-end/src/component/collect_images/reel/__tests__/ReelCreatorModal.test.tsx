@@ -318,4 +318,26 @@ describe("ReelCreatorModal", () => {
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
     localStorage.clear();
   });
+
+  it("cycles per-photo anim and per-join transition into export", async () => {
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Animation for a.jpg: global" }));
+    expect(screen.getByRole("button", { name: "Animation for a.jpg: none" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Transition after photo 1: fade/ }));
+    expect(screen.getByRole("button", { name: /Transition after photo 1: slide/ })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        anims: ["none", undefined, undefined],
+        joinTransitions: ["slide", undefined],
+      })
+    );
+  });
 });
