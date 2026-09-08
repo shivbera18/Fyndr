@@ -178,5 +178,5 @@ scripts/reel-music.mjs # OPTIONAL dev script: mp3 → peaks JSON + manifest vali
 2. Native-trim vs wavesurfer call (§2.3) — default is native; say the word to flip.
 3. Arrow-reorder-first vs dnd-kit-day-one (§3) — default defers the dep.
 4. Whether P3 (beat-fit/voiceover) stays in scope at all.
-+
-+*Rev 1 (PR #88 review): fixed 12 findings — analytics allowlist, Radix Slider, Node-MP3 peaks, export abort-on-hide, IG MP4-only, ctx.filter gating, custom-SW ranges, CC-BY end-card, webview fallback, Pixabay non-vendoring, P3 dropped-by-default, public/ listing.*
+
+*Rev 1 (PR #88 review): fixed 12 findings — analytics allowlist, Radix Slider, Node-MP3 peaks, export abort-on-hide, IG MP4-only, ctx.filter gating, custom-SW ranges, CC-BY end-card, webview fallback, Pixabay non-vendoring, P3 dropped-by-default, public/ listing.*
