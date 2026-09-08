@@ -1,69 +1,73 @@
-# F3 plan — trim + mix engine (audible, trimmed music in preview + export)
+# F3 plan — trim + audible mix (trimmed music in preview + export)
 
-Parent: `reel_improvement_plan.md` §2.3. Consumes F1 (`CatalogTrack.duration/peaks`,
-`APPROVED_AUDIO_ORIGINS`) + F2 picker. Fixes the two biggest audio defects: silent
-preview (`musicUrl: null`) and full-track-from-0s export. No timeline/filter/text work.
+Parent: `reel_improvement_plan.md` §2.3. Consumes F1 (`CatalogTrack.duration/peaks`) plus
+F2 picker. Fixes silent preview (`musicUrl: null`) and full-track-from-0s export.
+No timeline/filter/text work. No new modules, no client-side audio decoding.
 
 ## Files
 
-- `front-end/src/component/collect_images/reel/audioEngine.ts` — NEW (~120 lines).
-- `front-end/src/component/collect_images/reel/waveform.tsx` — NEW (~110 lines).
-- `ReelCreatorModal.tsx` — EDIT: trim/volume state, peaks compute, preview-with-music,
-  export passes mix spec. `reelRenderer.ts` — EDIT: gain/fade/trim in export mux only.
-- `reel/__tests__/audioEngine.test.ts` + `waveform.test.tsx` — NEW.
+- `front-end/src/component/collect_images/reel/waveform.tsx` — NEW (~80 lines:
+  display canvas + trim controls; peaks display-only, never computed here).
+- `presets.ts` — EXTEND with pure helpers `clampTrim`, `smartStart`, `formatTrimTime`.
+- `ReelCreatorModal.tsx` — EDIT: trim/volume state, preview element, export passes mix spec.
+- `reelRenderer.ts` — EDIT: fragment-loop + gain/fades in the export mux only (~25 lines).
+- `reel/__tests__/` — EXTEND `reelPresets.test.ts` (pure helpers) + NEW `waveform.test.tsx`.
 
-## `audioEngine.ts` API (shared by preview + export, zero deps)
+## Audio design (review-driven: no engine module, no decode, no JS loop clamp)
 
-```ts
-interface MixSpec { url: string; trimStart: number; trimEnd: number; volume: number; fadeIn: number; fadeOut: number }
-computePeaks(buf: AudioBuffer, n?: number): number[]   // downsample max-abs per bucket, pure
-smartStart(peaks: number[], duration: number, windowSec?: number): number  // loudest window start; empty → duration*0.1 (duration param required — F1 review)
-clampTrim(start: number, end: number, duration: number): { start: number; end: number }  // end-start ≥ 3s, inside [0, duration]
-applyMix(ctx: AudioContext, src: MediaElementAudioSourceNode, spec: MixSpec, dest: AudioNode): void
-// gain(volume) + linearRamp fades; export connects dest→MediaStreamDestination, preview dest→ctx.destination
-startTrimmed(el: HTMLAudioElement, spec: MixSpec): () => void
-// currentTime=trimStart; play().catch(noop); timeupdate clamp loops [start,end) iff reel outlasts trim; returns stop (pause)
-```
-
-- No `AudioContext` creation inside the engine (autoplay policy: caller creates/resumes
-  inside the tap tick — modal owns it, as today).
-- `decodeAudioData` for peaks happens in the modal on track pick (fetch → decode →
-  `computePeaks` → ref cache keyed by track id); never blocks picker render.
+- **Segment looping via Media Fragments** (`src = url + "#t=start,end"` + `loop=true`):
+  the browser loops the segment gaplessly. No `timeupdate` clamp (250ms throttle +
+  seek dropouts). If the reel is shorter than the trim, it simply ends early.
+- **Preview uses plain element semantics** — `el.volume`, no `AudioContext`
+  (`createMediaElementSource` is once-per-element; the export owns the single graph).
+- **Export keeps its graph**, extended: `GainNode(volume)` + fade-in ramp from take
+  start + fade-out ramp anchored at **reel end** (`ctx.currentTime + reelDuration -
+  fadeOut`, not trim-relative — AudioParam runs on context time).
+- **No manual seek before metadata**: fragment URL sets the start; renderer awaits
+  `loadedmetadata`/`play()` success and preserves the existing `mutedFallback` path
+  (play errors propagate — never swallowed).
+- **No `decodeAudioData`**: peaks come ONLY from manifest `peaks` (F1-optional);
+  uploads show flat placeholder bars. Duration via `loadedmetadata` (no PCM, no
+  200MB tab-kill). Peaks cache keyed by **src URL**, never track id.
 
 ## `waveform.tsx` API
 
 ```tsx
-interface WaveformProps { peaks: number[]; duration: number; start: number; end: number; onChange(start: number, end: number): void }
+interface WaveformProps { peaks?: number[]; duration: number; start: number; end: number; onChange(s: number, e: number): void; onChorus(): void; onReset(): void }
 ```
 
-- Canvas bars from `peaks` (theme `primary`/`muted` colors, selected region highlighted).
-- Two native `<input type="range">` sliders (start/end, 44px thumb via CSS, keyboard
-  ←/→ free) + time labels `0:12–0:27`; `clampTrim` enforced in `onChange`.
-- Smart-start button ("♪ Chorus") sets `smartStart(...)`; double-click canvas resets.
+- Canvas bars from `peaks` (flat line when absent) with selected-region highlight.
+- Touch path: drag on the canvas strip (pointer events, active-handle tracking, 24px
+  slop) — NOT stacked 44px range thumbs (touch-trapping + iOS pseudo-element bugs).
+- Keyboard path: two half-width native ranges (start/end, no overlap, ←/→ free).
+- Explicit "♪ Chorus" (only when `peaks` present) + "Reset" buttons (44px) —
+  no double-click reset. Time labels `0:12–0:27`; `clampTrim` (≥3s) in `onChange`.
 
 ## Modal + renderer deltas (exact)
 
-- State: `trim: {start,end} | null` (null = full track), `volume` (0.8), `fades` (0.8s).
-  On track pick with peaks ready: `trim = {start: smartStart(...), end: min(start+15, duration)}`.
-- Preview effect: alongside `previewReel`, run `startTrimmed` through a preview gain
-  (mute toggle = gain 0); pause stops both. Removes the hardcoded `musicUrl: null`.
-- Export: `renderReelToFile` gains `mix: MixSpec | null`; renderer replaces direct
-  `src.connect(dest)` with `applyMix` + `startTrimmed` semantics (loop only within trim).
-- Volume slider + fade toggle live in the Music step under the trim strip (F2 picker untouched).
+- State: `trim: {start,end} | null` (null = full track — the default; NEVER auto-trim
+  on pick, Chorus is tap-only), `volume` (0.8), `fade` (0.8s on/off).
+- Trim/volume UI hidden when `musicId === "none"`; lives in the Music step under the
+  F2 picker (44px targets throughout).
+- Preview effect: alongside `previewReel`, run a preview `<audio>` element with the
+  fragment URL + `el.volume`; mute toggle + pause stop both. Removes hardcoded `null`.
+- Export: `renderReelToFile` gains `mix: { url, start, end, volume, fade } | null`;
+  renderer builds `url#t=start,end`, loops, gains, reel-anchored fades.
 
 ## Tests
 
-`computePeaks`/`smartStart`/`clampTrim` pure unit tests; `startTrimmed` with mocked
-`HTMLAudioElement` (seek/play/loop-clamp/stop); waveform clamps + labels; modal test
-mocks engine (preview calls `startTrimmed` with selected track url).
+`clampTrim`/`smartStart`/`formatTrimTime` pure tests in `reelPresets.test.ts`;
+waveform clamp/labels/buttons (Chorus hidden without peaks); modal test asserts
+preview element uses fragment URL + export receives the mix spec.
 
 ## Acceptance
 
-`tsc` clean; suites green; manual: pick track → waveform → trim chorus → preview
-plays ONLY the segment → export mp4 has audible trimmed audio with fades; CC-BY
-tracks still export (visual end-card rides with F5 text overlay).
+`tsc` clean; suites green; manual: pick track → trim via canvas + sliders → preview
+plays ONLY the segment (looping if reel outlasts it) → export mp4 has audible trimmed
+audio with reel-end fade; CC-BY tracks still export (visual end-card rides with F5).
 
 ## Non-goals
 
 CC-BY end-card (F5), per-track volume memory, voiceover lane (dropped P3),
-beat-sync auto-cut (dropped P3), Radix Slider (native ranges stand).
+beat-sync auto-cut (dropped P3), Radix Slider (native ranges stand),
+client-side peak decoding (dropped — manifest-only peaks), `timeupdate` loop clamp.
