@@ -57,6 +57,13 @@ export interface ReelCreatorModalProps {
   isPhotoEligible?: (name: string) => boolean;
   onGatedPhoto?: () => void;
 }
+function pruneKeys<T>(m: Record<string, T>, keep: Set<string>): Record<string, T> {
+  const stale = Object.keys(m).filter((k) => !keep.has(k));
+  if (stale.length === 0) return m;
+  const next = { ...m };
+  stale.forEach((k) => delete next[k]);
+  return next;
+}
 
 function prefersReducedMotion(): boolean {
   try {
@@ -74,6 +81,8 @@ interface ReelDraft {
   volume: number;
   fadeOn: boolean;
   durations: Record<string, number>;
+  anims?: Record<string, ReelAnimation>;
+  joins?: Record<string, ReelTransition>;
   transition: ReelTransition;
   animation: ReelAnimation;
   photoDur: number;
@@ -92,7 +101,9 @@ function isValidDraft(d: unknown): d is ReelDraft {
   if (!("musicId" in d) || typeof d.musicId !== "string") return false;
   if (!("volume" in d) || typeof d.volume !== "number") return false;
   if (!("fadeOn" in d) || typeof d.fadeOn !== "boolean") return false;
-  if (!("durations" in d) || typeof d.durations !== "object" || d.durations === null) return false;
+    if (!("durations" in d) || typeof d.durations !== "object" || d.durations === null) return false;
+    if ("anims" in d && (typeof d.anims !== "object" || d.anims === null)) return false;
+    if ("joins" in d && (typeof d.joins !== "object" || d.joins === null)) return false;
   if (!("transition" in d) || typeof d.transition !== "string") return false;
   if (!("animation" in d) || typeof d.animation !== "string") return false;
   if (!("photoDur" in d) || typeof d.photoDur !== "number") return false;
@@ -151,6 +162,8 @@ const ReelCreatorModal = ({
   const [poster, setPoster] = useState<string | null>(null);
   const [draft, setDraft] = useState<ReelDraft | null>(null);
   const [durations, setDurations] = useState<Record<string, number>>({});
+  const [anims, setAnims] = useState<Record<string, ReelAnimation>>({});
+  const [joins, setJoins] = useState<Record<string, ReelTransition>>({});
   const [liveMsg, setLiveMsg] = useState<string>("");
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const [images, setImages] = useState<HTMLImageElement[]>([]);
@@ -177,10 +190,19 @@ const ReelCreatorModal = ({
   }, [musicId, customMusicUrl, catalog]);
   const clampedTrans = clampTransitionDuration(transDur, photoDur);
   const timeline = useMemo(
-    () => resolveTimeline(photoDur, transDur, transition, selected.map((n) => durations[n])),
-    [photoDur, transDur, transition, selected, durations]
+    () =>
+      resolveTimeline(
+        photoDur,
+        transDur,
+        transition,
+        selected.map((n) => durations[n]),
+        selected.slice(0, -1).map((n) => joins[n])
+      ),
+    [photoDur, transDur, transition, selected, durations, joins]
   );
   const total = timeline.total;
+  const joinList = useMemo(() => selected.slice(0, -1).map((n) => joins[n]), [selected, joins]);
+  const animList = useMemo(() => selected.map((n) => anims[n]), [selected, anims]);
 
   const activeTrack: CatalogTrack | undefined = useMemo(
     () => catalog.find((t) => t.id === musicId),
@@ -222,15 +244,30 @@ const ReelCreatorModal = ({
   };
 
   useEffect(() => {
-    setDurations((d) => {
-      const keep = new Set(selected);
-      const stale = Object.keys(d).filter((k) => !keep.has(k));
-      if (stale.length === 0) return d;
-      const next = { ...d };
-      stale.forEach((k) => delete next[k]);
+    const keep = new Set(selected);
+    setDurations((d) => pruneKeys(d, keep));
+    setAnims((a) => pruneKeys(a, keep));
+    setJoins((j) => pruneKeys(j, keep));
+  }, [selected]);
+
+  const ANIM_CYCLE: (ReelAnimation | undefined)[] = [undefined, "none", "zoom-in", "zoom-out", "pan-left", "pan-right"];
+  const cycleAnim = (name: string): void => {
+    setAnims((a) => {
+      const nextVal = ANIM_CYCLE[(ANIM_CYCLE.indexOf(a[name]) + 1) % ANIM_CYCLE.length];
+      const next = { ...a };
+      if (nextVal === undefined) delete next[name];
+      else next[name] = nextVal;
       return next;
     });
-  }, [selected]);
+  };
+
+  const cycleJoin = (name: string): void => {
+    setJoins((j) => {
+      const order: ReelTransition[] = ["fade", "slide", "zoom", "none"];
+      const nextVal = order[(order.indexOf(j[name] ?? transition) + 1) % order.length];
+      return { ...j, [name]: nextVal };
+    });
+  };
 
   const applyTemplate = (t: ReelTemplate): void => {
     setTemplateId(t.id);
@@ -240,6 +277,8 @@ const ReelCreatorModal = ({
     setTransDur(t.transDur);
     setFilter(t.filter);
     setRatio(t.ratio);
+    setAnims({});
+    setJoins({});
     if (t.mood && musicId === "none") {
       const match = catalog.find((c) => (c.mood ?? []).includes(t.mood as string));
       if (match) setMusicId(match.id);
@@ -265,6 +304,8 @@ const ReelCreatorModal = ({
     setVolume(d.volume);
     setFadeOn(d.fadeOn);
     setDurations(d.durations);
+    setAnims(d.anims ?? {});
+    setJoins(d.joins ?? {});
     setTransition(d.transition);
     setAnimation(d.animation);
     setPhotoDur(d.photoDur);
@@ -302,14 +343,14 @@ const ReelCreatorModal = ({
     if (!open || suppressSaveRef.current || selected.length < REEL_MIN_PHOTOS) return;
     try {
       const d: ReelDraft = {
-        v: 1, selected, musicId, trim, volume, fadeOn, durations,
+        v: 1, selected, musicId, trim, volume, fadeOn, durations, anims, joins,
         transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId,
       };
       localStorage.setItem(`fyndr:reel:draft:${eventId}`, JSON.stringify(d));
     } catch {
       // Quota/private mode — drafts are best-effort.
     }
-  }, [open, eventId, draft, selected, musicId, trim, volume, fadeOn, durations, transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId]);
+  }, [open, eventId, draft, selected, musicId, trim, volume, fadeOn, durations, anims, joins, transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId]);
 
   useEffect(() => {
     if (step !== "export" || images.length === 0) return;
@@ -321,6 +362,8 @@ const ReelCreatorModal = ({
       animation,
       musicUrl: null,
       holds: timeline.holds,
+      joinTransitions: joinList,
+      anims: animList,
       width: dims.w,
       height: dims.h,
       filter: filterValue,
@@ -431,10 +474,10 @@ const ReelCreatorModal = ({
     const handle = previewReel(
       canvas,
       images,
-      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds, width: dims.w, height: dims.h, filter: filterValue, title: titleOpt, endCard }
+      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds, joinTransitions: joinList, anims: animList, width: dims.w, height: dims.h, filter: filterValue, title: titleOpt, endCard }
     );
     return () => handle.stop();
-  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds, dims, filterValue, titleOpt, endCard]);
+  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds, joinList, animList, dims, filterValue, titleOpt, endCard]);
 
   // Audible preview: plain element semantics (no AudioContext — the export owns
   // the single createMediaElementSource graph). Same fragment-loop as export.
@@ -517,6 +560,8 @@ const ReelCreatorModal = ({
         title: titleOpt,
         endCard,
         holds: timeline.holds,
+        joinTransitions: joinList,
+        anims: animList,
         musicUrl,
         mix: musicUrl
           ? {
@@ -685,43 +730,80 @@ const ReelCreatorModal = ({
               {selected.map((name, i) => {
                 const photo = photos.find((p) => p.name === name);
                 const override = durations[name];
+                const anim = anims[name];
                 return (
-                  <div key={name} className="flex min-h-[44px] items-center gap-1 rounded-xl border border-border bg-card px-2 py-1">
-                    <span className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-                      {i + 1}
-                    </span>
-                    {photo && <img src={photo.url} alt="" aria-hidden="true" className="h-10 w-10 rounded-lg object-cover" />}
-                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{name}</span>
-                    <button
-                      type="button"
-                      aria-label={`Duration for ${name}: ${override ?? "auto"}`}
-                      aria-pressed={override !== undefined}
-                      onClick={() => cycleDuration(name)}
-                      className="min-h-[44px] rounded-lg bg-muted px-2 text-xs font-semibold"
-                    >
-                      {override !== undefined ? `${override}s` : "Auto"}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Move ${name} earlier`}
-                      disabled={i === 0}
-                      onClick={() => movePhoto(name, -1)}
-                      className="min-h-[44px] min-w-[44px] rounded-lg bg-muted text-sm disabled:opacity-40"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Move ${name} later`}
-                      disabled={i === selected.length - 1}
-                      onClick={() => movePhoto(name, 1)}
-                      className="min-h-[44px] min-w-[44px] rounded-lg bg-muted text-sm disabled:opacity-40"
-                    >
-                      ↓
-                    </button>
+                  <div key={name} className="space-y-1 rounded-xl border border-border bg-card px-2 py-1">
+                    <div className="flex min-h-[44px] items-center gap-1">
+                      <span className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+                        {i + 1}
+                      </span>
+                      {photo && <img src={photo.url} alt="" aria-hidden="true" className="h-10 w-10 rounded-lg object-cover" />}
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{name}</span>
+                      <button
+                        type="button"
+                        aria-label={`Move ${name} earlier`}
+                        disabled={i === 0}
+                        onClick={() => movePhoto(name, -1)}
+                        className="min-h-[44px] min-w-[44px] rounded-lg bg-muted text-sm disabled:opacity-40"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move ${name} later`}
+                        disabled={i === selected.length - 1}
+                        onClick={() => movePhoto(name, 1)}
+                        className="min-h-[44px] min-w-[44px] rounded-lg bg-muted text-sm disabled:opacity-40"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Duration for ${name}: ${override ?? "auto"}`}
+                        aria-pressed={override !== undefined}
+                        onClick={() => cycleDuration(name)}
+                        className="min-h-[44px] flex-1 rounded-lg bg-muted px-2 text-xs font-semibold"
+                      >
+                        {override !== undefined ? `${override}s` : "Auto"}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Animation for ${name}: ${anim ?? "global"}`}
+                        aria-pressed={anim !== undefined}
+                        onClick={() => cycleAnim(name)}
+                        className="min-h-[44px] flex-1 rounded-lg bg-muted px-2 text-xs font-semibold"
+                      >
+                        FX: {anim ?? "Global"}
+                      </button>
+                    </div>
                   </div>
                 );
               })}
+              {selected.length > 1 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Transitions between photos</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {selected.slice(0, -1).map((name, j) => {
+                      const jt = joins[name] ?? transition;
+                      const label = REEL_TRANSITIONS.find((t) => t.id === jt)?.label ?? jt;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => cycleJoin(name)}
+                          aria-label={`Transition after photo ${j + 1}: ${jt}`}
+                          aria-pressed={joins[name] !== undefined}
+                          className="min-h-[44px] shrink-0 rounded-lg bg-muted px-2 text-xs font-semibold"
+                        >
+                          {j + 1}→{j + 2}: {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <Button

@@ -130,7 +130,8 @@ export function resolveTimeline(
   photoDur: number,
   transDur: number,
   transition: ReelTransition,
-  perDur: (number | undefined)[]
+  perDur: (number | undefined)[],
+  perJoin?: (ReelTransition | undefined)[]
 ): Timeline {
   const holds = perDur.map((d) => Math.min(PHOTO_DUR_MAX, Math.max(PHOTO_DUR_MIN, d ?? photoDur)));
   const joins: number[] = [];
@@ -138,7 +139,8 @@ export function resolveTimeline(
   for (let i = 0; i < holds.length; i++) {
     total += holds[i];
     if (i < holds.length - 1) {
-      const j = transition === "none" ? 0 : clampTransitionDuration(transDur, Math.min(holds[i], holds[i + 1]));
+      const jt = perJoin?.[i] ?? transition;
+      const j = jt === "none" ? 0 : clampTransitionDuration(transDur, Math.min(holds[i], holds[i + 1]));
       joins.push(j);
       total += j;
     }

@@ -92,6 +92,12 @@ describe("resolveTimeline", () => {
     expect(t.total).toBeCloseTo(1 + 2.5 + 0.9, 10);
   });
 
+  it("honors per-join transition overrides", () => {
+    const t = resolveTimeline(2, 0.5, "fade", [undefined, undefined, undefined], ["slide", "none"]);
+    expect(t.joins).toEqual([0.5, 0]);
+    expect(t.total).toBeCloseTo(6.5, 10);
+  });
+
   it("zeroes joins for none transitions and empties", () => {
     expect(resolveTimeline(2.5, 0.5, "none", [2, 2])).toEqual({ holds: [2, 2], joins: [0], total: 4 });
     expect(resolveTimeline(2.5, 0.5, "fade", [])).toEqual({ holds: [], joins: [], total: 0 });
