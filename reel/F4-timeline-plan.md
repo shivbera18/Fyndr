@@ -1,88 +1,79 @@
-# F4 plan — timeline control (reorder, per-photo duration/anim, per-cut transitions)
+# F4 plan — timeline control (reorder + per-photo pacing, inline)
 
-Parent: `reel_improvement_plan.md` §3 (P1 rows). Consumes F1–F3 untouched. No
-filters/text/ratios (F5), no dnd-kit (arrow-reorder first, per parent §3).
+Parent: `reel_improvement_plan.md` §3 (P1). Consumes F1–F3 untouched. No new files,
+no drag libs, no per-photo anims, no per-cut transitions (both deferred to F5 —
+review verdict: clutter + index-keyed cuts drift on reorder).
 
-## Files
+## Files (all edits, zero new modules)
 
-- `front-end/src/component/collect_images/reel/timeline.tsx` — NEW (~110 lines).
-- `presets.ts` — EXTEND: `resolveTimeline` pure math + `DUR_CHOICES`, `CutSpec` types.
-- `reelRenderer.ts` — EDIT: `paintAt` + `previewReel` + `renderReelToFile` consume a
-  resolved timeline (holds + per-cut transitions + per-photo anims).
-- `ReelCreatorModal.tsx` — EDIT: order/duration/anim/cut state, timeline UI in Photos
-  step, totals + export wiring.
-- `reel/__tests__/timeline.test.tsx` — NEW (+ presets math cases).
+- `presets.ts` — EXTEND: `resolveTimeline` pure math.
+- `reelRenderer.ts` — EDIT: `paintAt`/`previewReel`/`renderReelToFile` walk an optional
+  `holds: number[]` (absent = today's uniform behavior, zero regression).
+- `ReelCreatorModal.tsx` — EDIT: `durations` map, `move()`, image URL-cache, inline
+  selected tray, totals + export wiring.
+- `reel/__tests__/` — EXTEND `reelPresets.test.ts` (math) + modal order/pacing cases.
 
-## State (modal, maps keyed by photo name; absent = global default)
+## State (modal)
 
 ```ts
-durations: Record<string, number>   // per-photo hold seconds; default photoDur
-anims: Record<string, ReelAnimation> // per-photo override; absent = global animation
-cuts: Record<number, ReelTransition> // per-join override keyed by left index; absent = global transition
+durations: Record<string, number>  // per-photo hold; ABSENT = Auto = follows photoDur slider live
 ```
 
-- `selected: string[]` stays the order source. `move(name, -1|+1)` swaps + clamps ends.
-- `photoDur` slider becomes the default for newly added photos (existing overrides kept).
-- Prune maps on deselect (delete keys) to avoid stale entries.
+- `photoDur` slider stays the live default; pill cycles `Auto → 1 → 2 → 3 → 4 → Auto`
+  (all inside `PHOTO_DUR_MIN..MAX`, no clamp surprises). Absent key is the reset path.
+- `move(name, -1|+1)` swaps in `selected`, clamps ends. Prune `durations` on deselect.
+- Photo names are unique within an event (matched-photo list) — maps keyed by name hold.
 
-## `presets.ts` additions
+## `presets.ts`
 
 ```ts
-DUR_CHOICES = [0.8, 1.5, 2.5] as const;
-interface CutSpec { transition: ReelTransition; duration: number }
-interface Timeline { holds: number[]; cuts: CutSpec[]; total: number }
-resolveTimeline(count: number, photoDur: number, transDur: number,
-  perDur: (number | undefined)[], perCut: (ReelTransition | undefined)[]): Timeline
+interface Timeline { holds: number[]; total: number }
+resolveTimeline(photoDur: number, transDur: number, transition: ReelTransition,
+  perDur: (number | undefined)[]): Timeline
 ```
 
 - `holds[i] = clamp(perDur[i] ?? photoDur, PHOTO_DUR_MIN, PHOTO_DUR_MAX)`.
-- Each join `j`: `t = perCut[j] ?? global`, `d = clampTransitionDuration(transDur, min(holds[j], holds[j+1]))`.
-- `total = sum(holds) + sum(cut durations)`. Zero photos → total 0.
-- Renderer takes `timeline: Timeline` + `anims: (ReelAnimation | undefined)[]` in
-  `ReelRenderOptions` (optional; absent = today's global behavior — zero regression).
+- Joins use the global `transition`; join `j` duration =
+  `transition === "none" ? 0 : clampTransitionDuration(transDur, min(holds[j], holds[j+1]))`.
+- `total = sum(holds) + sum(joins)`; empty → `{ holds: [], total: 0 }`.
 
 ## Renderer deltas (exact)
 
-- `paintAt`: walk cumulative `holds`/`cuts` instead of uniform arithmetic; per-slide
-  animation = `anims[i] ?? opts.animation`; join renderer picks `cuts[j].transition`.
-- `previewReel`/`renderReelToFile`: resolve once per call from opts (modal passes
-  `timeline` + `anims` arrays aligned to `images` order); `reelTotalDuration` kept for
-  legacy callers, modal total display switches to `timeline.total`.
+- `ReelRenderOptions` gains optional `holds?: number[]`. When absent, current uniform
+  arithmetic runs untouched.
+- `paintAt` walk: cumulative holds + joins; count = `min(holds.length, images.length)`
+  (async-load skew guard); `timeSec >= total` pins the final slide (float-accumulation
+  guard); `N <= 1` never indexes a join.
+- Modal builds `holds` aligned to **loaded `images` order** and passes it to
+  `previewReel` + `renderReelToFile`; total display switches to `timeline.total`.
 
-## `timeline.tsx` API
+## No-refetch reorder (exact)
 
-```tsx
-interface TimelineProps {
-  photos: { name: string; url: string }[];   // selected order
-  durations: Record<string, number>; anims: Record<string, ReelAnimation>;
-  globalDur: number;
-  onMove(name: string, dir: -1 | 1): void;
-  onDuration(name: string, sec: number): void;
-  onAnim(name: string, anim: ReelAnimation | "global"): void;
-}
-```
+- `loadReelImages` results cached in a `Map<url, HTMLImageElement>` ref; the load
+  effect fetches only URLs missing from the cache; `images` derives from `selected`
+  order via the cache (reorder re-sorts in place, zero flicker, zero refetch).
 
-- Horizontal snap-scroll filmstrip: thumb + order badge + ←/→ arrow buttons (44px,
-  `aria-label` "Move <name> left/right", disabled at ends) + duration segmented
-  (`0.8 / 1.5 / 2.5`, `aria-pressed`) + native `<select>` for anim
-  (`Global + 5`, 44px). Keyboard-operable throughout; no drag libs.
-- Per-cut transition editing: deferred to a join control in F5 if this slice grows —
-  F4 ships per-cut via a compact join selector row ONLY if under ~30 extra lines,
-  else cuts stay global in F4 and move to F5 (decision recorded at implementation).
+## Inline selected tray (Photos step, under the grid)
+
+- Full-width rows (no horizontal trap): 40px thumb + `truncate` name + duration pill
+  (`Auto`/`1s`… tap cycles, 44px, `aria-pressed` when overridden) + ←/→ arrows
+  (44px, `aria-label` "Move <name> left/right", disabled at ends, keyed by name so
+  focus survives the swap) + polite `aria-live` region announcing
+  `"<name>, position i of n"`.
 
 ## Tests
 
-`resolveTimeline` math (uniform, mixed holds, clamped joins, empty); timeline arrows
-reorder + end-disable; duration select calls; modal export receives `timeline` aligned
-to images; existing suites keep passing (global path unchanged).
+`resolveTimeline` (uniform, mixed, `none` joins, empty); tray arrows reorder +
+end-disable + live announcement; pill cycles back to Auto; reorder keeps loaded
+images without refetch (mock `loadReelImages` call counts); export receives `holds`
+aligned to images.
 
 ## Acceptance
 
-`tsc` clean; suites green; manual: reorder 6 photos keyboard-only → play order
-follows; per-photo durations reflected in `≈ Ns` + export length; per-photo anim
-visible in preview; deselect prunes without errors.
+`tsc` clean; suites green; manual: reorder 6 photos keyboard-only → order, preview,
+and export follow; pill values reflected in `≈ Ns`; slider still moves Auto photos.
 
 ## Non-goals
 
-dnd-kit drag (metric-gated), filters/text/ratios/cover/drafts/templates (F5),
-voiceover/beat-sync (dropped P3), reducer refactor (maps suffice).
+dnd-kit drag (metric-gated), per-photo anims + per-cut transitions (F5),
+filters/text/ratios/cover/drafts/templates (F5), reducer refactor (maps suffice).
