@@ -840,7 +840,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                           })}
                         </tbody>
                       </table>
-                  </div>
+                    </div>
                     {guestsTotal > GUESTS_PAGE_SIZE && (
                       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border bg-muted/20 text-xs">
                         <span className="text-muted-foreground">
