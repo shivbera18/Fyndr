@@ -27,7 +27,7 @@ Non-goals for this plan: server-side ffmpeg jobs, licensed commercial catalogs (
 1. **Mobile-first, desktop free.** `ResponsiveModal` already renders `Vaul Drawer` on mobile / `Radix Dialog` on desktop — keep that shell. All new UI is thumb-zone, ≥44px targets, bottom-sticky primary action, `safe-area-inset-bottom`. Desktop gets wider timeline + keyboard shortcuts for free via the same components.
 2. **Four steps max, one job per screen:** `Photos → Music → Style → Preview & Export`. (Today Music+Style are crammed in step 2; splitting is the cheapest clarity win.)
 3. **Every choice is audible/visible in <1s.** Tap song → 15s preview with waveform plays inline. Move slider → canvas preview updates live. No blind settings.
-4. **Theme sync:** existing tokens only — `bg-card/border/muted/primary`, `Geist` display font, `lucide-react` icons, `sonner` toasts, `Radix Tabs/Slider` (already installed `@radix-ui/*`), `Vaul Drawer`. No new design language.
+4. **Theme sync:** existing tokens only — `bg-card/border/muted/primary`, `Geist` display font, `lucide-react` icons, `sonner` toasts, `Radix Tabs` + `Vaul Drawer` (both installed). Sliders stay native `<input type="range">` with a 44px thumb via CSS — `@radix-ui/react-slider` is NOT installed (verified in `package.json`) and is only added if a slider-a11y metric demands it. No new design language.
 5. **Clean = progressive disclosure.** Defaults produce a good reel in 3 taps (auto-template, see §5). Power controls (trim, per-photo, fades) sit one tap deeper, never on the first screen.
 6. **Accessibility baseline:** `prefers-reduced-motion` already forces `animation:none` — extend to transitions too; keyboard-operable reorder (arrow buttons, not drag-only); `aria-pressed` on picks; `role=progressbar` on export (already present, keep).
 
@@ -72,7 +72,7 @@ Replace the 4-entry `REEL_TRACKS` with a versioned JSON manifest + typed loader:
 
 - **Inline preview per row:** tapping ▶ streams that track (one shared `HTMLAudioElement`, stops previous — never overlapping). The selected track keeps playing while the user moves to Style.
 - **Preview + canvas in sync:** fix the `:160` hardcoded `musicUrl:null` — preview graph plays music through a `GainNode` (volume slider) while `previewReel` paints; pause stops both.
-- **Smart start ("♪ Chorus"):** default `trimStart` = loudest 15s window from `peaks` (computed once at build via script, stored in manifest; fallback: 10% in). One-tap, huge perceived intelligence, ~20 lines.
+- **Smart start ("♪ Chorus"):** default `trimStart` = loudest 15s window from `peaks` (computed in-browser via `decodeAudioData` on first pick, cached in memory; fallback: 10% in). One-tap, huge perceived intelligence, ~20 lines.
 - **Upload path kept:** `audio/*`, 15MB cap, object URL, `decodeAudioData` duration display; trim/volume apply equally.
 
 ### 2.3 Trim + volume (native WebAudio, no new dep)
@@ -98,7 +98,7 @@ Replace the 4-entry `REEL_TRACKS` with a versioned JSON manifest + typed loader:
 | Draft autosave | P2 | `localStorage fyndr:reel:draft:<eventId>` (selection, music, trim, style — never blobs). "Resume draft?" chip on open. |
 | Beat-sync auto-cut | P3 | `BPM tap button` + manifest `bpm` → "Fit to beat": `photoDur = round(trimLen/photos to nearest beat)`. True onset detection (aubio.js/Essentia.js, both open-source) explicitly deferred — weight + WASM for marginal gain; revisit if creators demand it. |
 | Voiceover | P3 | Second audio lane (`getUserMedia` → mix at lower gain, duck music 0.35 while active). Needs mic permission UX + iOS testing; parked to P3. |
-| ffmpeg.wasm transcode | — | **Rejected.** ~30MB WASM, minutes on mobile CPUs, no need: `MediaRecorder` mp4 (Safari 17+/Chrome) + webm fallback already uploads to Instagram. Revisit only if Instagram drops webm. |
+| ffmpeg.wasm transcode | — | **Rejected.** ~30MB WASM, minutes on mobile CPUs, no need: `MediaRecorder` mp4-first (Safari 17+/Chrome — the only container Instagram Reels accepts: MP4/MOV H.264 + AAC); webm fallback is gallery/WhatsApp-only and must be labeled as such in the UI, never implied Instagram-ready. |
 
 ## 4. IA: 4-step flow (replaces current 3 tabs)
 
@@ -125,19 +125,19 @@ reel/
   ReelCreatorModal.tsx# ORCHESTRATE: useReducer state, 4 steps, preview-with-music
 public/reel-music/
   manifest.json + *.mp3 (preview cuts) + LICENSES.md
-scripts/reel-music.mjs # NEW: mp3 → peaks JSON + manifest validate (node, no dep)
+scripts/reel-music.mjs # OPTIONAL dev script: mp3 → peaks JSON + manifest validate (requires a local ffmpeg binary; NOT zero-dep — Node stdlib cannot decode MP3). Peaks are optional: the client computes them in-browser when missing.
 ```
 
 - **State:** single `useReducer` (`photos[], order, music{...}, style{...}, perPhoto{}`) — replaces 10+ `useState`s; draft persistence = serialize reducer state.
 - **Audio engine (one owner):** preview and export share `buildMixGraph(trackUrl, {trim, volume, fades})`. Preview attaches to `AudioContext.destination`; export attaches to `MediaStreamDestination` (existing mux pattern stays).
 - **Renderer deltas:** `paintAt` gains `cutIndex` lookup for per-cut transition/anim/filter + text pass after slide composite. `coverDraw` unchanged. `REEL_FPS=30`, `8Mbps` kept; 720p toggle halves canvas (perf gate).
-- **No store/router changes.** Analytics: extend `reel_export` payload (`trackId, trimLen, template, ratio, filter`) + new `reel_music_preview` / `reel_template_apply` events (backend allowlist already pattern-matched in `analytics.ts` — add the two strings).
+- **No store/router/backend changes.** Analytics stays inside the existing allowlist: extend the already-allowed `reel_export` payload (`trackId, trimLen, template, ratio, filter`) only — `node-server-1/src/routes/analytics.ts` `ALLOWED_TYPES` is an exact `Set` that 400s unknown types, and backend edits are out of scope. Preview/template funnels are measured via payload flags, not new event types.
 
 ## 6. Mobile-first engineering checklist (must-pass before review)
 
 - [ ] ≥44px every tap target (buttons already `min-h-[44px]` — extend to trim handles w/ invisible slop, chips, thumbs' reorder arrows).
 - [ ] Drawer: `pb-[env(safe-area-inset-bottom)]`, sticky action bar, content scrolls under it; no horizontal page scroll at 360px.
-- [ ] Export guard: `document.visibilitychange` → pause timer + toast "Export paused — keep tab visible"; resume on visible. (rAF stops in background; don't pretend otherwise.)
+- [ ] Export guard: `document.visibilitychange` → **abort export** with toast "Export stopped — keep this tab visible" (pausing is unsound: `MediaRecorder` timestamps + live WebAudio desync when rAF stalls; never pause/resume mid-take). The same "keep this tab visible" hint shows before export starts.
 - [ ] Pre-export check: `isReelExportSupported()` messaging *before* user configures (step 1 banner on unsupported browsers, not step 4 surprise).
 - [ ] Perf: decode images at display size for grid (`loading=lazy` kept) + full-res only at export; `720p` auto-suggest when `deviceMemory≤4` or 1080p frame >40ms (measure first preview second).
 - [ ] Motion: `prefers-reduced-motion` → animation **and** transitions → `none`; waveform/progress still update (information, not motion).
