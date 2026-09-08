@@ -453,7 +453,7 @@ function DemoPanel({ step }: { step: DemoStep }) {
         <Badge variant="brand" className="text-xs font-mono">14 matches</Badge>
       </div>
       <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
-      <div className="grid grid-cols-4 gap-2 pt-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
         {DEMO_PHOTOS.map((p, i) => (
           <img
             key={p.src}
@@ -506,7 +506,7 @@ function DemoCard() {
       </div>
 
       <div className="p-5 space-y-4">
-        <div className="flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800 pb-3 overflow-x-auto scrollbar-hide">
+        <div className="grid grid-cols-3 gap-1 border-b border-neutral-200 dark:border-neutral-800 pb-3">
           {STEPS.map((s) => (
             <button
               key={s.id}
@@ -516,7 +516,7 @@ function DemoCard() {
                 setStep(s.id);
               }}
               className={cn(
-                "px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap min-h-[44px] flex items-center justify-center",
+                "px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors min-h-[44px] flex items-center justify-center text-center leading-tight",
                 step === s.id
                   ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800"
