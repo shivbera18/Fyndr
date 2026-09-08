@@ -66,7 +66,9 @@ describe('serviceWorkerRegistration update checks', () => {
 
   test('rechecks on the hourly poll', () => {
     updateMock.mockClear();
-    jest.advanceTimersByTime(60 * 60 * 1000);
-    expect(updateMock).toHaveBeenCalled();
+    jest.advanceTimersByTime(59 * 60 * 1000 + 59 * 1000);
+    expect(updateMock).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1000);
+    expect(updateMock).toHaveBeenCalledTimes(1);
   });
 });

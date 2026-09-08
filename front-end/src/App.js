@@ -37,12 +37,19 @@ function App() {
             reloading = true;
             const waiting = registration && registration.waiting;
             if (waiting && 'serviceWorker' in navigator) {
-              const doReload = () => window.location.reload();
+              let timer = 0;
+              let settled = false;
+              const doReload = () => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                window.location.reload();
+              };
               // The new worker takes control async — reload only once it has.
               navigator.serviceWorker.addEventListener('controllerchange', doReload, { once: true });
               waiting.postMessage({ type: 'SKIP_WAITING' });
               // Fallback in case activation fails.
-              setTimeout(doReload, 3000);
+              timer = window.setTimeout(doReload, 3000);
             } else {
               window.location.reload();
             }
