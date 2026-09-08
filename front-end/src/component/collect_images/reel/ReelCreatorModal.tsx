@@ -14,7 +14,6 @@ import {
   REEL_H,
   REEL_MAX_PHOTOS,
   REEL_MIN_PHOTOS,
-  REEL_TRACKS,
   REEL_TRANSITIONS,
   REEL_W,
   TRANS_DUR_DEFAULT,
@@ -25,6 +24,9 @@ import {
   clampTransitionDuration,
   reelTotalDuration,
 } from "./presets";
+import { MusicPicker } from "./musicPicker";
+import { loadTrackManifest, resolveCatalog } from "./tracks";
+import type { ManifestTrack } from "./tracks";
 import {
   extensionForMime,
   isReelExportSupported,
@@ -67,9 +69,12 @@ const ReelCreatorModal = ({
   const [selected, setSelected] = useState<string[]>(() =>
     photos.slice(0, Math.min(4, photos.length)).map((p) => p.name)
   );
-  const [musicId, setMusicId] = useState<string>("upbeat");
+  const [musicId, setMusicId] = useState<string>("none");
   const [customMusicUrl, setCustomMusicUrl] = useState<string | null>(null);
   const [customMusicName, setCustomMusicName] = useState<string>("");
+  const [manifest, setManifest] = useState<ManifestTrack[]>([]);
+  const [musicLoading, setMusicLoading] = useState<boolean>(false);
+  const catalog = useMemo(() => resolveCatalog(manifest), [manifest]);
   const [transition, setTransition] = useState<ReelTransition>("fade");
   const [animation, setAnimation] = useState<ReelAnimation>(() =>
     prefersReducedMotion() ? "none" : "zoom-in"
@@ -95,10 +100,9 @@ const ReelCreatorModal = ({
     [selected, photos]
   );
   const musicUrl = useMemo(() => {
-    if (musicId === "none") return null;
     if (musicId === "custom") return customMusicUrl;
-    return REEL_TRACKS.find((t) => t.id === musicId)?.src ?? null;
-  }, [musicId, customMusicUrl]);
+    return catalog.find((t) => t.id === musicId)?.src ?? null;
+  }, [musicId, customMusicUrl, catalog]);
   const clampedTrans = clampTransitionDuration(transDur, photoDur);
   const total = reelTotalDuration(selected.length, photoDur, transDur);
 
@@ -114,6 +118,26 @@ const ReelCreatorModal = ({
     setMutedNotice(false);
     setProgress(0);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setMusicLoading(true);
+    loadTrackManifest()
+      .then((tracks) => {
+        if (!cancelled) setManifest(tracks);
+      })
+      .finally(() => {
+        if (!cancelled) setMusicLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    setMusicId((c) => (c === "custom" || catalog.some((t) => t.id === c) ? c : "none"));
+  }, [catalog]);
 
   useEffect(() => {
     return () => {
@@ -173,8 +197,7 @@ const ReelCreatorModal = ({
     });
   };
 
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    const file = e.target.files?.[0];
+  const handleAudioUpload = (file?: File | null): void => {
     if (!file) return;
     if (file.size > MAX_UPLOAD_AUDIO_MB * 1024 * 1024) {
       toast.error(`Audio must be under ${MAX_UPLOAD_AUDIO_MB}MB.`);
@@ -336,35 +359,14 @@ const ReelCreatorModal = ({
         </TabsContent>
 
         <TabsContent value="style" className="space-y-4">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Music</p>
-            <div className="grid grid-cols-2 gap-2">
-              {REEL_TRACKS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setMusicId(t.id)}
-                  aria-pressed={musicId === t.id}
-                  className={cn(
-                    "min-h-[44px] rounded-xl border px-3 py-2 text-left text-sm font-medium",
-                    musicId === t.id ? "border-primary bg-primary/10" : "border-border bg-card"
-                  )}
-                >
-                  {t.label}
-                  {t.credit && <span className="block text-xs font-normal text-muted-foreground">{t.credit}</span>}
-                </button>
-              ))}
-              <label
-                className={cn(
-                  "min-h-[44px] rounded-xl border px-3 py-2 text-sm font-medium cursor-pointer",
-                  musicId === "custom" ? "border-primary bg-primary/10" : "border-border bg-card"
-                )}
-              >
-                {customMusicName ? `Your audio: ${customMusicName}` : "Upload from device"}
-                <input type="file" accept="audio/*" className="sr-only" onChange={handleAudioUpload} />
-              </label>
-            </div>
-          </div>
+          <MusicPicker
+            catalog={catalog}
+            musicId={musicId}
+            onSelect={setMusicId}
+            customAudio={customMusicUrl ? { url: customMusicUrl, name: customMusicName } : null}
+            onUpload={(file) => handleAudioUpload(file)}
+            loading={musicLoading}
+          />
           <div className="space-y-2">
             <p className="text-sm font-semibold">Transition</p>
             <div className="flex flex-wrap gap-2">
