@@ -22,25 +22,25 @@ import AccountPage from './component/dashboard/AccountPage';
 import { PWAInstallBanner, PWAOfflineIndicator } from './components/pwa';
 function App() {
   useEffect(() => {
+    let reloading = false;
     const handleUpdate = (e) => {
       const registration = e.detail;
       toast('New version of Fyndr is available', {
         id: 'pwa-update',
         description: 'Update now for the latest performance improvements.',
         duration: Infinity,
+        cancel: { label: 'Later' },
         action: {
           label: 'Reload',
           onClick: () => {
-            if (registration && registration.waiting) {
-              let reloaded = false;
-              const doReload = () => {
-                if (reloaded) return;
-                reloaded = true;
-                window.location.reload();
-              };
+            if (reloading) return;
+            reloading = true;
+            const waiting = registration && registration.waiting;
+            if (waiting && 'serviceWorker' in navigator) {
+              const doReload = () => window.location.reload();
               // The new worker takes control async — reload only once it has.
               navigator.serviceWorker.addEventListener('controllerchange', doReload, { once: true });
-              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              waiting.postMessage({ type: 'SKIP_WAITING' });
               // Fallback in case activation fails.
               setTimeout(doReload, 3000);
             } else {
