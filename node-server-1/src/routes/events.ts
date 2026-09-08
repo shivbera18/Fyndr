@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import mongoose from "mongoose";
 import axios from "axios";
+import archiver from "archiver";
 import fs from "fs";
 import path from "path";
 import { EVENT_PROFILE_DIR, FLASK_URL, UPLOAD_DIR } from "../config";
@@ -561,6 +562,52 @@ router.post('/events/:id/lightroom-export', async (req: Request, res: Response) 
     } catch {
         logger.error("Error exporting selection");
         return res.status(500).json({ message: "Internal server error." });
+    }
+});
+//---------------------------------------------------------------------------------------------------
+// P0: Batch download — owner-only ZIP of selected originals (same on-disk lookup as /download/:filename)
+router.post('/events/:id/selected-download', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid event ID." });
+    }
+    try {
+        const body: unknown = req.body || {};
+        const caller: unknown = body && typeof body === "object" && "created_id" in body ? body.created_id : undefined;
+        const event = await Event.findById(id).select('_id created_id');
+        if (!event) return res.status(404).json({ message: "Event not found." });
+        if (typeof caller !== "string" || caller !== event.created_id) {
+            return res.status(403).json({ message: "Only the event owner can download the selection." });
+        }
+        const selected = await Photo.find({ event_id: id, isSelected: true }).select('name').sort({ createdAt: -1 }).limit(501);
+        if (selected.length > 500) {
+            return res.status(400).json({ message: "Too many picks for one archive — narrow the selection." });
+        }
+        if (selected.length === 0) {
+            return res.status(404).json({ message: "No picks yet — nothing to download." });
+        }
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        archive.on('error', (err) => {
+            logger.error("Error archiving selection", err);
+            if (!res.headersSent) return res.status(500).json({ message: "Internal server error." });
+            try { res.end(); } catch {}
+        });
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="picks-${id}.zip"`);
+        archive.pipe(res);
+        // Same traversal guard as /download/:filename — ZIP entries are bare basenames (no zip-slip).
+        const resolvedUploadDir = path.resolve(UPLOAD_DIR) + path.sep;
+        for (const p of selected) {
+            const baseName = path.basename(p.name);
+            const safePath = path.resolve(UPLOAD_DIR, baseName);
+            if (!safePath.startsWith(resolvedUploadDir)) continue;
+            if (!fs.existsSync(safePath)) continue;
+            archive.file(safePath, { name: baseName });
+        }
+        await archive.finalize();
+    } catch {
+        logger.error("Error downloading selection");
+        if (!res.headersSent) return res.status(500).json({ message: "Internal server error." });
     }
 });
 

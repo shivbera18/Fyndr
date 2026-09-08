@@ -269,6 +269,7 @@ async function run() {
     }
 
     const facialPath = path.join(__dirname, '../front-end/public/images/facial.jpg');
+    let photoId2 = null;
     if (fs.existsSync(facialPath)) {
       console.log('  [proofing] uploading second photo for limit test...');
       const photoForm2 = new FormData();
@@ -279,7 +280,7 @@ async function run() {
         headers: photoForm2.getHeaders(), maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000,
       });
       assert.strictEqual(res2.status, 200);
-      const photoId2 = res2.data[0]._id;
+      photoId2 = res2.data[0]._id;
       assert(photoId2 && photoId2 !== photoId, 'Expected a distinct second photo');
 
       console.log('  [proofing] selecting second photo (2/2)...');
@@ -324,6 +325,26 @@ async function run() {
     res = await axios.post(`${API}/events/${eventId}/lightroom-export`, { created_id: userId });
     assert.strictEqual(res.status, 200);
     assert(String(res.data).includes(photoName1), 'Lightroom export must list selected filenames');
+
+    console.log('  [proofing] downloading selected originals as ZIP...');
+    if (photoId2) {
+      res = await axios.put(`${API}/events/${eventId}`, { created_id: userId, selectionLimit: 2 });
+      assert.strictEqual(res.status, 200);
+      res = await axios.patch(`${API}/photos/${photoId2}/select`, {
+        event_id: eventId, pin: '654321', isSelected: true,
+      });
+      assert.strictEqual(res.status, 200);
+    }
+    res = await axios.post(`${API}/events/${eventId}/selected-download`, { created_id: userId }, { responseType: 'arraybuffer' });
+    assert.strictEqual(res.status, 200);
+    assert(String(res.headers['content-type']).includes('application/zip'), 'Selected download must be a ZIP');
+    assert(Buffer.from(res.data).includes(photoName1), 'ZIP must contain the selected original');
+    try {
+      await axios.post(`${API}/events/${eventId}/selected-download`, { created_id: 'intruder-id' });
+      assert.fail('Should reject non-owner download');
+    } catch (err) {
+      assert.strictEqual(err.response.status, 403);
+    }
 
     // 4.5 Lead capture, gate flag, counters
     console.log('  [leads] submitting guest lead...');
