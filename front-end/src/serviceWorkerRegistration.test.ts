@@ -63,4 +63,10 @@ describe('serviceWorkerRegistration update checks', () => {
     window.dispatchEvent(new Event('online'));
     expect(updateMock).toHaveBeenCalled();
   });
+
+  test('rechecks on the hourly poll', () => {
+    updateMock.mockClear();
+    jest.advanceTimersByTime(60 * 60 * 1000);
+    expect(updateMock).toHaveBeenCalled();
+  });
 });
