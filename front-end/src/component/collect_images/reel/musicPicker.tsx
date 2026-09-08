@@ -62,14 +62,16 @@ export function MusicPicker({
     }
     el.src = track.src;
     setPlayingId(track.id);
-    el.play().catch(() => setPlayingId(null));
+    // A superseded play() rejects (AbortError) when pause() interrupts it — only
+    // clear state if this track is still the active one.
+    el.play().catch(() => setPlayingId((curr) => (curr === track.id ? null : curr)));
   };
 
   return (
     <div className="space-y-2">
       <p className="text-sm font-semibold">Music</p>
       {loading && <p className="text-sm text-muted-foreground">Loading music…</p>}
-      <div className="grid grid-cols-1 gap-2" role="listbox" aria-label="Music tracks">
+      <div className="grid grid-cols-1 gap-2">
         {catalog.map((t) => {
           const active = musicId === t.id;
           const playing = playingId === t.id;
@@ -77,8 +79,6 @@ export function MusicPicker({
           return (
             <div
               key={t.id}
-              role="option"
-              aria-selected={active}
               className={cn(
                 "flex min-h-[44px] items-center gap-2 rounded-xl border px-2 py-2 text-left",
                 active ? "border-primary bg-primary/10" : "border-border bg-card"

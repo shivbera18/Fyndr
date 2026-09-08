@@ -14,8 +14,21 @@ class MockAudio {
   preload = "";
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  play = jest.fn(async () => undefined);
-  pause = jest.fn();
+  private pending: Array<(e: unknown) => void> = [];
+  play = jest.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        this.pending.push(reject);
+      })
+  );
+  pause = jest.fn(() => {
+    // Like browsers: interrupting pending play() rejects it (AbortError),
+    // delivered as a microtask — after the click handler already switched tracks.
+    const interrupted = this.pending.splice(0);
+    queueMicrotask(() =>
+      interrupted.forEach((reject) => reject(new DOMException("interrupted", "AbortError")))
+    );
+  });
   constructor() {
     instances.push(this);
   }
@@ -98,6 +111,13 @@ describe("MusicPicker", () => {
       instances[0].onended?.();
     });
     expect(screen.getByLabelText("Play Party Start")).toBeInTheDocument();
+  });
+  it("keeps the new track active when the superseded play() rejects", async () => {
+    renderPicker();
+    fireEvent.click(screen.getByLabelText("Play Calm Piano"));
+    fireEvent.click(screen.getByLabelText("Play Party Start"));
+    await act(async () => {});
+    expect(screen.getByLabelText("Pause Party Start")).toBeInTheDocument();
   });
 
   it("shows upload-only state for an empty catalog", () => {
