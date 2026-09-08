@@ -70,6 +70,7 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
           {sources.map((s, i) => (
             <div
               key={i}
+              className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
             >
               <div className={cn("size-10 rounded-xl flex items-center justify-center shrink-0", s.boxClass)}>
                 {s.icon}

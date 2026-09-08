@@ -14,8 +14,9 @@ describe('BeamLines', () => {
     render(<BeamLines />);
     expect(screen.getByText('1. Photographer Upload')).toBeInTheDocument();
     expect(screen.getByText('Direct to Phone')).toBeInTheDocument();
+    const card = screen.getByText('1. Photographer Upload').closest('.group');
+    expect(card).toHaveClass('rounded-xl', 'border', 'flex');
   });
-
   test('renders custom sources merging into a custom hub', () => {
     render(<BeamLines sources={SOURCES} hub={HUB} showLabels={false} />);
     expect(screen.getByText('Shooter A')).toBeInTheDocument();
