@@ -257,19 +257,22 @@ export function CameraCloudFlow() {
                 </feMerge>
               </filter>
             </defs>
-            {IN_EDGE.map((y) => (
-              <motion.path
-                key={`base-${y}`}
-                d={inPath(y)}
-                className="stroke-neutral-200 dark:stroke-neutral-800"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-                initial={reduce ? false : { pathLength: 0 }}
-                whileInView={{ pathLength: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 1, ease: "easeOut" }}
-              />
-            ))}
+            <motion.g
+              initial={reduce ? false : { opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              {IN_EDGE.map((y) => (
+                <path
+                  key={`base-${y}`}
+                  d={inPath(y)}
+                  className="stroke-neutral-200 dark:stroke-neutral-800"
+                  strokeWidth="2"
+                  strokeDasharray="4 4"
+                />
+              ))}
+            </motion.g>
             {!reduce &&
               IN_EDGE.map((y, i) =>
                 selCam === undefined || selCam === i ? (
