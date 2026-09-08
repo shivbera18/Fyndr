@@ -122,6 +122,7 @@ export function withFragment(url: string, trim: TrimRange | null): string {
 
 export interface Timeline {
   holds: number[];
+  joins: number[];
   total: number;
 }
 
@@ -132,14 +133,17 @@ export function resolveTimeline(
   perDur: (number | undefined)[]
 ): Timeline {
   const holds = perDur.map((d) => Math.min(PHOTO_DUR_MAX, Math.max(PHOTO_DUR_MIN, d ?? photoDur)));
+  const joins: number[] = [];
   let total = 0;
   for (let i = 0; i < holds.length; i++) {
     total += holds[i];
-    if (i < holds.length - 1 && transition !== "none") {
-      total += clampTransitionDuration(transDur, Math.min(holds[i], holds[i + 1]));
+    if (i < holds.length - 1) {
+      const j = transition === "none" ? 0 : clampTransitionDuration(transDur, Math.min(holds[i], holds[i + 1]));
+      joins.push(j);
+      total += j;
     }
   }
-  return { holds, total };
+  return { holds, joins, total };
 }
 
 // Holds align to selected order; loaded images are an in-order subset (partial
@@ -148,3 +152,49 @@ export function alignHolds(holds: number[] | undefined, n: number): number[] | n
   if (!holds || n <= 0 || holds.length < n) return null;
   return holds.slice(0, n);
 }
+
+export type ReelRatio = "9:16" | "1:1" | "4:5";
+
+export function reelDims(ratio: ReelRatio, hd720: boolean): { w: number; h: number } {
+  const base =
+    ratio === "1:1" ? { w: 1080, h: 1080 } : ratio === "4:5" ? { w: 1080, h: 1350 } : { w: 1080, h: 1920 };
+  if (!hd720) return base;
+  const k = 720 / 1080;
+  return { w: Math.round(base.w * k), h: Math.round(base.h * k) };
+}
+
+export function reelBitrate(w: number, h: number): number {
+  return Math.max(2_000_000, Math.round((8_000_000 * w * h) / (1080 * 1920)));
+}
+
+export type ReelFilter = "none" | "warm" | "vivid" | "soft" | "bw" | "vintage";
+
+export const REEL_FILTERS: { id: ReelFilter; label: string; filter: string }[] = [
+  { id: "none", label: "None", filter: "none" },
+  { id: "warm", label: "Warm", filter: "saturate(1.15) sepia(0.15)" },
+  { id: "vivid", label: "Vivid", filter: "saturate(1.25) contrast(1.05)" },
+  { id: "soft", label: "Soft", filter: "brightness(1.05) saturate(0.9)" },
+  { id: "bw", label: "B&W", filter: "grayscale(1)" },
+  { id: "vintage", label: "Vintage", filter: "sepia(0.35) contrast(0.95)" },
+];
+
+export type TextStyle = "lower" | "center" | "minimal";
+
+export interface ReelTemplate {
+  id: string;
+  label: string;
+  hint: string;
+  transition: ReelTransition;
+  animation: ReelAnimation;
+  photoDur: number;
+  transDur: number;
+  filter: ReelFilter;
+  ratio: ReelRatio;
+  mood?: string;
+}
+
+export const REEL_TEMPLATES: ReelTemplate[] = [
+  { id: "wedding", label: "Wedding Romance", hint: "romantic", transition: "fade", animation: "zoom-in", photoDur: 2.5, transDur: 0.8, filter: "warm", ratio: "9:16", mood: "romantic" },
+  { id: "party", label: "Party Energy", hint: "upbeat", transition: "slide", animation: "zoom-out", photoDur: 1.5, transDur: 0.5, filter: "vivid", ratio: "9:16", mood: "party" },
+  { id: "chill", label: "Chill Highlights", hint: "lofi", transition: "fade", animation: "pan-left", photoDur: 3, transDur: 0.8, filter: "soft", ratio: "4:5", mood: "lofi" },
+];

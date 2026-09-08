@@ -13,6 +13,7 @@ jest.mock("../reelRenderer", () => ({
   isReelExportSupported: jest.fn(() => true),
   loadReelImages: jest.fn(async () => [{}, {}, {}]),
   renderReelToFile: jest.fn(async () => new Blob(["frame"], { type: "video/webm" })),
+  renderCoverFrame: jest.fn(() => null),
   previewReel: jest.fn(() => ({ stop: jest.fn() })),
 }));
 jest.mock("../tracks", () => ({
@@ -84,12 +85,14 @@ describe("ReelCreatorModal", () => {
     const reel = jest.requireMock("../reelRenderer") as {
       loadReelImages: jest.Mock;
       renderReelToFile: jest.Mock;
+      renderCoverFrame: jest.Mock;
       isReelExportSupported: jest.Mock;
       previewReel: jest.Mock;
       extensionForMime: jest.Mock;
     };
     reel.loadReelImages.mockResolvedValue([{}, {}, {}]);
     reel.renderReelToFile.mockResolvedValue(new Blob(["frame"], { type: "video/webm" }));
+    reel.renderCoverFrame.mockReturnValue(null);
     reel.isReelExportSupported.mockReturnValue(true);
     reel.previewReel.mockReturnValue({ stop: jest.fn() });
     reel.extensionForMime.mockReturnValue("webm");
@@ -136,7 +139,7 @@ describe("ReelCreatorModal", () => {
 
   it("updates total runtime when the transition slider moves", () => {
     renderModal();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /Music & Style/i }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Style/ }));
 
     fireEvent.change(screen.getByLabelText(/transition/i, { selector: "input" }), {
       target: { value: "1.0" },
@@ -146,7 +149,7 @@ describe("ReelCreatorModal", () => {
 
   it("exports and fires reel_export analytics with a download link", async () => {
     renderModal();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /Music & Style/i }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Music/ }));
     fireEvent.click(await screen.findByText("Upbeat Pop"));
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
 
@@ -198,5 +201,121 @@ describe("ReelCreatorModal", () => {
       expect.anything(),
       expect.objectContaining({ holds: [1, 2.5, 2.5] })
     );
+  });
+
+  it("applies a template in one tap", () => {
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Style/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Party Energy/ }));
+    expect(screen.getByText("1.5s per photo")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Party Energy/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("passes ratio dims, filter, and title to export", async () => {
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        width: 1080,
+        height: 1920,
+        filter: "none",
+        title: { text: "Test Event", style: "lower" },
+        endCard: null,
+      })
+    );
+  });
+
+  it("renders an end-card for CC-BY tracks", async () => {
+    const tracks = jest.requireMock("../tracks") as {
+      loadTrackManifest: jest.Mock;
+      resolveCatalog: jest.Mock;
+    };
+    tracks.loadTrackManifest.mockResolvedValue([
+      { id: "by", title: "By Track", src: "/reel-music/by.mp3", duration: 60, license: "CC-BY", credit: "Kevin MacLeod" },
+    ]);
+    tracks.resolveCatalog.mockImplementation(
+      (items: Array<{ id: string; title: string; src: string; duration: number; license: string; credit: string }>) => [
+        { id: "none", label: "No music", src: null, credit: "", license: "none" },
+        ...items.map((t) => ({
+          id: t.id,
+          label: t.title,
+          src: t.src,
+          credit: t.credit,
+          license: t.license,
+          duration: t.duration,
+        })),
+      ]
+    );
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Music/ }));
+    fireEvent.click(await screen.findByText("By Track"));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ endCard: "Music: Kevin MacLeod" })
+    );
+  });
+
+  it("resumes a saved draft from the chip", () => {
+    localStorage.setItem(
+      "fyndr:reel:draft:evt1",
+      JSON.stringify({
+        v: 1, selected: ["a.jpg", "b.jpg"], musicId: "none", trim: null,
+        volume: 0.5, fadeOn: false, durations: {}, transition: "slide",
+        animation: "zoom-out", photoDur: 3, transDur: 1, ratio: "1:1",
+        filter: "bw", textStyle: "center", templateId: null,
+      })
+    );
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Style/ }));
+    expect(screen.getByText("3.0s per photo")).toBeInTheDocument();
+    localStorage.clear();
+  });
+
+  it("steps the cover without crashing", async () => {
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    await screen.findByText(/Cover 1\/3/);
+    fireEvent.click(screen.getByRole("button", { name: "Next →" }));
+    expect(await screen.findByText(/Cover 2\/3/)).toBeInTheDocument();
+  });
+
+  it("does not clobber a saved draft on open", () => {
+    const seed = JSON.stringify({
+      v: 1, selected: ["a.jpg", "b.jpg"], musicId: "none", trim: null,
+      volume: 0.5, fadeOn: false, durations: {}, transition: "slide",
+      animation: "zoom-out", photoDur: 3, transDur: 1, ratio: "1:1",
+      filter: "bw", textStyle: "center", templateId: null,
+    });
+    localStorage.setItem("fyndr:reel:draft:evt1", seed);
+    renderModal();
+    expect(localStorage.getItem("fyndr:reel:draft:evt1")).toBe(seed);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    localStorage.clear();
+  });
+
+  it("ignores corrupt or shapeless drafts without crashing", () => {
+    localStorage.setItem("fyndr:reel:draft:evt1", "{bad json");
+    const { unmount } = renderModal();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    unmount();
+    localStorage.setItem("fyndr:reel:draft:evt1", JSON.stringify({ v: 2, selected: "nope" }));
+    renderModal();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    localStorage.clear();
   });
 });

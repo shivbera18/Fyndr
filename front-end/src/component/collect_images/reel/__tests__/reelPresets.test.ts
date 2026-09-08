@@ -5,6 +5,8 @@ import {
   clampTrim,
   coverDraw,
   formatTrimTime,
+  reelBitrate,
+  reelDims,
   reelTotalDuration,
   resolveTimeline,
   smartStart,
@@ -74,11 +76,11 @@ describe("reel trim helpers", () => {
     expect(withFragment("/x.mp3", { start: 12, end: 27 })).toBe("/x.mp3#t=12.0,27.0");
   });
 });
-
 describe("resolveTimeline", () => {
   it("totals uniform holds plus joins", () => {
     expect(resolveTimeline(2.5, 0.5, "fade", [undefined, undefined, undefined])).toEqual({
       holds: [2.5, 2.5, 2.5],
+      joins: [0.5, 0.5],
       total: 8.5,
     });
   });
@@ -86,12 +88,13 @@ describe("resolveTimeline", () => {
   it("honors per-photo overrides and clamps joins", () => {
     const t = resolveTimeline(2.5, 1.5, "fade", [1, undefined]);
     expect(t.holds).toEqual([1, 2.5]);
+    expect(t.joins).toEqual([0.9]);
     expect(t.total).toBeCloseTo(1 + 2.5 + 0.9, 10);
   });
 
   it("zeroes joins for none transitions and empties", () => {
-    expect(resolveTimeline(2.5, 0.5, "none", [2, 2]).total).toBe(4);
-    expect(resolveTimeline(2.5, 0.5, "fade", [])).toEqual({ holds: [], total: 0 });
+    expect(resolveTimeline(2.5, 0.5, "none", [2, 2])).toEqual({ holds: [2, 2], joins: [0], total: 4 });
+    expect(resolveTimeline(2.5, 0.5, "fade", [])).toEqual({ holds: [], joins: [], total: 0 });
   });
 
   it("aligns holds to loaded images by prefix", () => {
@@ -99,5 +102,13 @@ describe("resolveTimeline", () => {
     expect(alignHolds([1, 2, 2.5], 2)).toEqual([1, 2]);
     expect(alignHolds([1], 2)).toBeNull();
     expect(alignHolds(undefined, 2)).toBeNull();
+  });
+
+  it("sizes canvases and bitrates per ratio", () => {
+    expect(reelDims("9:16", false)).toEqual({ w: 1080, h: 1920 });
+    expect(reelDims("1:1", false)).toEqual({ w: 1080, h: 1080 });
+    expect(reelDims("4:5", true)).toEqual({ w: 720, h: 900 });
+    expect(reelBitrate(1080, 1920)).toBe(8000000);
+    expect(reelBitrate(720, 720)).toBeLessThan(8000000);
   });
 });
