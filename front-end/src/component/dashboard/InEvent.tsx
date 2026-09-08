@@ -326,6 +326,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   };
 
   const selectedCount = images.filter((p) => p.isSelected).length;
+  const picks = images.filter((p) => p.isSelected);
   const selectUrl = `${window.location.origin}/select/${eventID}`;
 
   const saveSelectionLimit = async (): Promise<void> => {
@@ -917,6 +918,21 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             </Button>
           </div>
           {proofMsg ? <p role="status" className="text-xs text-muted-foreground break-all">{proofMsg}</p> : null}
+          {picks.length > 0 ? (
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {picks.map((p) => (
+                <li key={p._id} className="flex items-center gap-2.5 p-2">
+                  <img src={`${getApiBase()}/uploads/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono text-xs">{p.name}</p>
+                    {p.selectionNote ? <p className="truncate text-xs text-muted-foreground">{p.selectionNote}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">No client picks yet.</p>
+          )}
         </CardContent>
       </Card>
       {/* Guest insights & leads */}
