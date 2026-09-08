@@ -7,17 +7,17 @@ no renderer changes. Follow-up F2 (picker UI) and F3 (trim/mix) consume this.
 
 - `front-end/public/reel-music/manifest.json` — NEW, `{ version: 1, tracks: [...] }`,
   seeded with `tracks: []` (maintainer supplies licensed mp3s + entries per parent §10.1).
-- `front-end/public/reel-music/LICENSES.md` — NEW, per-track license + credit lines.
-- `front-end/src/component/collect_images/reel/tracks.ts` — NEW (~120 lines).
+  License + credit live ONLY in manifest entries (no separate LICENSES file — single source of truth).
+- `front-end/src/component/collect_images/reel/tracks.ts` — NEW (~70 lines).
 
 ## `tracks.ts` API
 
 ```ts
-interface ManifestTrack { id, title, artist, mood[], src, duration, bpm?, license: "CC0"|"CC-BY", credit, peaks? }
-loadTrackManifest(): Promise<ManifestTrack[]>  // fetch + validate + localStorage cache (key includes version); network/parse failure → []
+interface ManifestTrack { id, title, artist?, mood?, src, duration, license: "CC0"|"CC-BY", credit?, bpm?, peaks? }
+type CatalogTrack = ReelTrack & { license: "none"|"CC0"|"CC-BY", artist?, mood?, duration?, bpm?, peaks? }
+loadTrackManifest(): Promise<ManifestTrack[]>  // fetch + validate; failure → [] (no cache — HTTP caching covers a static <5KB JSON). [] means empty-or-failed; the caller owns loading state.
 getNoneTrack(): ReelTrack                      // the existing { id:"none", label:"No music", src:null } entry
-resolveCatalog(manifest): ReelTrack[]          // [none, ...valid manifest tracks]; invalid entries dropped + console.warn, never throw
-smartStart(peaks, windowSec=15): number         // loudest-window start; empty peaks → 10% fallback (pure, unit-tested)
+resolveCatalog(manifest): CatalogTrack[]       // [none-as-CatalogTrack, ...valid tracks]; invalid dropped + console.warn in dev, never throw. (smartStart deferred to F3 with a duration param.)
 ```
 
 ## Contracts (do not break)
@@ -27,27 +27,29 @@ smartStart(peaks, windowSec=15): number         // loudest-window start; empty p
   reproduces the none-first shape for F2.
 - Empty catalog is a handled state (picker shows upload-only), not an error.
 - CC-BY entries REQUIRE non-empty `credit`; validator drops CC-BY tracks without one.
-- Track `src` must be same-origin path (starts with `/`); absolute URLs dropped
-  (CORS breaks `MediaElementSource` export mux — parent §9).
+- Track `src`: same-origin path (`/...`) OR `https://` URL on an approved CDN origin
+  (R2 mirror per parent §2.1/§9 — bucket must send `Access-Control-Allow-Origin`, expose
+  `Content-Length/Range`, and allow `Range`; `<audio crossOrigin="anonymous">`). Anything else dropped.
 
 ## Validation rules
 
-Required: `id` (unique, slug), `title`, `src` (same-origin), `duration` (>0),
-`license` in {CC0, CC-BY}. Optional: `artist`, `mood[]`, `bpm` (>0), `credit`,
-`peaks` (all 0..1). `trimStart` math clamps against `duration` (F3 reuses).
+Required: `id` (unique), `title`, `src` (allowed origin), `duration` (>0),
+`license` in {CC0, CC-BY} (+ non-empty `credit` when CC-BY). Everything else optional
+and unvalidated beyond shape. Dev/CI also runs `validateManifest` against the
+checked-in `manifest.json` so maintainer edits fail loud instead of vanishing tracks.
 
 ## Tests (extend `reel/__tests__/`)
 
-`tracks.test.ts`: validator accepts good / drops bad (dup id, absolute URL, CC-BY
-without credit, bad peaks); `resolveCatalog` none-first; `smartStart` loudest window
-+ empty fallback; `loadTrackManifest` falls back to `[]` on 404 (mock fetch).
+`tracks.test.ts`: validator accepts good / drops bad (dup id, disallowed origin, CC-BY
+without credit); checked-in `manifest.json` validates clean; `resolveCatalog` none-first
+with metadata preserved; `loadTrackManifest` falls back to `[]` on 404 (mock fetch).
 
 ## Acceptance
 
 `tsc --noEmit` clean; `npm --prefix front-end test -- --watchAll=false` green;
-manifest with 0 tracks → loader resolves `[none]`, no throw, no toast.
+manifest with 0 tracks → `resolveCatalog` yields `[none]` (loader itself resolves `[]`), no throw, no toast.
 
 ## Non-goals
 
-Picker UI (F2), waveform/trim/mix (F3), vendored mp3s (maintainer decision, parent
-§10.1), backend changes, new deps (zero — fetch + WebAudio only).
+Picker UI (F2), waveform/trim/mix incl. `smartStart` (F3), vendored mp3s (maintainer decision, parent
+§10.1), manifest client caching, backend changes, new deps (zero — fetch only).
