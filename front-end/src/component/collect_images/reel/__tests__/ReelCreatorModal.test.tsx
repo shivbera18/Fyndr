@@ -161,5 +161,13 @@ describe("ReelCreatorModal", () => {
       expect.objectContaining({ photoCount: 3, transition: "fade", hasMusic: true, musicId: "upbeat" })
     );
     expect(link.getAttribute("download")).toBe("fyndr-reel-evt1.webm");
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        mix: expect.objectContaining({ url: "/reel-music/upbeat.mp3", volume: 0.8 }),
+      })
+    );
   });
 });

@@ -22,11 +22,15 @@ import {
   ReelAnimation,
   ReelTransition,
   clampTransitionDuration,
+  clampTrim,
   reelTotalDuration,
+  smartStart,
+  withFragment,
 } from "./presets";
 import { MusicPicker } from "./musicPicker";
+import { Waveform } from "./waveform";
 import { loadTrackManifest, resolveCatalog } from "./tracks";
-import type { ManifestTrack } from "./tracks";
+import type { CatalogTrack, ManifestTrack } from "./tracks";
 import {
   extensionForMime,
   isReelExportSupported,
@@ -75,6 +79,13 @@ const ReelCreatorModal = ({
   const [manifest, setManifest] = useState<ManifestTrack[]>([]);
   const [musicLoading, setMusicLoading] = useState<boolean>(false);
   const catalog = useMemo(() => resolveCatalog(manifest), [manifest]);
+  const [trim, setTrim] = useState<{ start: number; end: number } | null>(null);
+  const [volume, setVolume] = useState<number>(0.8);
+  const [fadeOn, setFadeOn] = useState<boolean>(true);
+  const [muted, setMuted] = useState<boolean>(false);
+  const [uploadDuration, setUploadDuration] = useState<number>(0);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previewSrcRef = useRef<string>("");
   const [transition, setTransition] = useState<ReelTransition>("fade");
   const [animation, setAnimation] = useState<ReelAnimation>(() =>
     prefersReducedMotion() ? "none" : "zoom-in"
@@ -105,6 +116,12 @@ const ReelCreatorModal = ({
   }, [musicId, customMusicUrl, catalog]);
   const clampedTrans = clampTransitionDuration(transDur, photoDur);
   const total = reelTotalDuration(selected.length, photoDur, transDur);
+
+  const activeTrack: CatalogTrack | undefined = useMemo(
+    () => catalog.find((t) => t.id === musicId),
+    [catalog, musicId]
+  );
+  const trackDuration = musicId === "custom" ? uploadDuration : activeTrack?.duration ?? 0;
 
   useEffect(() => {
     if (!open) return;
@@ -146,6 +163,22 @@ const ReelCreatorModal = ({
   }, []);
 
   useEffect(() => {
+    setTrim(null);
+  }, [musicId, customMusicUrl]);
+
+  useEffect(() => {
+    if (musicId !== "custom" || !customMusicUrl) return;
+    const el = new Audio(customMusicUrl);
+    el.preload = "metadata";
+    const onMeta = (): void => setUploadDuration(Number.isFinite(el.duration) ? el.duration : 0);
+    el.addEventListener("loadedmetadata", onMeta);
+    return () => {
+      el.removeEventListener("loadedmetadata", onMeta);
+      el.removeAttribute("src");
+    };
+  }, [musicId, customMusicUrl]);
+
+  useEffect(() => {
     if (!open) {
       setImages([]);
       return;
@@ -174,6 +207,7 @@ const ReelCreatorModal = ({
     };
   }, [open, selectedPhotos]);
 
+  // Visual loop: restarts only when the reel itself changes — never on audio tweaks.
   useEffect(() => {
     if (step !== "export" || !playing || images.length === 0) return;
     const canvas = canvasRef.current;
@@ -185,6 +219,38 @@ const ReelCreatorModal = ({
     );
     return () => handle.stop();
   }, [step, playing, images, photoDur, transition, clampedTrans, animation]);
+
+  // Audible preview: plain element semantics (no AudioContext — the export owns
+  // the single createMediaElementSource graph). Same fragment-loop as export.
+  // Volume/mute apply live without restarting the canvas loop above.
+  useEffect(() => {
+    if (step !== "export" || images.length === 0) {
+      previewAudioRef.current?.pause();
+      return;
+    }
+    let el = previewAudioRef.current;
+    if (!el) {
+      el = new Audio();
+      el.loop = true;
+      el.preload = "auto";
+      previewAudioRef.current = el;
+    }
+    const preview = el;
+    if (playing && musicUrl) {
+      const want = withFragment(musicUrl, trim);
+      if (previewSrcRef.current !== want) {
+        previewSrcRef.current = want;
+        preview.src = want;
+      }
+      preview.volume = muted ? 0 : volume;
+      preview.play()?.catch(() => undefined);
+    } else {
+      preview.pause();
+    }
+    return () => {
+      preview.pause();
+    };
+  }, [step, playing, images.length, musicUrl, trim, volume, muted]);
 
   const toggleSelect = (name: string): void => {
     setSelected((prev) => {
@@ -230,6 +296,16 @@ const ReelCreatorModal = ({
         transitionDuration: clampedTrans,
         animation,
         musicUrl,
+        mix: musicUrl
+          ? {
+              url: musicUrl,
+              start: trim?.start ?? 0,
+              end: trim?.end ?? (trackDuration > 0 ? trackDuration : total),
+              volume,
+              fade: fadeOn ? 0.8 : 0,
+              reelDuration: total,
+            }
+          : null,
         onProgress: (r) => setProgress(r),
       });
       const ext = extensionForMime(blob.type || pickMimeType());
@@ -250,6 +326,7 @@ const ReelCreatorModal = ({
         animation,
         musicId: musicUrl ? musicId : "none",
         hasMusic: Boolean(musicUrl),
+        trimLen: trim ? Math.round((trim.end - trim.start) * 10) / 10 : null,
       });
       toast.success(musicUrl ? "Reel exported." : "Reel exported without music.");
     } catch (e: unknown) {
@@ -367,6 +444,52 @@ const ReelCreatorModal = ({
             onUpload={(file) => handleAudioUpload(file)}
             loading={musicLoading}
           />
+          {musicUrl && trackDuration > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Trim &amp; volume</p>
+              <Waveform
+                peaks={activeTrack?.peaks}
+                duration={trackDuration}
+                start={trim?.start ?? 0}
+                end={trim?.end ?? trackDuration}
+                onChange={(s, e) => setTrim({ start: s, end: e })}
+                onChorus={() => {
+                  const p = activeTrack?.peaks;
+                  if (!p || p.length === 0) return;
+                  const s = smartStart(p, trackDuration);
+                  const c = clampTrim(s, s + 15, trackDuration);
+                  setTrim({ start: c.start, end: c.end });
+                }}
+                onReset={() => setTrim(null)}
+                canChorus={(activeTrack?.peaks?.length ?? 0) > 0}
+              />
+              <div className="space-y-1">
+                <label htmlFor="reel-volume" className="text-sm font-semibold">
+                  Volume {Math.round(volume * 100)}%
+                </label>
+                <input
+                  id="reel-volume"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant={fadeOn ? "default" : "outline"}
+                className="min-h-[44px]"
+                onClick={() => setFadeOn((f) => !f)}
+                aria-pressed={fadeOn}
+              >
+                Fade in/out
+              </Button>
+            </div>
+          )}
           <div className="space-y-2">
             <p className="text-sm font-semibold">Transition</p>
             <div className="flex flex-wrap gap-2">
@@ -479,6 +602,15 @@ const ReelCreatorModal = ({
               onClick={() => setPlaying((p) => !p)}
             >
               {playing ? "Pause" : "Play"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-[44px]"
+              onClick={() => setMuted((m) => !m)}
+              aria-pressed={muted}
+            >
+              {muted ? "Unmute" : "Mute"}
             </Button>
             <Button
               type="button"

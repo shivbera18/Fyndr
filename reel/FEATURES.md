@@ -7,7 +7,7 @@ feature, each through the independent-review loop before merge. P3 dropped (see 
 |---|---|---|---|---|---|
 | F1 | Track catalog foundation | `public/reel-music/manifest.json`, `reel/tracks.ts` (no LICENSES file — license lives in manifest) | #92 | #93 | done |
 | F2 | Music picker UI | `reel/musicPicker.tsx` (list, inline preview, upload; search/chips deferred) | #94 | #95 | done |
-| F3 | Trim + mix engine | `reel/waveform.tsx`, `reel/audioEngine.ts`, preview-with-music + export mux fix | — | — | todo |
+| F3 | Trim + mix engine | `reel/waveform.tsx`, presets helpers, fragment-loop mix, audible preview (no engine module, no decode) | #96 | #97 | done |
 | F4 | Timeline control | `reel/timeline.tsx`, per-photo duration/anim, per-cut transitions | — | — | todo |
 | F5 | Competitive polish | templates, gated filters, text, ratios, cover, drafts | — | — | todo |
 

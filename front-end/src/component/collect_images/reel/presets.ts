@@ -68,3 +68,54 @@ export function coverDraw(
   const dh = srcH * scale;
   return { dw, dh, dx: (dstW - dw) / 2, dy: (dstH - dh) / 2 };
 }
+
+export interface TrimRange {
+  start: number;
+  end: number;
+}
+
+export const TRIM_MIN_LEN = 3;
+
+export function clampTrim(start: number, end: number, duration: number): TrimRange {
+  const d = Math.max(0, duration);
+  let s = Math.min(Math.max(0, start), d);
+  let e = Math.min(Math.max(0, end), d);
+  if (e - s < TRIM_MIN_LEN) {
+    e = Math.min(d, s + TRIM_MIN_LEN);
+    s = Math.max(0, e - TRIM_MIN_LEN);
+  }
+  return { start: s, end: e };
+}
+
+export function smartStart(peaks: number[], duration: number, windowSec = 15): number {
+  const d = Math.max(0, duration);
+  if (!Array.isArray(peaks) || peaks.length === 0 || !(d > 0)) return d * 0.1;
+  const n = peaks.length;
+  const win = Math.max(1, Math.min(n, Math.round((windowSec / d) * n)));
+  let best = 0;
+  let bestSum = -Infinity;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const v = peaks[i];
+    sum += typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+    if (i >= win) {
+      const out = peaks[i - win];
+      sum -= typeof out === "number" && Number.isFinite(out) && out > 0 ? out : 0;
+    }
+    if (i >= win - 1 && sum > bestSum) {
+      bestSum = sum;
+      best = i - win + 1;
+    }
+  }
+  return Math.min(Math.max(0, (best / n) * d), Math.max(0, d - windowSec));
+}
+
+export function formatTrimTime(sec: number): string {
+  const s = Math.max(0, sec);
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+}
+
+export function withFragment(url: string, trim: TrimRange | null): string {
+  if (!trim) return url;
+  return `${url}#t=${trim.start.toFixed(1)},${trim.end.toFixed(1)}`;
+}

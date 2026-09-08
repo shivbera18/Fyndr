@@ -7,7 +7,17 @@ import {
   clampTransitionDuration,
   coverDraw,
   reelTotalDuration,
+  withFragment,
 } from "./presets";
+
+export interface ReelMix {
+  url: string;
+  start: number;
+  end: number;
+  volume: number;
+  fade: number;
+  reelDuration: number;
+}
 
 export interface ReelRenderOptions {
   photoDuration: number;
@@ -15,6 +25,7 @@ export interface ReelRenderOptions {
   transitionDuration: number;
   animation: ReelAnimation;
   musicUrl: string | null;
+  mix?: ReelMix | null;
   onProgress?: (ratio: number) => void;
 }
 
@@ -240,9 +251,10 @@ export async function renderReelToFile(
   let audioCtx: AudioContext | null = null;
   let mutedFallback = false;
   let combined: MediaStream = stream;
-  if (opts.musicUrl) {
+  const mixUrl = opts.mix ? withFragment(opts.mix.url, { start: opts.mix.start, end: opts.mix.end }) : opts.musicUrl;
+  if (mixUrl) {
     try {
-      audioEl = new Audio(opts.musicUrl);
+      audioEl = new Audio(mixUrl);
       audioEl.crossOrigin = "anonymous";
       audioEl.loop = true;
       audioEl.preload = "auto";
@@ -257,8 +269,23 @@ export async function renderReelToFile(
       if (audioCtx.state === "suspended") await audioCtx.resume().catch(() => undefined);
       const src = audioCtx.createMediaElementSource(audioEl);
       const dest = audioCtx.createMediaStreamDestination();
-      src.connect(dest);
-      src.connect(audioCtx.destination);
+      // Single gain stage: constant volume, or reel-anchored fades on context time.
+      const gain = audioCtx.createGain();
+      const volume = Math.min(1, Math.max(0, opts.mix?.volume ?? 1));
+      const fade = Math.max(0, opts.mix?.fade ?? 0);
+      const reelLen = Math.max(0.1, opts.mix?.reelDuration ?? total);
+      const t0 = audioCtx.currentTime;
+      if (fade > 0) {
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.linearRampToValueAtTime(Math.max(0.0001, volume), t0 + Math.min(fade, reelLen));
+        gain.gain.setValueAtTime(Math.max(0.0001, volume), t0 + Math.max(0, reelLen - fade));
+        gain.gain.linearRampToValueAtTime(0.0001, t0 + reelLen);
+      } else {
+        gain.gain.value = volume;
+      }
+      src.connect(gain);
+      gain.connect(dest);
+      gain.connect(audioCtx.destination);
       combined = new MediaStream([...stream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
     } catch {
       // Non-fatal: export the silent video instead of failing the reel.
@@ -289,13 +316,6 @@ export async function renderReelToFile(
   const t0 = performance.now();
   try {
     recorder.start(250);
-    if (audioEl) {
-      try {
-        audioEl.currentTime = 0;
-      } catch {
-        // ignore seek errors on streams
-      }
-    }
     await new Promise<void>((resolve) => {
       const frame = (now: number): void => {
         const elapsed = (now - t0) / 1000;
