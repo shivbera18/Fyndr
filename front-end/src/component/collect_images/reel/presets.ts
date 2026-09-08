@@ -119,3 +119,25 @@ export function withFragment(url: string, trim: TrimRange | null): string {
   if (!trim) return url;
   return `${url}#t=${trim.start.toFixed(1)},${trim.end.toFixed(1)}`;
 }
+
+export interface Timeline {
+  holds: number[];
+  total: number;
+}
+
+export function resolveTimeline(
+  photoDur: number,
+  transDur: number,
+  transition: ReelTransition,
+  perDur: (number | undefined)[]
+): Timeline {
+  const holds = perDur.map((d) => Math.min(PHOTO_DUR_MAX, Math.max(PHOTO_DUR_MIN, d ?? photoDur)));
+  let total = 0;
+  for (let i = 0; i < holds.length; i++) {
+    total += holds[i];
+    if (i < holds.length - 1 && transition !== "none") {
+      total += clampTransitionDuration(transDur, Math.min(holds[i], holds[i + 1]));
+    }
+  }
+  return { holds, total };
+}
