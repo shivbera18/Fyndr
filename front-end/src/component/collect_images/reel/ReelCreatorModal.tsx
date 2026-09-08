@@ -11,18 +11,25 @@ import {
   PHOTO_DUR_MAX,
   PHOTO_DUR_MIN,
   REEL_ANIMATIONS,
+  REEL_FILTERS,
   REEL_H,
   REEL_MAX_PHOTOS,
   REEL_MIN_PHOTOS,
+  REEL_TEMPLATES,
   REEL_TRANSITIONS,
   REEL_W,
   TRANS_DUR_DEFAULT,
   TRANS_DUR_MAX,
   TRANS_DUR_MIN,
   ReelAnimation,
+  ReelFilter,
+  ReelRatio,
+  ReelTemplate,
   ReelTransition,
+  TextStyle,
   clampTransitionDuration,
   clampTrim,
+  reelDims,
   resolveTimeline,
   smartStart,
   withFragment,
@@ -37,6 +44,7 @@ import {
   loadReelImages,
   pickMimeType,
   previewReel,
+  renderCoverFrame,
   renderReelToFile,
 } from "./reelRenderer";
 
@@ -58,7 +66,25 @@ function prefersReducedMotion(): boolean {
   }
 }
 
-type Step = "photos" | "style" | "export";
+interface ReelDraft {
+  v: 1;
+  selected: string[];
+  musicId: string;
+  trim: { start: number; end: number } | null;
+  volume: number;
+  fadeOn: boolean;
+  durations: Record<string, number>;
+  transition: ReelTransition;
+  animation: ReelAnimation;
+  photoDur: number;
+  transDur: number;
+  ratio: ReelRatio;
+  filter: ReelFilter;
+  textStyle: TextStyle;
+  templateId: string | null;
+}
+
+type Step = "photos" | "music" | "style" | "export";
 
 const ReelCreatorModal = ({
   open,
@@ -92,6 +118,14 @@ const ReelCreatorModal = ({
   );
   const [photoDur, setPhotoDur] = useState<number>(PHOTO_DUR_DEFAULT);
   const [transDur, setTransDur] = useState<number>(TRANS_DUR_DEFAULT);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ReelFilter>("none");
+  const [ratio, setRatio] = useState<ReelRatio>("9:16");
+  const [hd720, setHd720] = useState<boolean>(false);
+  const [textStyle, setTextStyle] = useState<TextStyle>("lower");
+  const [coverIndex, setCoverIndex] = useState<number>(0);
+  const [poster, setPoster] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ReelDraft | null>(null);
   const [durations, setDurations] = useState<Record<string, number>>({});
   const [liveMsg, setLiveMsg] = useState<string>("");
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
@@ -129,6 +163,17 @@ const ReelCreatorModal = ({
     [catalog, musicId]
   );
   const trackDuration = musicId === "custom" ? uploadDuration : activeTrack?.duration ?? 0;
+  const dims = useMemo(() => reelDims(ratio, hd720), [ratio, hd720]);
+  const filterValue = useMemo(
+    () => REEL_FILTERS.find((f) => f.id === filter)?.filter ?? "none",
+    [filter]
+  );
+  const titleOpt = useMemo(
+    () => (eventName !== "" ? { text: eventName, style: textStyle } : null),
+    [eventName, textStyle]
+  );
+  const endCard =
+    activeTrack?.license === "CC-BY" && activeTrack.credit ? `Music: ${activeTrack.credit}` : null;
 
 
   const movePhoto = (name: string, dir: -1 | 1): void => {
@@ -162,6 +207,95 @@ const ReelCreatorModal = ({
       return next;
     });
   }, [selected]);
+
+  const applyTemplate = (t: ReelTemplate): void => {
+    setTemplateId(t.id);
+    setTransition(t.transition);
+    setAnimation(t.animation);
+    setPhotoDur(t.photoDur);
+    setTransDur(t.transDur);
+    setFilter(t.filter);
+    setRatio(t.ratio);
+    if (t.mood && musicId === "none") {
+      const match = catalog.find((c) => (c.mood ?? []).includes(t.mood as string));
+      if (match) setMusicId(match.id);
+    }
+  };
+
+  const applyDraft = (d: ReelDraft): void => {
+    const valid = d.selected.filter(
+      (n) => photos.some((p) => p.name === n) && (!isPhotoEligible || isPhotoEligible(n))
+    );
+    if (valid.length < REEL_MIN_PHOTOS) {
+      toast.error("Saved draft no longer matches this event.");
+      return;
+    }
+    setSelected(valid);
+    if (d.musicId === "custom") {
+      setMusicId("none");
+      toast("Re-upload your audio — files can't be saved in drafts.");
+    } else {
+      setMusicId(d.musicId);
+    }
+    setTrim(d.trim);
+    setVolume(d.volume);
+    setFadeOn(d.fadeOn);
+    setDurations(d.durations);
+    setTransition(d.transition);
+    setAnimation(d.animation);
+    setPhotoDur(d.photoDur);
+    setTransDur(d.transDur);
+    setRatio(d.ratio);
+    setFilter(d.filter);
+    setTextStyle(d.textStyle);
+    setTemplateId(d.templateId);
+    setDraft(null);
+  };
+
+  useEffect(() => {
+    if (!open) {
+      setDraft(null);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(`fyndr:reel:draft:${eventId}`);
+      setDraft(raw ? (JSON.parse(raw) as ReelDraft) : null);
+    } catch {
+      setDraft(null);
+    }
+  }, [open, eventId]);
+
+  useEffect(() => {
+    if (!open || draft !== null || selected.length < REEL_MIN_PHOTOS) return;
+    try {
+      const d: ReelDraft = {
+        v: 1, selected, musicId, trim, volume, fadeOn, durations,
+        transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId,
+      };
+      localStorage.setItem(`fyndr:reel:draft:${eventId}`, JSON.stringify(d));
+    } catch {
+      // Quota/private mode — drafts are best-effort.
+    }
+  }, [open, eventId, draft, selected, musicId, trim, volume, fadeOn, durations, transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId]);
+
+  useEffect(() => {
+    if (step !== "export" || images.length === 0) return;
+    const off = document.createElement("canvas");
+    const url = renderCoverFrame(off, images, Math.min(coverIndex, images.length - 1), {
+      photoDuration: photoDur,
+      transition,
+      transitionDuration: transDur,
+      animation,
+      musicUrl: null,
+      holds: timeline.holds,
+      width: dims.w,
+      height: dims.h,
+      filter: filterValue,
+      title: titleOpt,
+      endCard,
+    });
+    setPoster(url);
+  }, [step, coverIndex, images, photoDur, transition, transDur, animation, timeline.holds, dims, filterValue, titleOpt, endCard]);
   useEffect(() => {
     if (!open) return;
     setStep("photos");
@@ -264,10 +398,10 @@ const ReelCreatorModal = ({
     const handle = previewReel(
       canvas,
       images,
-      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds }
+      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds, width: dims.w, height: dims.h, filter: filterValue, title: titleOpt, endCard }
     );
     return () => handle.stop();
-  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds]);
+  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds, dims, filterValue, titleOpt, endCard]);
 
   // Audible preview: plain element semantics (no AudioContext — the export owns
   // the single createMediaElementSource graph). Same fragment-loop as export.
@@ -344,6 +478,11 @@ const ReelCreatorModal = ({
         transition,
         transitionDuration: transDur,
         animation,
+        width: dims.w,
+        height: dims.h,
+        filter: filterValue,
+        title: titleOpt,
+        endCard,
         holds: timeline.holds,
         musicUrl,
         mix: musicUrl
@@ -366,6 +505,11 @@ const ReelCreatorModal = ({
       });
       setResultExt(ext);
       setResultBlob(blob);
+      try {
+        localStorage.removeItem(`fyndr:reel:draft:${eventId}`);
+      } catch {
+        // Best-effort cleanup.
+      }
       if ("muted" in blob && blob.muted === true) {
         setMutedNotice(true);
       }
@@ -411,15 +555,40 @@ const ReelCreatorModal = ({
       className="sm:max-w-3xl"
     >
       <Tabs value={step} onValueChange={(v) => setStep(v as Step)} className="pt-2">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="photos" className="min-h-[44px]">1. Photos</TabsTrigger>
-          <TabsTrigger value="style" className="min-h-[44px]">2. Music &amp; Style</TabsTrigger>
+          <TabsTrigger value="music" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px]">2. Music</TabsTrigger>
+          <TabsTrigger value="style" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px]">3. Style</TabsTrigger>
           <TabsTrigger value="export" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px]">
-            3. Preview &amp; Export
+            4. Preview &amp; Export
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="photos" className="space-y-3">
+          {draft && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+              <span className="text-sm">Resume your saved draft?</span>
+              <Button type="button" size="sm" className="min-h-[44px]" onClick={() => applyDraft(draft)}>
+                Resume
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="min-h-[44px]"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(`fyndr:reel:draft:${eventId}`);
+                  } catch {
+                    // Best-effort cleanup.
+                  }
+                  setDraft(null);
+                }}
+              >
+                Discard
+              </Button>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm text-muted-foreground">
               {selected.length} / {REEL_MAX_PHOTOS} selected — photos play in matched order.
@@ -525,13 +694,12 @@ const ReelCreatorModal = ({
             type="button"
             className="w-full min-h-[44px]"
             disabled={selected.length < REEL_MIN_PHOTOS}
-            onClick={() => setStep("style")}
+            onClick={() => setStep("music")}
           >
-            Next: Music &amp; Style
+            Next: Music
           </Button>
         </TabsContent>
-
-        <TabsContent value="style" className="space-y-4">
+        <TabsContent value="music" className="space-y-4">
           <MusicPicker
             catalog={catalog}
             musicId={musicId}
@@ -586,6 +754,39 @@ const ReelCreatorModal = ({
               </Button>
             </div>
           )}
+          <Button
+            type="button"
+            className="w-full min-h-[44px]"
+            disabled={selected.length < REEL_MIN_PHOTOS}
+            onClick={() => setStep("style")}
+          >
+            Next: Style
+          </Button>
+        </TabsContent>
+
+        <TabsContent value="style" className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Template</p>
+            <div className="grid grid-cols-1 gap-2">
+              {REEL_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => applyTemplate(t)}
+                  aria-pressed={templateId === t.id}
+                  className={cn(
+                    "min-h-[44px] rounded-xl border px-3 py-2 text-left text-sm font-medium",
+                    templateId === t.id ? "border-primary bg-primary/10" : "border-border bg-card"
+                  )}
+                >
+                  {t.label}
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    Try with {t.hint} music
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-2">
             <p className="text-sm font-semibold">Transition</p>
             <div className="flex flex-wrap gap-2">
@@ -618,6 +819,73 @@ const ReelCreatorModal = ({
                   {a.label}
                 </Button>
               ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Filter</p>
+            <div className="flex flex-wrap gap-2">
+              {REEL_FILTERS.map((f) => (
+                <Button
+                  key={f.id}
+                  type="button"
+                  size="sm"
+                  variant={filter === f.id ? "default" : "outline"}
+                  className="min-h-[44px]"
+                  onClick={() => setFilter(f.id)}
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Title card</p>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["lower", "Lower third"],
+                  ["center", "Centered"],
+                  ["minimal", "Minimal"],
+                ] as [TextStyle, string][]
+              ).map(([id, label]) => (
+                <Button
+                  key={id}
+                  type="button"
+                  size="sm"
+                  variant={textStyle === id ? "default" : "outline"}
+                  className="min-h-[44px]"
+                  onClick={() => setTextStyle(id)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Aspect ratio</p>
+            <div className="flex flex-wrap gap-2">
+              {(["9:16", "1:1", "4:5"] as ReelRatio[]).map((r) => (
+                <Button
+                  key={r}
+                  type="button"
+                  size="sm"
+                  variant={ratio === r ? "default" : "outline"}
+                  className="min-h-[44px]"
+                  onClick={() => setRatio(r)}
+                >
+                  {r}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant={hd720 ? "default" : "outline"}
+                className="min-h-[44px]"
+                onClick={() => setHd720((v) => !v)}
+                aria-pressed={hd720}
+              >
+                720p
+              </Button>
             </div>
           </div>
           <div className="space-y-1">
@@ -664,10 +932,41 @@ const ReelCreatorModal = ({
         <TabsContent value="export" className="space-y-3">
           <canvas
             ref={canvasRef}
-            width={REEL_W}
-            height={REEL_H}
+            width={dims.w}
+            height={dims.h}
             className="w-full max-h-[50vh] rounded-xl bg-black object-contain"
           />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Cover {Math.min(coverIndex + 1, Math.max(1, images.length))}/{Math.max(1, images.length)}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+              disabled={images.length === 0}
+              onClick={() => {
+                setPlaying(false);
+                setCoverIndex((i) => (i - 1 + images.length) % Math.max(1, images.length));
+              }}
+            >
+              ← Prev
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+              disabled={images.length === 0}
+              onClick={() => {
+                setPlaying(false);
+                setCoverIndex((i) => (i + 1) % Math.max(1, images.length));
+              }}
+            >
+              Next →
+            </Button>
+          </div>
           <p className="text-xs text-muted-foreground">
             Exports .mp4 where supported (Safari 17+), otherwise .webm — both upload to Instagram.
           </p>
@@ -720,7 +1019,7 @@ const ReelCreatorModal = ({
           </div>
           {resultUrl && resultBlob && (
             <div className="space-y-2">
-              <video src={resultUrl} controls playsInline className="w-full max-h-[40vh] rounded-xl bg-black" />
+              <video src={resultUrl} poster={poster ?? undefined} controls playsInline className="w-full max-h-[40vh] rounded-xl bg-black" />
               <div className="flex flex-wrap gap-2">
                 <a
                   href={resultUrl}
