@@ -30,7 +30,7 @@ export interface ReelRenderOptions {
   animation: ReelAnimation;
   musicUrl: string | null;
   holds?: number[];
-  joinTransitions?: ReelTransition[];
+  joinTransitions?: (ReelTransition | undefined)[];
   anims?: (ReelAnimation | undefined)[];
   mix?: ReelMix | null;
   width?: number;
@@ -238,7 +238,7 @@ function paintAt(
   const useAnims = opts.anims && opts.anims.length >= n ? opts.anims.slice(0, n) : null;
   const holdAt = (i: number): number => Math.max(0.1, useHolds ? useHolds[i] : uniHold);
   const animAt = (i: number): ReelAnimation => useAnims?.[i] ?? opts.animation;
-  const joinTypeAt = (j: number): ReelTransition => (useJoins ? useJoins[j] : opts.transition);
+  const joinTypeAt = (j: number): ReelTransition => useJoins?.[j] ?? opts.transition;
   const transAt = (j: number): number => {
     const jt = joinTypeAt(j);
     if (jt === "none") return 0;
