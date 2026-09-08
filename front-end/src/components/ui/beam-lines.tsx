@@ -1,14 +1,57 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Upload, ScanFace, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "../../lib/utils";
 
+export interface BeamSource {
+  icon: ReactNode;
+  boxClass: string;
+  title: string;
+  sub: string;
+}
+
+export interface BeamHub {
+  icon: ReactNode;
+  title: string;
+  sub: string;
+  pill: string;
+}
+
 interface BeamLinesProps {
   className?: string;
   showLabels?: boolean;
+  sources?: [BeamSource, BeamSource, BeamSource];
+  hub?: BeamHub;
 }
 
-export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
+const DEFAULT_SOURCES: [BeamSource, BeamSource, BeamSource] = [
+  {
+    icon: <Upload className="size-5" />,
+    boxClass: "bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    title: "1. Photographer Upload",
+    sub: "Uploads all event photos in 1 click",
+  },
+  {
+    icon: <ScanFace className="size-5" />,
+    boxClass: "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+    title: "2. Guest Takes a Selfie",
+    sub: "Scans table QR & snaps in browser",
+  },
+  {
+    icon: <Sparkles className="size-5" />,
+    boxClass: "bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    title: "3. Instant Personal Album",
+    sub: "Only their photos appear in seconds",
+  },
+];
+
+const DEFAULT_HUB: BeamHub = {
+  icon: <Smartphone className="size-4" />,
+  title: "Direct to Phone",
+  sub: "Instant Delivery",
+  pill: "100% Private · Zero App Needed",
+};
+export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOURCES, hub = DEFAULT_HUB }: BeamLinesProps) {
   const id = useId().replace(/:/g, "-");
   return (
     <div
@@ -24,50 +67,24 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
       <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4">
         {/* Left Source Nodes — User Experience Journey */}
         <div className="flex flex-col gap-4 w-full md:w-72 z-20">
-          {/* Step 1: Photographer Upload */}
-          <div className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700">
-            <div className="size-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-              <Upload className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                1. Photographer Upload
+          {sources.map((s, i) => (
+            <div
+              key={i}
+              className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
+            >
+              <div className={cn("size-10 rounded-xl flex items-center justify-center shrink-0", s.boxClass)}>
+                {s.icon}
               </div>
-              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Uploads all event photos in 1 click
-              </div>
-            </div>
-          </div>
-
-          {/* Step 2: Guest Selfie */}
-          <div className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700">
-            <div className="size-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <ScanFace className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                2. Guest Takes a Selfie
-              </div>
-              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Scans table QR &amp; snaps in browser
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                  {s.title}
+                </div>
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {s.sub}
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Step 3: Personal Album Delivered */}
-          <div className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700">
-            <div className="size-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Sparkles className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                3. Instant Personal Album
-              </div>
-              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Only their photos appear in seconds
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* Center Connecting SVG Multi-Step Beams (Desktop view) */}
@@ -197,13 +214,13 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
             {/* Glowing Center Hub */}
             <div className="absolute inset-1.5 rounded-full bg-white dark:bg-neutral-950 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 shadow-xl flex flex-col items-center justify-center p-3 text-center">
               <div className="size-9 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-1 animate-pulse">
-                <Smartphone className="size-4" />
+                {hub.icon}
               </div>
               <div className="text-xs font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-                Direct to Phone
+                {hub.title}
               </div>
               <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                Instant Delivery
+                {hub.sub}
               </div>
             </div>
           </div>
@@ -211,7 +228,7 @@ export function BeamLines({ className, showLabels = true }: BeamLinesProps) {
             <div className="mt-3 text-center">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 text-neutral-700 dark:text-neutral-300">
                 <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
-                100% Private · Zero App Needed
+                {hub.pill}
               </span>
             </div>
           )}
