@@ -696,7 +696,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                       variant={filterType === "failed" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setFilterType("failed")}
-                      className="min-h-[40px] text-xs text-destructive"
+                      className="min-h-[44px] text-xs text-destructive"
                     >
                       Failed PIN ({guests.filter((g) => !g.verified).length})
                     </Button>

@@ -669,14 +669,14 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                       onChange={(e) => setPinInput(e.target.value)}
                       placeholder="Empty = No PIN"
                       maxLength={24}
-                      className="w-36 min-h-[40px] rounded-lg border border-input bg-background px-3 font-mono text-sm"
+                      className="w-36 min-h-[44px] rounded-lg border border-input bg-background px-3 font-mono text-sm"
                     />
                     <Button
                       type="button"
                       size="sm"
                       disabled={savingPin}
                       onClick={() => void handleUpdatePin(pinInput)}
-                      className="min-h-[40px] text-xs font-semibold"
+                      className="min-h-[44px] text-xs font-semibold"
                     >
                       {savingPin ? "Saving…" : "Save"}
                     </Button>
@@ -688,7 +688,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                         const rand = Math.floor(100000 + Math.random() * 900000).toString();
                         setPinInput(rand);
                       }}
-                      className="min-h-[40px] text-xs font-mono text-muted-foreground"
+                      className="min-h-[44px] text-xs font-mono text-muted-foreground"
                     >
                       Random
                     </Button>
@@ -697,7 +697,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                       variant="ghost"
                       size="sm"
                       onClick={() => setPinInput("")}
-                      className="min-h-[40px] text-xs text-muted-foreground"
+                      className="min-h-[44px] text-xs text-muted-foreground"
                     >
                       No PIN
                     </Button>
@@ -709,7 +709,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                         setEditingPin(false);
                         setPinInput(currentPin);
                       }}
-                      className="min-h-[40px] text-xs"
+                      className="min-h-[44px] text-xs"
                     >
                       Cancel
                     </Button>
