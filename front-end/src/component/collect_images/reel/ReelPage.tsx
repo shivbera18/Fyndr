@@ -95,7 +95,7 @@ const ReelPage = (): React.JSX.Element => {
         }
       })
       .catch(() => undefined);
-  }, [eventId]);
+  }, [eventId, state.photos]);
 
   const photos: ReelPhoto[] = useMemo(() => names.map((name) => ({ name, url: photoUrl(name) })), [names]);
 
