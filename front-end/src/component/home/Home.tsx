@@ -454,22 +454,16 @@ function DemoPanel({ step }: { step: DemoStep }) {
       </div>
       <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-        {DEMO_PHOTOS.map((p, i) => (
+        {DEMO_PHOTOS.map((p) => (
           <img
             key={p.src}
             src={p.src}
             alt={p.alt}
             loading="lazy"
+            decoding="async"
             width={330}
             height={330}
-            onError={(e) => {
-              const el = e.currentTarget;
-              if (!el.dataset.fallback) {
-                el.dataset.fallback = "1";
-                el.src = `https://picsum.photos/seed/fyndr-demo-${i}/330/330`;
-              }
-            }}
-            className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800/70"
+            className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-muted"
           />
         ))}
       </div>
