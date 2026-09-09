@@ -1,15 +1,15 @@
 import fs from "fs";
 import path from "path";
-// CRA jest forbids imports outside src/, so read the checked-in manifest off disk.
-const manifest = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../../../../../public/reel-music/manifest.json"), "utf8")
-);
 import {
   APPROVED_AUDIO_ORIGINS,
   loadTrackManifest,
   resolveCatalog,
   validateManifest,
 } from "../tracks";
+// CRA jest forbids imports outside src/, so read the checked-in manifest off disk.
+const manifest = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../../../../../public/reel-music/manifest.json"), "utf8")
+);
 
 const goodCC0 = {
   id: "calm-piano",
