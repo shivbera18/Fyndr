@@ -11,6 +11,7 @@ import About from './component/About';
 import LoginRegister from './component/login/Login_Register';
 import Dashboard from './component/dashboard/Dashboard';
 import CameraCaptureWithMask from './component/collect_images/CameraCaptureWithMask';
+import ReelPage from './component/collect_images/reel/ReelPage';
 import EmailVerified from './component/login/EmailVerify';
 import ConfirmVerify from './component/login/ConfirmVerify';
 import ForgetPass from './component/login/ForgetPass';
@@ -84,6 +85,7 @@ function App() {
           <Route path='/confirmed' element={<ConfirmVerify/>}/>
           <Route path="/emailverified" element={<EmailVerified />} />
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
+          <Route path='/reel/:eventId' element={<ReelPage />} />
           <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/events' element={<Dashboard />} />
           <Route path='/create-event' element={<CreateEventPage />} />
