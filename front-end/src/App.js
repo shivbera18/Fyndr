@@ -1,26 +1,46 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { ThemeProvider } from './component/landing/Theme';
 import { Toaster } from './components/ui/sonner';
-import CollectEvent from './component/collect_images/Collect_event';
-import SelectEvent from './component/select/Select_event';
-import Home from './component/home/Home';
-import About from './component/About';
-import LoginRegister from './component/login/Login_Register';
-import Dashboard from './component/dashboard/Dashboard';
-import CameraCaptureWithMask from './component/collect_images/CameraCaptureWithMask';
-import EmailVerified from './component/login/EmailVerify';
-import ConfirmVerify from './component/login/ConfirmVerify';
-import ForgetPass from './component/login/ForgetPass';
-import CreateEventPage from './component/dashboard/CreateEventPage';
-import AnalyticsPage from './component/dashboard/AnalyticsPage';
-import SettingsPage from './component/dashboard/SettingsPage';
 import BottomNav from './component/navbar/BottomNav';
-import AccountPage from './component/dashboard/AccountPage';
-import GuestAnalyticsPage from './component/dashboard/GuestAnalyticsPage';
 import { PWAInstallBanner, PWAOfflineIndicator } from './components/pwa';
+
+// ponytail: route-level code splitting — landing bundle no longer ships
+// dashboard/camera/analytics JS. Add new pages as lazy() here, never eager.
+const Home = lazy(() => import('./component/home/Home'));
+const About = lazy(() => import('./component/About'));
+const LoginRegister = lazy(() => import('./component/login/Login_Register'));
+const EmailVerified = lazy(() => import('./component/login/EmailVerify'));
+const ConfirmVerify = lazy(() => import('./component/login/ConfirmVerify'));
+const ForgetPass = lazy(() => import('./component/login/ForgetPass'));
+const Dashboard = lazy(() => import('./component/dashboard/Dashboard'));
+const CreateEventPage = lazy(() => import('./component/dashboard/CreateEventPage'));
+const AnalyticsPage = lazy(() => import('./component/dashboard/AnalyticsPage'));
+const SettingsPage = lazy(() => import('./component/dashboard/SettingsPage'));
+const AccountPage = lazy(() => import('./component/dashboard/AccountPage'));
+const GuestAnalyticsPage = lazy(() => import('./component/dashboard/GuestAnalyticsPage'));
+const CollectEvent = lazy(() => import('./component/collect_images/Collect_event'));
+const SelectEvent = lazy(() => import('./component/select/Select_event'));
+const CameraCaptureWithMask = lazy(() => import('./component/collect_images/CameraCaptureWithMask'));
+
+// Reset scroll on page switch; hash links are handled by the target page.
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (!hash) window.scrollTo(0, 0);
+  }, [pathname, hash]);
+  return null;
+}
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground" role="status">
+      Loading…
+    </div>
+  );
+}
 function App() {
   useEffect(() => {
     let reloading = false;
@@ -67,19 +87,14 @@ function App() {
     <div className="App min-h-screen bg-background text-foreground">
       <ThemeProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <BottomNav />
         <PWAOfflineIndicator />
         <PWAInstallBanner />
 
-
-
-
-
-
-
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
-
-          <Route path='/' element={< Home />} />
+          <Route path='/' element={<Home />} />
           <Route path='/forgetpassword' element={<ForgetPass/>}/>
           <Route path='/confirmed' element={<ConfirmVerify/>}/>
           <Route path="/emailverified" element={<EmailVerified />} />
@@ -96,9 +111,8 @@ function App() {
           <Route path='/event/:eventId/analytics' element={<GuestAnalyticsPage />} />
           <Route path='/login' element={<LoginRegister />} />
           <Route path='/about' element={<About />} />
-
         </Routes>
-
+        </Suspense>
 
       </BrowserRouter>
       </ThemeProvider>
