@@ -116,8 +116,8 @@ describe("MusicPicker", () => {
     renderPicker();
     fireEvent.click(screen.getByLabelText("Play Calm Piano"));
     fireEvent.click(screen.getByLabelText("Play Party Start"));
-    await act(async () => {});
-    expect(screen.getByLabelText("Pause Party Start")).toBeInTheDocument();
+    // findBy flushes the AbortError microtask and asserts the end state.
+    expect(await screen.findByLabelText("Pause Party Start")).toBeInTheDocument();
   });
 
   it("shows upload-only state for an empty catalog", () => {
