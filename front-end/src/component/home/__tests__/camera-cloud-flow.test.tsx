@@ -69,6 +69,6 @@ describe('CameraCloudFlow', () => {
     render(<CameraCloudFlow />);
     const imgs = screen.getAllByAltText(/Guest gallery photo/);
     expect(imgs.length).toBe(4);
-    expect((imgs[0] as HTMLImageElement).src).toContain('picsum.photos');
+    expect((imgs[0] as HTMLImageElement).src).toContain('/demo/');
   });
 });

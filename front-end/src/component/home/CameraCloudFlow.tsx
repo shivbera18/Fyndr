@@ -27,7 +27,10 @@ const TINTS: Record<string, { box: string; dot: string; text: string }> = {
 const IN_EDGE = [40, 120, 200];
 const TRUNK = "M 0 120 L 64 120";
 const inPath = (y: number) => `M 0 ${y} C 32 ${y}, 32 120, 64 120`;
-const photo = (h: number) => `https://picsum.photos/seed/fyndr-live-${h}/160/160`;
+// ponytail: vendored demo shots — picsum.photos added external blocking
+// fetches to first paint. Cycle the 4 local /demo images instead.
+const GALLERY = [0, 1, 2, 3].map((i) => `/demo/${["wedding-sunset", "wedding-dance", "wedding-couple-1", "wedding-couple-2"][i]}.jpg`);
+const photo = (h: number) => GALLERY[h % GALLERY.length];
 
 const DETAILS: Record<string, { title: string; body: string }> = {
   overview: {
@@ -60,17 +63,15 @@ function Packet({
   dur,
   begin = "0s",
   r = 3.5,
-  glow = false,
 }: {
   path: string;
   color: string;
   dur: string;
   begin?: string;
   r?: number;
-  glow?: boolean;
 }) {
   return (
-    <circle r={r} fill={color} opacity="0.95" filter={glow ? "url(#shot-glow)" : undefined}>
+    <circle r={r} fill={color} opacity="0.95">
       <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} />
     </circle>
   );
@@ -101,7 +102,9 @@ export function CameraCloudFlow() {
     if (leg !== -1) return;
     if (reduce) {
       setShots((n) => n + 1);
-      setTiles((t) => [(t[0] + 4) % 12, ...t].slice(0, 4));
+      // ponytail: rotate the 4 local tiles — the old (t[0]+4)%12 seed math
+      // collapses mod-4 to duplicates (review: PerfReviewer).
+      setTiles((t) => [t[t.length - 1], ...t.slice(0, 3)]);
       setStatus("Shot delivered · 226 Transfer complete · live in the gallery.");
       return;
     }
@@ -123,7 +126,7 @@ export function CameraCloudFlow() {
     timers.current.push(
       window.setTimeout(() => {
         setShots((n) => n + 1);
-        setTiles((t) => [(t[0] + 4) % 12, ...t].slice(0, 4));
+        setTiles((t) => [t[t.length - 1], ...t.slice(0, 3)]);
         setStatus("Shot delivered · 226 Transfer complete · live in the gallery.");
         setLeg(3);
       }, 1650)
@@ -248,15 +251,6 @@ export function CameraCloudFlow() {
             preserveAspectRatio="none"
             aria-hidden="true"
           >
-            <defs>
-              <filter id="shot-glow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="2.5" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
             <motion.g
               initial={reduce ? false : { opacity: 0 }}
               whileInView={{ opacity: 1 }}
@@ -285,7 +279,7 @@ export function CameraCloudFlow() {
                   />
                 ) : null
               )}
-            {leg === 0 && <Packet path={inPath(IN_EDGE[shotCam])} color="#10b981" r={5} dur="0.55s" glow />}
+            {leg === 0 && <Packet path={inPath(IN_EDGE[shotCam])} color="#10b981" r={5} dur="0.55s" />}
           </svg>
 
           {/* L2 ingest */}
@@ -330,7 +324,7 @@ export function CameraCloudFlow() {
                 <Packet path={TRUNK} color="#10b981" dur="1.6s" begin="0.8s" />
               </>
             )}
-            {leg === 1 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" glow />}
+            {leg === 1 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
           </svg>
 
           {/* L3 pipeline */}
@@ -370,7 +364,7 @@ export function CameraCloudFlow() {
           >
             <path d={TRUNK} className="stroke-neutral-200 dark:stroke-neutral-800" strokeWidth="2" strokeDasharray="4 4" />
             {!reduce && <Packet path={TRUNK} color="#10b981" dur="2.2s" begin="0.4s" />}
-            {leg === 2 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" glow />}
+            {leg === 2 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
           </svg>
 
           {/* L4 gallery */}
@@ -411,8 +405,8 @@ export function CameraCloudFlow() {
                   src={photo(h)}
                   alt={`Guest gallery photo ${i + 1}`}
                   loading="lazy"
+                  decoding="async"
                   width={160}
-                  height={160}
                   initial={false}
                   animate={{ scale: leg === 3 && i === 0 ? [1, 1.12, 1] : 1 }}
                   className="aspect-square w-full rounded-md border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800"

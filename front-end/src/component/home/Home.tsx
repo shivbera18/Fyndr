@@ -460,16 +460,20 @@ function DemoPanel({ step }: { step: DemoStep }) {
             src={p.src}
             alt={p.alt}
             loading="lazy"
+            decoding="async"
             width={330}
             height={330}
+            // ponytail: local-only fallback — a missing /demo asset swaps to
+            // the next vendored shot instead of a broken-image icon (review).
             onError={(e) => {
               const el = e.currentTarget;
+              const fb = DEMO_PHOTOS[(i + 1) % DEMO_PHOTOS.length].src;
               if (!el.dataset.fallback) {
                 el.dataset.fallback = "1";
-                el.src = `https://picsum.photos/seed/fyndr-demo-${i}/330/330`;
+                el.src = fb;
               }
             }}
-            className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800/70"
+            className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-muted"
           />
         ))}
       </div>

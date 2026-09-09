@@ -41,7 +41,8 @@ export default function BottomNav(): React.JSX.Element | null {
   return (
     <nav
       aria-label="Mobile Navigation Bar"
-      className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around md:hidden shadow-lg"
+      // ponytail: solid bg, no backdrop-blur — blur on a fixed bar repaints every scroll frame.
+      className="fixed bottom-0 inset-x-0 z-40 bg-background border-t border-border px-3 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
     >
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
