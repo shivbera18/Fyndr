@@ -23,6 +23,10 @@ export interface ReelMix {
   reelDuration: number;
 }
 
+// Thrown when shouldAbort fires (tab hidden / modal closed mid-export).
+// Callers distinguish it from failures: no error panel, no analytics.
+export class ReelExportAbortedError extends Error {}
+
 export interface ReelRenderOptions {
   photoDuration: number;
   transition: ReelTransition;
@@ -40,6 +44,7 @@ export interface ReelRenderOptions {
   endCard?: string | null;
   totalDuration?: number;
   onProgress?: (ratio: number) => void;
+  shouldAbort?: () => boolean;
 }
 
 const MIME_CANDIDATES = [
@@ -470,10 +475,17 @@ export async function renderReelToFile(
   const paintOpts: ReelRenderOptions = { ...opts, holds: exportHolds ?? undefined, joinTransitions: exportJoins, anims: exportAnims, totalDuration: total, onProgress: undefined };
   let raf = 0;
   const t0 = performance.now();
+  let aborted = false;
   try {
     recorder.start(250);
     await new Promise<void>((resolve) => {
       const frame = (now: number): void => {
+        // Background tabs stall rAF: abort instead of recording frozen frames.
+        if (opts.shouldAbort?.()) {
+          aborted = true;
+          resolve();
+          return;
+        }
         const elapsed = (now - t0) / 1000;
         paintAt(ctx, images, Math.min(elapsed, total), paintOpts, ew, eh);
         opts.onProgress?.(Math.min(1, elapsed / total));
@@ -509,6 +521,7 @@ export async function renderReelToFile(
       // ignore
     }
   }
+  if (aborted) throw new ReelExportAbortedError("Reel export aborted.");
 
   const blob = new Blob(chunks, { type: mimeType });
   if (blob.size === 0) throw new Error("Video export failed in this browser. Try Chrome or Safari 17+.");

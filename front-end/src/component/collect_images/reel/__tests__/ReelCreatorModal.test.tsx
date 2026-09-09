@@ -15,6 +15,7 @@ jest.mock("../reelRenderer", () => ({
   renderReelToFile: jest.fn(async () => new Blob(["frame"], { type: "video/webm" })),
   renderCoverFrame: jest.fn(() => null),
   previewReel: jest.fn(() => ({ stop: jest.fn() })),
+  ReelExportAbortedError: class ReelExportAbortedError extends Error {},
 }));
 jest.mock("../tracks", () => ({
   loadTrackManifest: jest.fn(async () => [
@@ -34,12 +35,10 @@ jest.mock("../tracks", () => ({
     ]
   ),
 }));
-jest.mock("sonner", () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
+jest.mock("sonner", () => {
+  const toast = Object.assign(jest.fn(), { success: jest.fn(), error: jest.fn() });
+  return { toast };
+});
 
 const PHOTOS = [
   { name: "a.jpg", url: "http://localhost:5000/uploads/a.jpg" },
@@ -340,4 +339,51 @@ describe("ReelCreatorModal", () => {
       })
     );
   });
+
+  it("aborts export on tab-hide with a stopped toast and no error panel", async () => {
+    const reel = jest.requireMock("../reelRenderer") as {
+      renderReelToFile: jest.Mock;
+      ReelExportAbortedError: new (message: string) => Error;
+    };
+    reel.renderReelToFile.mockImplementationOnce(
+      async (_canvas: unknown, _images: unknown, opts: { shouldAbort?: () => boolean }) => {
+        expect(opts.shouldAbort?.()).toBe(false);
+        Object.defineProperty(document, "hidden", { value: true, configurable: true });
+        document.dispatchEvent(new Event("visibilitychange"));
+        expect(opts.shouldAbort?.()).toBe(true);
+        Object.defineProperty(document, "hidden", { value: false, configurable: true });
+        throw new reel.ReelExportAbortedError("aborted");
+      }
+    );
+    const { toast } = jest.requireMock("sonner") as { toast: jest.Mock };
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Export stopped — keep this tab visible."));
+    expect(screen.queryByRole("link", { name: /Download/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Video export failed/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Export Reel/i })).toBeEnabled();
+  });
+
+  it("toasts the muted fallback honestly instead of claiming success", async () => {
+    const reel = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    const silent = new Blob(["frame"], { type: "video/webm" }) as Blob & { muted?: boolean };
+    silent.muted = true;
+    reel.renderReelToFile.mockResolvedValueOnce(silent);
+    const { toast } = jest.requireMock("sonner") as {
+      toast: jest.Mock & { success: jest.Mock };
+    };
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    expect(toast).toHaveBeenCalledWith("Reel exported without music — the track couldn't load.");
+    expect(toast.success).not.toHaveBeenCalledWith("Reel exported.");
+    expect(screen.getByText(/Exported without music/)).toBeInTheDocument();
+  });
+
 });
