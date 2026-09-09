@@ -25,8 +25,8 @@ export interface ResponsiveModalProps {
   title?: string;
   description?: string;
   desktopOnly?: boolean;
+  footer?: React.ReactNode;
 }
-
 export function ResponsiveModal({
   open,
   onOpenChange,
@@ -35,19 +35,25 @@ export function ResponsiveModal({
   title,
   description,
   desktopOnly = false,
+  footer,
 }: ResponsiveModalProps) {
   const { isMobile } = useMediaQuery();
 
   if (isMobile && !desktopOnly) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className={cn("px-4 pb-6", className)}>
+        <DrawerContent
+          className={cn("px-4 pb-6", className)}
+          footer={
+            footer && (
+              <div className="border-t border-border bg-background px-4 pt-2 pb-2">{footer}</div>
+            )
+          }
+        >
           {(title || description) && (
             <DrawerHeader className="text-left px-0 pb-3">
               {title && <DrawerTitle>{title}</DrawerTitle>}
-              {description && (
-                <DrawerDescription>{description}</DrawerDescription>
-              )}
+              {description && <DrawerDescription>{description}</DrawerDescription>}
             </DrawerHeader>
           )}
           {children}
@@ -62,12 +68,13 @@ export function ResponsiveModal({
         {(title || description) && (
           <DialogHeader>
             {title && <DialogTitle>{title}</DialogTitle>}
-            {description && (
-              <DialogDescription>{description}</DialogDescription>
-            )}
+            {description && <DialogDescription>{description}</DialogDescription>}
           </DialogHeader>
         )}
         {children}
+        {footer && (
+          <div className="-mx-6 -mb-6 mt-4 border-t border-border bg-background px-6 py-4">{footer}</div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -121,6 +121,8 @@ function isValidDraft(d: unknown): d is ReelDraft {
   return true;
 }
 type Step = "photos" | "music" | "style" | "export";
+const STEPS: Step[] = ["photos", "music", "style", "export"];
+const STEP_LABEL: Record<Step, string> = { photos: "Photos", music: "Music", style: "Style", export: "Preview & Export" };
 
 const ReelCreatorModal = ({
   open,
@@ -167,6 +169,15 @@ const ReelCreatorModal = ({
   const [joins, setJoins] = useState<Record<string, ReelTransition>>({});
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [liveMsg, setLiveMsg] = useState<string>("");
+  const stepIndex = STEPS.indexOf(step);
+  const prevStep: Step = STEPS[Math.max(0, stepIndex - 1)] ?? "photos";
+  const nextStep: Step = STEPS[Math.min(STEPS.length - 1, stepIndex + 1)] ?? "export";
+  const [navMsg, setNavMsg] = useState<string>("");
+  useEffect(() => {
+    // Screen-reader step announcements fire on step/count change only —
+    // slider drags update the visual summary without flooding speech.
+    setNavMsg(`Step ${stepIndex + 1} of 4: ${STEP_LABEL[step]} · ${selected.length} photos`);
+  }, [step, stepIndex, selected.length]);
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState<boolean>(false);
@@ -659,6 +670,50 @@ const ReelCreatorModal = ({
       title="Create Reel"
       description={eventName ? `Turn your matched photos from ${eventName} into a vertical video.` : "Turn your matched photos into a vertical video."}
       className="sm:max-w-3xl"
+      footer={
+        <div role="navigation" aria-label="Reel steps" className="flex items-center gap-2">
+          <div aria-live="polite" className="sr-only">
+            {navMsg}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-[44px] shrink-0"
+            disabled={stepIndex === 0}
+            aria-label={stepIndex === 0 ? "Back" : `Back to ${STEP_LABEL[prevStep]}`}
+            onClick={() => setStep(prevStep)}
+          >
+            ← Back
+          </Button>
+          <p className="min-w-0 flex-1 truncate text-center text-sm text-muted-foreground">
+            {selected.length < REEL_MIN_PHOTOS
+              ? `Select at least ${REEL_MIN_PHOTOS} photos`
+              : `≈${total.toFixed(1)}s · ${selected.length} photos`}
+          </p>
+          {step === "export" ? (
+            <Button
+              type="button"
+              className="min-h-[44px] shrink-0"
+              loading={isExporting}
+              disabled={!exportSupported || images.length < REEL_MIN_PHOTOS}
+              aria-label="Export Reel"
+              onClick={() => void handleExport()}
+            >
+              {isExporting ? "Exporting…" : "Export"}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className="min-h-[44px] shrink-0"
+              disabled={selected.length < REEL_MIN_PHOTOS}
+              aria-label={`Continue to ${STEP_LABEL[nextStep]}`}
+              onClick={() => setStep(nextStep)}
+            >
+              Next →
+            </Button>
+          )}
+        </div>
+      }
     >
       <Tabs value={step} onValueChange={(v) => setStep(v as Step)} className="pt-2">
         <TabsList className="grid w-full grid-cols-4">
@@ -748,9 +803,6 @@ const ReelCreatorModal = ({
               );
             })}
           </div>
-          {selected.length < REEL_MIN_PHOTOS && (
-            <p className="text-sm text-muted-foreground">Select at least {REEL_MIN_PHOTOS} photos.</p>
-          )}
           {selected.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-semibold">Order &amp; pacing</p>
@@ -853,14 +905,6 @@ const ReelCreatorModal = ({
               )}
             </div>
           )}
-          <Button
-            type="button"
-            className="w-full min-h-[44px]"
-            disabled={selected.length < REEL_MIN_PHOTOS}
-            onClick={() => setStep("music")}
-          >
-            Next: Music
-          </Button>
         </TabsContent>
         <TabsContent value="music" className="space-y-4">
           <MusicPicker
@@ -917,14 +961,6 @@ const ReelCreatorModal = ({
               </Button>
             </div>
           )}
-          <Button
-            type="button"
-            className="w-full min-h-[44px]"
-            disabled={selected.length < REEL_MIN_PHOTOS}
-            onClick={() => setStep("style")}
-          >
-            Next: Style
-          </Button>
         </TabsContent>
 
         <TabsContent value="style" className="space-y-4">
@@ -1082,14 +1118,6 @@ const ReelCreatorModal = ({
             />
           </div>
           <p className="text-sm text-muted-foreground">≈ {total.toFixed(1)}s reel</p>
-          <Button
-            type="button"
-            className="w-full min-h-[44px]"
-            disabled={selected.length < REEL_MIN_PHOTOS}
-            onClick={() => setStep("export")}
-          >
-            Next: Preview &amp; Export
-          </Button>
         </TabsContent>
 
         <TabsContent value="export" className="space-y-3">
@@ -1169,15 +1197,6 @@ const ReelCreatorModal = ({
               aria-pressed={muted}
             >
               {muted ? "Unmute" : "Mute"}
-            </Button>
-            <Button
-              type="button"
-              className="min-h-[44px] flex-1"
-              loading={isExporting}
-              disabled={!exportSupported || images.length < REEL_MIN_PHOTOS}
-              onClick={() => void handleExport()}
-            >
-              {isExporting ? "Exporting…" : "Export Reel"}
             </Button>
           </div>
           {resultUrl && resultBlob && (
