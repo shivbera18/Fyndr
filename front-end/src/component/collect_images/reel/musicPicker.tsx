@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, Upload } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { CatalogTrack } from "./tracks";
@@ -36,6 +36,33 @@ export function MusicPicker({
 }: MusicPickerProps): React.JSX.Element {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [chip, setChip] = useState("All");
+
+  const moods = useMemo(() => {
+    const seen: string[] = [];
+    for (const t of catalog) {
+      for (const m of t.mood ?? []) {
+        if (!seen.includes(m)) seen.push(m);
+      }
+    }
+    return seen;
+  }, [catalog]);
+
+  const q = query.trim().toLowerCase();
+  // The `none` row has no src and stays pinned; only audible tracks filter.
+  const visible = useMemo(
+    () =>
+      catalog.filter((t) => {
+        if (!t.src) return true;
+        if (chip !== "All" && !(t.mood ?? []).includes(chip)) return false;
+        if (q === "") return true;
+        return t.label.toLowerCase().includes(q) || (t.artist ?? "").toLowerCase().includes(q);
+      }),
+    [catalog, chip, q]
+  );
+  const audibleTotal = useMemo(() => catalog.filter((t) => t.src).length, [catalog]);
+  const audibleShown = useMemo(() => visible.filter((t) => t.src).length, [visible]);
 
   useEffect(
     () => () => {
@@ -66,13 +93,53 @@ export function MusicPicker({
     // clear state if this track is still the active one.
     el.play().catch(() => setPlayingId((curr) => (curr === track.id ? null : curr)));
   };
-
   return (
     <div className="space-y-2">
       <p className="text-sm font-semibold">Music</p>
       {loading && <p className="text-sm text-muted-foreground">Loading music…</p>}
+      <div className="sticky top-0 z-10 space-y-2 bg-background pb-2">
+        <label htmlFor="reel-music-search" className="sr-only">
+          Search songs or artists
+        </label>
+        <input
+          id="reel-music-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // Escape must clear the query, never bubble up and dismiss the modal.
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              setQuery("");
+            }
+          }}
+          placeholder="Search songs or artists"
+          className="min-h-[44px] w-full rounded-xl border border-border bg-card px-3 text-base"
+        />
+        {moods.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1" data-vaul-no-drag>
+            {["All", ...moods].map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={chip === m}
+                onClick={() => setChip(m)}
+                className={cn(
+                  "min-h-[44px] min-w-[44px] shrink-0 rounded-full px-3 text-sm font-medium",
+                  chip === m ? "bg-primary text-primary-foreground" : "bg-muted"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
+        <p aria-live="polite" className="text-xs text-muted-foreground">
+          {audibleShown} of {audibleTotal} tracks
+        </p>
+      </div>
       <div className="grid grid-cols-1 gap-2">
-        {catalog.map((t) => {
+        {visible.map((t) => {
           const active = musicId === t.id;
           const playing = playingId === t.id;
           const meta = [t.artist, formatDuration(t.duration)].filter(Boolean).join(" · ");
@@ -130,6 +197,21 @@ export function MusicPicker({
           />
         </label>
       </div>
+      {!loading && audibleShown === 0 && audibleTotal > 0 && (
+        <p className="flex min-h-[44px] items-center gap-2 text-sm text-muted-foreground">
+          <span>No tracks match —</span>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setChip("All");
+            }}
+            className="min-h-[44px] rounded-lg bg-muted px-3 font-medium text-foreground"
+          >
+            Clear search
+          </button>
+        </p>
+      )}
       {!loading && catalog.length <= 1 && (
         <p className="text-xs text-muted-foreground">No bundled tracks yet — upload audio from your device.</p>
       )}
