@@ -32,6 +32,7 @@ export interface ReelRenderOptions {
   holds?: number[];
   joinTransitions?: (ReelTransition | undefined)[];
   anims?: (ReelAnimation | undefined)[];
+  captions?: string[];
   mix?: ReelMix | null;
   width?: number;
   height?: number;
@@ -165,6 +166,15 @@ function drawSlide(
   ctx.restore();
 }
 
+// Splits unbroken tokens (hashtags, URLs) into <=max runs joined by newline;
+// the whitespace wrapper below treats each run as a breakable word.
+function chunkLongTokens(s: string, max = 20): string {
+  return s
+    .split(/\s+/)
+    .map((tok) => (tok.length <= max ? tok : tok.match(new RegExp(`.{1,${max}}`, "g"))?.join("\n") ?? tok))
+    .join(" ");
+}
+
 function drawTextCard(
   ctx: CanvasRenderingContext2D,
   lines: string[],
@@ -238,6 +248,8 @@ function paintAt(
   const useAnims = opts.anims && opts.anims.length >= n ? opts.anims.slice(0, n) : null;
   const holdAt = (i: number): number => Math.max(0.1, useHolds ? useHolds[i] : uniHold);
   const animAt = (i: number): ReelAnimation => useAnims?.[i] ?? opts.animation;
+  const useCaptions = opts.captions && opts.captions.length >= n ? opts.captions.slice(0, n) : null;
+  const captionAt = (i: number): string => useCaptions?.[i] ?? "";
   const joinTypeAt = (j: number): ReelTransition => useJoins?.[j] ?? opts.transition;
   const transAt = (j: number): number => {
     const jt = joinTypeAt(j);
@@ -251,7 +263,7 @@ function paintAt(
     if (k === n - 1 || timeSec < cursor + hold) {
       const t01 = hold > 0 ? (timeSec - cursor) / hold : 1;
       drawSlide(ctx, images[k], Math.min(1, Math.max(0, t01)), animAt(k), w, h, 0, 1, 1, filter);
-      paintTextOverlay(ctx, timeSec, opts, w, h);
+      paintTextOverlay(ctx, timeSec, opts, w, h, captionAt(k));
       return;
     }
     cursor += hold;
@@ -279,7 +291,7 @@ function paintAt(
           drawSlide(ctx, next, 0, animAt(k + 1), w, h, 0, 1, 1, filter);
           break;
       }
-      paintTextOverlay(ctx, timeSec, opts, w, h);
+      paintTextOverlay(ctx, timeSec, opts, w, h, "");
       return;
     }
     cursor += trans;
@@ -291,15 +303,23 @@ function paintTextOverlay(
   timeSec: number,
   opts: ReelRenderOptions,
   w: number,
-  h: number
+  h: number,
+  caption: string
 ): void {
   const T = opts.totalDuration ?? Number.POSITIVE_INFINITY;
-  if (opts.title && opts.title.text !== "") {
-    const titleEnd = Math.min(1.5, Math.max(0, T - (opts.endCard ? 1.2 : 0)));
-    if (timeSec < titleEnd) drawTextCard(ctx, [opts.title.text], w, h, opts.title.style);
+  const titleText = opts.title?.text ?? "";
+  const titleEnd = titleText !== "" ? Math.min(1.5, Math.max(0, T - (opts.endCard ? 1.2 : 0))) : 0;
+  if (opts.title && titleText !== "" && timeSec < titleEnd) {
+    drawTextCard(ctx, [opts.title.text], w, h, opts.title.style);
   }
-  if (opts.endCard && opts.endCard !== "" && timeSec >= T - 1.2) {
-    drawTextCard(ctx, [opts.endCard], w, h, "center");
+  const endCardText = opts.endCard ?? "";
+  const endCardActive = endCardText !== "" && timeSec >= T - 1.2;
+  if (endCardActive) {
+    drawTextCard(ctx, [endCardText], w, h, "center");
+  }
+  // Captions own the lower third only when no global card is active.
+  if (caption !== "" && timeSec >= titleEnd && !endCardActive) {
+    drawTextCard(ctx, [chunkLongTokens(caption)], w, h, "lower");
   }
 }
 
