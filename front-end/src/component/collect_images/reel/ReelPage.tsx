@@ -79,6 +79,7 @@ const ReelPage = (): React.JSX.Element => {
     } else if (state.photos && state.photos.length > 0) {
       setNames(state.photos.map((p) => p.name));
     }
+    let cancelled = false;
     fetch(`${API_URL}/collect_event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -86,6 +87,8 @@ const ReelPage = (): React.JSX.Element => {
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        // Stale evt1 responses must not overwrite evt2 gates on fast switches.
+        if (cancelled) return;
         const ev: unknown =
           data && typeof data === "object" && "event" in data ? data.event : data;
         // Fail-closed like the camera flow: hydrate the lead flag so export
@@ -123,6 +126,9 @@ const ReelPage = (): React.JSX.Element => {
         }
       })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [eventId, state.photos, state.eventName]);
 
   const photos: ReelPhoto[] = useMemo(() => names.map((name) => ({ name, url: photoUrl(name) })), [names]);
@@ -186,6 +192,7 @@ const ReelPage = (): React.JSX.Element => {
           </div>
         ) : (
           <ReelCreatorModal
+            key={eventId}
             open={true}
             onOpenChange={() => backToPhotos()}
             eventId={eventId}
