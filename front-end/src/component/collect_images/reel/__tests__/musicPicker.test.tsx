@@ -56,6 +56,7 @@ const catalog: CatalogTrack[] = [
     credit: "",
     license: "CC0",
     artist: "FreePD",
+    mood: ["lofi", "wedding"],
     duration: 64,
   },
   {
@@ -64,6 +65,7 @@ const catalog: CatalogTrack[] = [
     src: "/reel-music/party-start.mp3",
     credit: "Kevin MacLeod",
     license: "CC-BY",
+    mood: ["party"],
     duration: 48,
   },
 ];
@@ -132,5 +134,51 @@ describe("MusicPicker", () => {
     const file = new File(["audio"], "song.mp3", { type: "audio/mpeg" });
     fireEvent.change(screen.getByLabelText(/Upload from device/), { target: { files: [file] } });
     expect(onUpload).toHaveBeenCalledWith(file);
+  });
+
+  it("filters rows by query and keeps the none row pinned", () => {
+    renderPicker();
+    fireEvent.change(screen.getByLabelText("Search songs or artists"), { target: { value: "party" } });
+    expect(screen.getByText("Party Start")).toBeInTheDocument();
+    expect(screen.queryByText("Calm Piano")).not.toBeInTheDocument();
+    expect(screen.getByText("No music")).toBeInTheDocument();
+    expect(screen.getByText("Upload from device")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 tracks")).toBeInTheDocument();
+  });
+
+  it("filters rows by mood chip combined with the query", () => {
+    renderPicker();
+    fireEvent.click(screen.getByRole("button", { name: "wedding" }));
+    expect(screen.getByText("Calm Piano")).toBeInTheDocument();
+    expect(screen.queryByText("Party Start")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search songs or artists"), { target: { value: "party" } });
+    expect(screen.queryByText("Calm Piano")).not.toBeInTheDocument();
+    expect(screen.getByText(/No tracks match/)).toBeInTheDocument();
+  });
+
+  it("clears filters from the empty state and preserves out-of-view selection", () => {
+    const onSelect = jest.fn();
+    renderPicker({ onSelect, musicId: "party-start" });
+    expect(screen.getByRole("button", { name: /Party Start/, pressed: true })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search songs or artists"), { target: { value: "calm" } });
+    expect(screen.queryByText("Party Start")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search songs or artists"), { target: { value: "" } });
+    expect(screen.getByRole("button", { name: /Party Start/, pressed: true })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search songs or artists"), { target: { value: "zzz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByText("Party Start")).toBeInTheDocument();
+    expect(screen.getByText("Calm Piano")).toBeInTheDocument();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("clears the query on Escape without selecting anything", () => {
+    const onSelect = jest.fn();
+    renderPicker({ onSelect });
+    const input = screen.getByLabelText("Search songs or artists");
+    fireEvent.change(input, { target: { value: "party" } });
+    expect(screen.queryByText("Calm Piano")).not.toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.getByText("Calm Piano")).toBeInTheDocument();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
