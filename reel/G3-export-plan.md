@@ -11,18 +11,18 @@ toast overclaims today. Two changes, both client-side, no new UI.
   via the existing cleanup path, then throw the new exported
   `ReelExportAbortedError extends Error` — before `Blob` creation, so no
   partial file ever surfaces. `previewReel`'s loop is user-stoppable already
-  and stays untouched.
-- Modal: `abortRef = useRef(false)`, reset at export start. A
-  `visibilitychange` listener (registered while `isExporting`, removed after)
-  sets `abortRef.current = true` when `document.hidden`. Modal close
-  mid-export sets the same flag (same frozen-canvas hazard, one line in the
-  existing open-change path). `shouldAbort: () => abortRef.current` is passed
-  to `renderReelToFile` only — cover/preview effects never abort.
-- Catch in `handleExport`: `e instanceof ReelExportAbortedError` →
-  `toast("Export stopped — keep this tab visible.")`, no `setError` (not a
-  failure state), progress resets via the existing `setProgress(0)` on next
-  export; `finally` re-enables the button as today. Draft is NOT deleted on
-  abort (only on success, as today) so the user retries with one tap.
+- Modal: `abortRef = useRef<"hidden" | "closed" | null>(null)`, reset at export
+  start. A `visibilitychange` listener (registered while `isExporting`,
+  removed after) sets `"hidden"` when `document.hidden`. Modal close
+  mid-export sets `"closed"` (same frozen-canvas hazard, one line in the
+  existing open-change path). `shouldAbort: () => abortRef.current !== null`
+  is passed to `renderReelToFile` only — cover/preview effects never abort.
+- Catch in `handleExport`: `e instanceof ReelExportAbortedError` → toast
+  `"Export stopped — keep this tab visible."` for `"hidden"`, `"Export
+  cancelled."` for `"closed"`, no `setError` (neither is a failure state);
+  progress resets via the existing `setProgress(0)` on next export; `finally`
+  re-enables the button as today. Draft is NOT deleted on abort (only on
+  success, as today) so the user retries with one tap.
 
 ## Honest muted toast
 
