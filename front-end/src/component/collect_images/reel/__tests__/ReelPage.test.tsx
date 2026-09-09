@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import ReelPage from "../ReelPage";
 
@@ -63,4 +63,12 @@ test("reel page shows find-photos CTA when no photos cached", async () => {
   expect(await screen.findByText("No photos yet")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Find my photos/i })).toBeInTheDocument();
   await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+});
+
+test("back without a camera handoff lands deterministically on camera", async () => {
+  sessionStorage.setItem("fy-matched-evt1", JSON.stringify(["a.jpg", "b.jpg"]));
+  renderPage("/reel/evt1");
+  await screen.findByTestId("reel-creator");
+  fireEvent.click(screen.getByRole("button", { name: /Back to photos/i }));
+  expect(await screen.findByText("camera page")).toBeInTheDocument();
 });
