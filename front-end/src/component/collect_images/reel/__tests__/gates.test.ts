@@ -5,7 +5,7 @@ import {
   isAlbumUnlocked,
   isPhotoEligible,
   isPhotoUnlocked,
-} from "../../../utils/gates";
+} from "../../../../utils/gates";
 
 beforeEach(() => sessionStorage.clear());
 afterEach(() => sessionStorage.clear());
