@@ -140,16 +140,16 @@ const ReelCreatorModal = ({
     photos.slice(0, Math.min(4, photos.length)).map((p) => p.name)
   );
   // Photos arrive after mount (matched search / page deep link): seed the
-  // first photos once instead of leaving a stale empty selection that
-  // renders a black preview with no way forward.
-  const seededRef = useRef(false);
+  // first photos per event instead of leaving a stale empty selection that
+  // renders a black preview with no way forward. Keyed by event so
+  // /reel/evt1 -> /reel/evt2 (same mounted route) reselects instead of
+  // keeping evt1 names that match nothing.
+  const seededForRef = useRef("");
   useEffect(() => {
-    if (seededRef.current || photos.length === 0) return;
-    seededRef.current = true;
-    setSelected((prev) =>
-      prev.length > 0 ? prev : photos.slice(0, Math.min(4, photos.length)).map((p) => p.name)
-    );
-  }, [photos]);
+    if (photos.length === 0 || seededForRef.current === eventId) return;
+    seededForRef.current = eventId;
+    setSelected(photos.slice(0, Math.min(4, photos.length)).map((p) => p.name));
+  }, [photos, eventId]);
   const [musicId, setMusicId] = useState<string>("none");
   const [customMusicUrl, setCustomMusicUrl] = useState<string | null>(null);
   const [customMusicName, setCustomMusicName] = useState<string>("");
@@ -574,8 +574,11 @@ const ReelCreatorModal = ({
     }
     // Export on an offscreen canvas: reusing the live preview canvas resizes
     // it mid-playback and races the preview rAF for the same pixels, which
-    // froze or blanked the recording. The visible preview keeps playing.
+    // froze or blanked the recording. Pause the preview loop (and its audio
+    // element) for the export duration — one paint loop, no doubled music.
     const canvas = document.createElement("canvas");
+    const wasPlaying = playing;
+    setPlaying(false);
     setIsExporting(true);
     setError("");
     setMutedNotice(false);
@@ -656,6 +659,7 @@ const ReelCreatorModal = ({
     } finally {
       document.removeEventListener("visibilitychange", onHide);
       setIsExporting(false);
+      setPlaying(wasPlaying);
     }
   };
 
