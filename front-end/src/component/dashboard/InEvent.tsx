@@ -101,6 +101,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [pinInput, setPinInput] = useState<string>(pin || "");
   const [savingPin, setSavingPin] = useState<boolean>(false);
   const [pinFeedback, setPinFeedback] = useState<string>("");
+  // ponytail: cap initial grid render — 5k-photo events rendered every card at once.
+  const [visibleCount, setVisibleCount] = useState<number>(60);
 
   const handleUpdatePin = async (newPinValue: string) => {
     setSavingPin(true);
@@ -136,6 +138,9 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     setSelectionLimit(initialLimit > 0 ? String(initialLimit) : "");
     setSelectionLocked(initialLocked || false);
   }, [eventID, initialFolders, initialLimit, initialLocked]);
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [activeFolder, showPickedOnly, eventID]);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -621,6 +626,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const inFolder = (p: Photo, folder: string): boolean =>
     folder === "All" || (p.folder_name || "General") === folder;
   const visibleImages = images.filter((p) => inFolder(p, activeFolder) && (!showPickedOnly || p.isSelected));
+  const shownImages = visibleImages.slice(0, visibleCount);
 
   return (
     <div className="space-y-8">
@@ -1320,14 +1326,15 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
             </CardContent>
           </Card>
         ) : (
+            <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {visibleImages.map((photo, index) => {
+            {shownImages.map((photo, index) => {
               const photoUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
               return (
                 <div
                   key={photo._id || index}
                   className={cn(
-                    "group relative aspect-square rounded-xl overflow-hidden bg-muted border",
+                    "group cv-auto relative aspect-square rounded-xl overflow-hidden bg-muted border",
                     photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
                   )}
                   title={photo.selectionNote ? `Client note: ${photo.selectionNote}` : undefined}
@@ -1342,6 +1349,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                     alt={`Event item ${index + 1}`}
                     onError={handleImgError}
                     loading="lazy"
+                    decoding="async"
                     onClick={() => {
                       setIsZoomed(false);
                       setPreviewImage({
@@ -1393,6 +1401,18 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
               );
             })}
           </div>
+            {visibleImages.length > shownImages.length && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((c) => c + 60)}
+                  className="min-h-[44px]"
+                >
+                  Show more ({visibleImages.length - shownImages.length} remaining)
+                </Button>
+              </div>
+            )}
+            </>
         )}
       </div>
 

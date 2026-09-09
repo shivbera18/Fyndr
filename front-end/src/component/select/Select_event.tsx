@@ -43,6 +43,8 @@ const SelectEvent = (): React.JSX.Element => {
   const [confirming, setConfirming] = useState<boolean>(false);
   const confirmTimer = useRef<number | undefined>(undefined);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
+  // ponytail: cap initial grid render — large albums rendered every card at once.
+  const [visibleCount, setVisibleCount] = useState<number>(60);
   // Fresh mirror: onBlur/toggle closures read current picks, never a stale render snapshot
   const photosRef = useRef<SelectPhoto[]>([]);
   photosRef.current = photos;
@@ -198,6 +200,10 @@ const SelectEvent = (): React.JSX.Element => {
     if (activeFolder !== "All" && (p.folder_name || "General") !== activeFolder) return false;
     return true;
   });
+  const shown = visible.slice(0, visibleCount);
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [activeFolder, selectedOnly, eventId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -317,14 +323,15 @@ const SelectEvent = (): React.JSX.Element => {
                 </CardContent>
               </Card>
             ) : (
+              <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {visible.map((photo, index) => {
+                {shown.map((photo, index) => {
                   const photoUrl = `${API_URL}/uploads/${encodeURIComponent(photo.name)}`;
                   return (
                     <div
                       key={photo._id}
                       className={cn(
-                        "group relative rounded-xl overflow-hidden bg-muted border",
+                        "group cv-auto relative rounded-xl overflow-hidden bg-muted border",
                         photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
                       )}
                     >
@@ -363,6 +370,19 @@ const SelectEvent = (): React.JSX.Element => {
                   );
                 })}
               </div>
+              {visible.length > shown.length && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setVisibleCount((c) => c + 60)}
+                    className="min-h-[44px]"
+                  >
+                    Show more ({visible.length - shown.length} remaining)
+                  </Button>
+                </div>
+              )}
+              </>
             )}
           </>
         )}

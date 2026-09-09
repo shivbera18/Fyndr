@@ -135,6 +135,12 @@
     -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
   }
 }
+  /* Skip offscreen photo-card work until scrolled near — big scroll win on
+     5k+ photo event grids without any JS virtualization. */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+  }
 
 /* Smooth View Transition for theme toggling without DOM tearing or filter strobe */
 ::view-transition-old(root),
@@ -160,5 +166,14 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
