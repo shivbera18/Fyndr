@@ -6,22 +6,7 @@ import Footer from "../../Footer";
 import { Button } from "../../../components/ui/button";
 import ReelCreatorModal from "./ReelCreatorModal";
 import { API_URL } from "../../../utils/api";
-
-interface ReelPhoto {
-  name: string;
-  url: string;
-}
-
-interface LocationState {
-  photos?: { name: string; url?: string }[];
-  eventName?: string;
-}
-
-interface PaywallConfig {
-  enabled: boolean;
-  stage: "download" | "batch_download" | "watermark_removal" | "entry";
-  freePhotoLimit: number;
-}
+import { isPhotoEligible, type GatePaywall } from "../../../utils/gates";
 
 const photoUrl = (name: string): string => `${API_URL}/uploads/${encodeURIComponent(name)}`;
 
@@ -44,15 +29,25 @@ const ReelPage = (): React.JSX.Element => {
   const [eventName, setEventName] = useState<string>(
     state.eventName || sessionStorage.getItem(`fy-event-name-${eventId}`) || ""
   );
-  const [paywall, setPaywall] = useState<PaywallConfig | null>(null);
+  const [paywall, setPaywall] = useState<GatePaywall | null>(null);
   const [names, setNames] = useState<string[]>(() => {
     if (state.photos && state.photos.length > 0) return state.photos.map((p) => p.name);
     return eventId ? readCachedNames(eventId) : [];
   });
 
+  const backToPhotos = (): void => {
+    // Shared links / fresh tabs have no history: fall back to /camera.
+    if (typeof window !== "undefined" && window.history.length > 1) navigate(-1);
+    else navigate("/camera", { state: eventId });
+  };
+
   useEffect(() => {
     if (!eventId) return;
-    sessionStorage.setItem("fy-last-event", eventId);
+    try {
+      sessionStorage.setItem("fy-last-event", eventId);
+    } catch {
+      // best-effort
+    }
     if (state.photos && state.photos.length > 0) {
       setNames(state.photos.map((p) => p.name));
     }
@@ -65,6 +60,14 @@ const ReelPage = (): React.JSX.Element => {
       .then((data) => {
         const ev: unknown =
           data && typeof data === "object" && "event" in data ? data.event : data;
+        // Fail-closed like the camera flow: hydrate the lead flag so export
+        // gating can't be bypassed on fresh deep links.
+        const gate = ev && typeof ev === "object" && "requireLead" in ev ? ev.requireLead === true : false;
+        try {
+          sessionStorage.setItem(`fy-require-lead-${eventId}`, gate ? "1" : "0");
+        } catch {
+          // best-effort
+        }
         if (ev && typeof ev === "object" && "event_name" in ev) {
           const n = String(ev.event_name);
           setEventName((prev) => {
@@ -96,39 +99,7 @@ const ReelPage = (): React.JSX.Element => {
 
   const photos: ReelPhoto[] = useMemo(() => names.map((name) => ({ name, url: photoUrl(name) })), [names]);
 
-  const isPhotoEligible = (filename: string): boolean => {
-    if (paywall?.enabled) {
-      if (paywall.stage === "download" || paywall.stage === "watermark_removal") {
-        try {
-          const stored = sessionStorage.getItem(`fy-unlocked-photos-${eventId}`);
-          const list: unknown = stored ? JSON.parse(stored) : [];
-          const unlockedAlbum = sessionStorage.getItem(`fy-unlocked-album-${eventId}`) === "1";
-          if (!unlockedAlbum && (!Array.isArray(list) || !list.includes(filename))) return false;
-        } catch {
-          return false;
-        }
-      }
-      if (paywall.stage === "batch_download") {
-        const unlockedAlbum = sessionStorage.getItem(`fy-unlocked-album-${eventId}`) === "1";
-        if (!unlockedAlbum) {
-          const count = Number(sessionStorage.getItem(`fy-dl-count-${eventId}`) || "0");
-          try {
-            const stored = sessionStorage.getItem(`fy-unlocked-photos-${eventId}`);
-            const list: unknown = stored ? JSON.parse(stored) : [];
-            if (count >= paywall.freePhotoLimit && (!Array.isArray(list) || !list.includes(filename)))
-              return false;
-          } catch {
-            return false;
-          }
-        }
-      }
-      if (paywall.stage === "entry" && sessionStorage.getItem(`fy-unlocked-album-${eventId}`) !== "1")
-        return false;
-    }
-    if (sessionStorage.getItem(`fy-require-lead-${eventId}`) === "1" && !sessionStorage.getItem(`fy-lead-${eventId}`))
-      return false;
-    return true;
-  };
+  const eligible = (filename: string): boolean => isPhotoEligible(eventId, paywall, filename);
 
   if (!eventId) {
     return (
@@ -156,7 +127,7 @@ const ReelPage = (): React.JSX.Element => {
             variant="ghost"
             size="sm"
             className="min-h-[44px]"
-            onClick={() => navigate(-1)}
+            onClick={() => backToPhotos()}
             aria-label="Back to photos"
           >
             ← Photos
@@ -188,14 +159,16 @@ const ReelPage = (): React.JSX.Element => {
         ) : (
           <ReelCreatorModal
             open={true}
-            onOpenChange={() => navigate(-1)}
+            onOpenChange={() => backToPhotos()}
             eventId={eventId}
             eventName={eventName}
             photos={photos}
-            isPhotoEligible={isPhotoEligible}
+            isPhotoEligible={eligible}
             onGatedPhoto={() => {
-              toast.error("Unlock gallery access first — then export your reel.");
-              navigate(-1);
+              // The unlock UI (lead form / paywall) lives on the camera flow —
+              // send guests there instead of bouncing them with no path.
+              toast("Complete gallery access on the photos screen — then export your reel.");
+              navigate("/camera", { state: eventId });
             }}
             asPage={true}
           />
