@@ -122,18 +122,18 @@ describe("ReelCreatorModal", () => {
     jest.clearAllMocks();
   });
 
-  it("gates Next on the 2-photo minimum", () => {
+  it("gates Continue on the 2-photo minimum", () => {
     renderModal();
-    const next = screen.getByRole("button", { name: /Next: Music/i });
+    const next = screen.getByRole("button", { name: "Continue to Music" });
     expect(next).toBeEnabled();
 
     fireEvent.click(screen.getByLabelText("Select photo 1"));
     fireEvent.click(screen.getByLabelText("Select photo 2"));
     expect(screen.getByText(/Select at least 2 photos/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Next: Music/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue to Music" })).toBeDisabled();
 
     fireEvent.click(screen.getByLabelText("Select photo 2"));
-    expect(screen.getByRole("button", { name: /Next: Music/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue to Music" })).toBeEnabled();
   });
 
   it("updates total runtime when the transition slider moves", () => {
@@ -424,4 +424,28 @@ describe("ReelCreatorModal", () => {
     expect(toast.success).not.toHaveBeenCalledWith("Reel exported.");
     expect(screen.getByText(/Exported without music/)).toBeInTheDocument();
   });
+
+  it("walks steps through the bar with summary and Back states", () => {
+    renderModal();
+    expect(screen.getByText(/≈.*· 3 photos/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Music" }));
+    expect(screen.getByRole("button", { name: "Back to Photos" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Style" }));
+    expect(screen.getByRole("button", { name: "Back to Music" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to Music" }));
+    expect(screen.getByRole("button", { name: "Continue to Style" })).toBeInTheDocument();
+  });
+
+  it("exports from the bar on the export step", async () => {
+    renderModal();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: "Export Reel" });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledTimes(1);
+  });
+
 });
