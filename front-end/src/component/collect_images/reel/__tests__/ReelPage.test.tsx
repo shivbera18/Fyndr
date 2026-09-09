@@ -28,7 +28,10 @@ beforeEach(() => {
   jest.spyOn(global, "fetch").mockImplementation(() =>
     Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({ event: { event_name: "Simran Wedding", paywall: { enabled: false } } }),
+      json: () =>
+        Promise.resolve({
+          event: { event_name: "Simran Wedding", requireLead: true, paywall: { enabled: false } },
+        }),
     } as Response)
   );
 });
@@ -44,6 +47,8 @@ test("reel page renders creator in page mode with cached matched photos", async 
   const creator = await screen.findByTestId("reel-creator");
   expect(creator.getAttribute("data-photos")).toBe("a.jpg,b.jpg");
   expect(creator.getAttribute("data-aspage")).toBe("true");
+  // Fail-closed: the event fetch hydrates the lead flag for export gating.
+  await waitFor(() => expect(sessionStorage.getItem("fy-require-lead-evt1")).toBe("1"));
 });
 
 test("reel page prefers navigation state over stale cache", async () => {
