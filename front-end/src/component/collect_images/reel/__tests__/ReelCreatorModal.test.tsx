@@ -349,9 +349,13 @@ describe("ReelCreatorModal", () => {
       async (_canvas: unknown, _images: unknown, opts: { shouldAbort?: () => boolean }) => {
         expect(opts.shouldAbort?.()).toBe(false);
         Object.defineProperty(document, "hidden", { value: true, configurable: true });
-        document.dispatchEvent(new Event("visibilitychange"));
-        expect(opts.shouldAbort?.()).toBe(true);
-        Object.defineProperty(document, "hidden", { value: false, configurable: true });
+        try {
+          document.dispatchEvent(new Event("visibilitychange"));
+          expect(opts.shouldAbort?.()).toBe(true);
+        } finally {
+          // Delete the own property so the prototype getter serves later tests.
+          delete (document as unknown as Record<string, boolean>).hidden;
+        }
         throw new reel.ReelExportAbortedError("aborted");
       }
     );
