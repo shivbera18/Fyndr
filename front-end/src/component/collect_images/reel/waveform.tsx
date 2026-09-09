@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { clampTrim, formatTrimTime } from "./presets";
 
@@ -29,6 +29,14 @@ export function Waveform({
 }: WaveformProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<"start" | "end" | null>(null);
+  const text = `${formatTrimTime(start)} – ${formatTrimTime(end)} of ${formatTrimTime(duration)}`;
+  // Screen-reader announcements fire on commits only (slider, drag end,
+  // Chorus/Reset re-renders) — never per drag-move, which floods SR queues.
+  const [liveText, setLiveText] = useState(text);
+  useEffect(() => {
+    if (dragRef.current) return;
+    setLiveText(text);
+  }, [text]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -87,13 +95,16 @@ export function Waveform({
   };
 
   const releaseDrag = (): void => {
+    if (!dragRef.current) return;
     dragRef.current = null;
+    setLiveText(text);
   };
 
   return (
     <div className="space-y-2">
       <canvas
         ref={canvasRef}
+        aria-hidden="true"
         className="h-16 w-full touch-none rounded-lg bg-muted"
         onPointerDown={(e) => {
           const sec = xToSec(e.clientX);
@@ -114,8 +125,9 @@ export function Waveform({
         onPointerUp={releaseDrag}
         onPointerCancel={releaseDrag}
       />
-      <p className="text-xs text-muted-foreground">
-        {formatTrimTime(start)} – {formatTrimTime(end)} of {formatTrimTime(duration)}
+      <p className="text-xs text-muted-foreground">{text}</p>
+      <p aria-live="polite" aria-atomic="true" className="sr-only">
+        {liveText}
       </p>
       <div className="flex gap-2">
         <input
@@ -129,7 +141,7 @@ export function Waveform({
             const c = clampTrim(Number(e.target.value), end, duration);
             onChange(c.start, c.end);
           }}
-          className="w-full accent-primary"
+          className="min-h-[44px] w-full accent-primary"
         />
         <input
           type="range"
@@ -142,7 +154,7 @@ export function Waveform({
             const c = clampTrim(start, Number(e.target.value), duration);
             onChange(c.start, c.end);
           }}
-          className="w-full accent-primary"
+          className="min-h-[44px] w-full accent-primary"
         />
       </div>
       <div className="flex gap-2">
