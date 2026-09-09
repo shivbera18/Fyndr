@@ -10,7 +10,7 @@ import { Badge } from "../../components/ui/badge";
 import { API_URL } from "../../utils/api";
 import { trackEvent, recordAccessAttempt } from "../../utils/analytics";
 import { KeyRound, Loader2 } from "lucide-react";
-
+import { InquiryModal } from "./InquiryModal";
 type EventData = {
   event_name: string;
   event_photo?: string;
@@ -28,6 +28,7 @@ const CollectEvent = (): React.JSX.Element => {
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [studioData, setStudioData] = useState<StudioData | null>(null);
   const [guestName, setGuestName] = useState<string>(() => (typeof sessionStorage !== "undefined" && sessionStorage.getItem("fyndr_guest_name")) || "");
+  const [showInquiry, setShowInquiry] = useState<boolean>(false);
   const [guestPhone, setGuestPhone] = useState<string>(() => (typeof sessionStorage !== "undefined" && sessionStorage.getItem("fyndr_guest_phone")) || "");
   const [pin, setPin] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
@@ -139,16 +140,13 @@ const CollectEvent = (): React.JSX.Element => {
                     <span>
                       Photography by <span className="font-semibold text-foreground">{studioData.studio_name}</span>
                     </span>
-                    <a
-                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                        `Hi ${studioData.studio_name}, I saw your photography for ${eventData.event_name} on Fyndr and would love to inquire about booking a session!`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 rounded-full transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => setShowInquiry(true)}
+                      className="inline-flex min-h-[44px] items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
                     >
                       Book Studio ↗
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>
@@ -269,6 +267,14 @@ const CollectEvent = (): React.JSX.Element => {
             </CardContent>
           </Card>
         )}
+        <InquiryModal
+          open={showInquiry}
+          onOpenChange={setShowInquiry}
+          eventId={eventId || ""}
+          studioName={studioData?.studio_name}
+          initialName={guestName}
+          initialPhone={guestPhone}
+        />
       </main>
 
       <Footer />
