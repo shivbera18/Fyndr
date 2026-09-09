@@ -8,13 +8,13 @@ through the independent-review loop before merge. P3 stays dropped.
 
 | # | Feature | Scope | Plan PR | Code PR | Status |
 |---|---|---|---|---|---|
-| G1 | Picker search + mood chips | F2-deferred: sticky search input + mood chips over `CatalogTrack.mood`, filters active preview/upload rows | | | todo |
-| G2 | Per-photo captions | F5-cut: caption field per photo in tray sheet, renderer text pass per hold, draft-persisted, empty = off | | | todo |
-| G3 | Export hardening | Abort export on tab-hide with toast (§6), failed-track auto-skip + explicit muted-export toast | | | todo |
-| G4 | Sticky summary action bar | `Back / ≈12.5s · 6 photos / Next-Export` sticky bar in Drawer + `safe-area-inset-bottom` (§4, §6) | | | todo |
-| G5 | Offline music | `public/sw.js` precaches `manifest.json` + bundled mp3s; picker serves stale catalog offline (§6) | | | todo |
-| G6 | Seed CC0 catalog | Vendor ~2MB CC0 preview cuts (FreePD) + manifest entries; attribution UI already wired (plan §2.1/§10.1) | | | todo |
-| G7 | Trim keyboard support | Plan §2.3: focusable trim handles, ←/→ nudge, keyboard parity with pointer drag in `waveform.tsx` | | | todo |
+| G1 | Picker search + mood chips | Sticky search + mood chips over `CatalogTrack.mood`; none/upload pinned, Escape guard | #105 | #106 | done |
+| G2 | Per-photo captions | Name-keyed tray inputs, holds-only lower-third, draft-persisted, cover excluded | #107 | #108 | done |
+| G3 | Export hardening | Abort on tab-hide/close with reason toasts (§6), honest muted toast | #109 | #110/#111 | done |
+| G4 | Sticky summary action bar | Footer-slot bar: Back/summary/Continue-Export + safe-area; replaces per-step Next buttons | #112 | #113 | done |
+| G5 | Offline music | SW audio route: manifest SWR + mp3 cache-first with 206 slicing; stub harness | #114 | #115 | done |
+| G6 | Seed catalog | 7 Commons cuts (6×CC-BY KM + 1×CC0 Chopin, ~3.4MB) + manifest peaks + seed tests | #116 | #117 | done |
+| G7 | Trim control a11y | 44px ranges, commit-only live announcements, aria-hidden canvas (ranges already keyboard-ok) | #118 | #119 | done |
 
 Rules: client-side only, no new npm dep without metric, every PR gets an independent
 reviewer (`gh pr review --comment`, never self-approve), merge with regular merge commits,
