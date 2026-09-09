@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { Upload, ScanFace, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -53,6 +53,10 @@ const DEFAULT_HUB: BeamHub = {
 };
 export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOURCES, hub = DEFAULT_HUB }: BeamLinesProps) {
   const id = useId().replace(/:/g, "-");
+  const reduce = useReducedMotion();
+  // ponytail: infinite gradient loops pause for reduced-motion users (static beam).
+  const loop = (delay: number) =>
+    reduce ? { duration: 0 } : { duration: 2.2, repeat: Infinity, repeatDelay: 3.8, ease: "easeInOut" as const, delay };
   return (
     <div
       className={cn(
@@ -105,13 +109,7 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
                   x1: ["0%", "100%"],
                   x2: ["25%", "125%"],
                 }}
-                transition={{
-                  duration: 2.2,
-                  repeat: Infinity,
-                  repeatDelay: 3.8,
-                  ease: "easeInOut",
-                  delay: 0,
-                }}
+                transition={loop(0)}
               >
                 <stop offset="0%" stopColor="#3b82f6" stopOpacity="0" />
                 <stop offset="50%" stopColor="#3b82f6" stopOpacity="1" />
@@ -127,13 +125,7 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
                   x1: ["0%", "100%"],
                   x2: ["25%", "125%"],
                 }}
-                transition={{
-                  duration: 2.2,
-                  repeat: Infinity,
-                  repeatDelay: 3.8,
-                  ease: "easeInOut",
-                  delay: 1.8,
-                }}
+                transition={loop(1.8)}
               >
                 <stop offset="0%" stopColor="#10b981" stopOpacity="0" />
                 <stop offset="50%" stopColor="#10b981" stopOpacity="1" />
@@ -149,13 +141,7 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
                   x1: ["100%", "0%"],
                   x2: ["75%", "-25%"],
                 }}
-                transition={{
-                  duration: 2.2,
-                  repeat: Infinity,
-                  repeatDelay: 3.8,
-                  ease: "easeInOut",
-                  delay: 3.6,
-                }}
+                transition={loop(3.6)}
               >
                 <stop offset="0%" stopColor="#f59e0b" stopOpacity="0" />
                 <stop offset="50%" stopColor="#f59e0b" stopOpacity="1" />
@@ -227,7 +213,7 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
           {showLabels && (
             <div className="mt-3 text-center">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 text-neutral-700 dark:text-neutral-300">
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping motion-reduce:animate-none" />
                 {hub.pill}
               </span>
             </div>

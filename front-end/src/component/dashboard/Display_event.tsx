@@ -114,12 +114,13 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
             ? `${API_URL}/event_profile/${event.event_photo}`
             : "/images/wedding.jpg";
           return (
-            <Card key={event._id || index} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+            <Card key={event._id || index} className="cv-auto overflow-hidden flex flex-col hover:shadow-md transition-shadow">
               <div className="relative aspect-[16/9] w-full bg-muted overflow-hidden">
                 <img
                   src={coverUrl}
                   alt={event.event_name}
                   loading="lazy"
+                  decoding="async"
                   onError={(e) => {
                     const t = e.target as HTMLImageElement;
                     t.onerror = null;

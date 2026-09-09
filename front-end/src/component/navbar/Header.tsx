@@ -130,14 +130,16 @@ export default function Header(): React.JSX.Element {
         const el = document.getElementById(hash);
         if (el) {
           e.preventDefault();
-          el.scrollIntoView({ behavior: "smooth" });
-          window.history.pushState(null, "", item.link);
+          // ponytail: route through the router so location.hash stays in sync
+          // (pushState bypassed React Router — hash section never scrolled,
+          // back button broke). Home scrolls via location.hash.
+          navigate(item.link);
         }
       }
     } else if (item.link === "/" && location.pathname === "/") {
       e.preventDefault();
+      navigate("/");
       window.scrollTo({ top: 0, behavior: "smooth" });
-      window.history.pushState(null, "", "/");
     }
   };
 
