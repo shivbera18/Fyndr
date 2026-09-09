@@ -8,6 +8,16 @@ import ReelCreatorModal from "./ReelCreatorModal";
 import { API_URL } from "../../../utils/api";
 import { isPhotoEligible, type GatePaywall } from "../../../utils/gates";
 
+interface ReelPhoto {
+  name: string;
+  url: string;
+}
+
+interface LocationState {
+  photos?: { name: string; url?: string }[];
+  eventName?: string;
+}
+
 const photoUrl = (name: string): string => `${API_URL}/uploads/${encodeURIComponent(name)}`;
 
 const readCachedNames = (eventId: string): string[] => {
