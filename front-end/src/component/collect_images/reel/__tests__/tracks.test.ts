@@ -76,6 +76,21 @@ describe("track catalog", () => {
     expect(validateManifest(manifest)).toHaveLength(raw.tracks.length);
   });
 
+  it("ships a 7-track seeded catalog with vendored audio", () => {
+    const tracks = validateManifest(manifest);
+    expect(tracks).toHaveLength(7);
+    let totalBytes = 0;
+    for (const t of tracks) {
+      expect(t.src).toMatch(/^\/reel-music\/[a-z0-9-]+\.mp3$/);
+      totalBytes += fs.statSync(path.join(__dirname, "../../../../../public", t.src)).size;
+      expect(t.duration).toBeGreaterThan(0);
+    }
+    expect(tracks.filter((t) => t.license === "CC-BY").every((t) => t.credit !== "")).toBe(true);
+    expect(tracks.every((t) => (t.peaks ?? []).every((p) => Number.isFinite(p)))).toBe(true);
+    expect(tracks.every((t) => (t.peaks ?? []).length <= 200)).toBe(true);
+    expect(totalBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+  });
+
   it("resolves none-first with metadata preserved", () => {
     const catalog = resolveCatalog(validateManifest({ tracks: [goodCC0] }));
     expect(catalog[0].id).toBe("none");
