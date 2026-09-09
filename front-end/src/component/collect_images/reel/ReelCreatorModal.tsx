@@ -12,12 +12,10 @@ import {
   PHOTO_DUR_MIN,
   REEL_ANIMATIONS,
   REEL_FILTERS,
-  REEL_H,
   REEL_MAX_PHOTOS,
   REEL_MIN_PHOTOS,
   REEL_TEMPLATES,
   REEL_TRANSITIONS,
-  REEL_W,
   TRANS_DUR_DEFAULT,
   TRANS_DUR_MAX,
   TRANS_DUR_MIN,
@@ -371,7 +369,7 @@ const ReelCreatorModal = ({
       endCard,
     });
     setPoster(url);
-  }, [step, coverIndex, images, photoDur, transition, transDur, animation, timeline.holds, dims, filterValue, titleOpt, endCard]);
+  }, [step, coverIndex, images, photoDur, transition, transDur, animation, timeline.holds, joinList, animList, dims, filterValue, titleOpt, endCard]);
   useEffect(() => {
     if (!open) return;
     setStep("photos");
