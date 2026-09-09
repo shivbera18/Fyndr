@@ -42,6 +42,7 @@ import {
   loadReelImages,
   pickMimeType,
   previewReel,
+  ReelExportAbortedError,
   renderCoverFrame,
   renderReelToFile,
 } from "./reelRenderer";
@@ -179,6 +180,7 @@ const ReelCreatorModal = ({
   const [error, setError] = useState<string>("");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const customUrlRef = useRef<string | null>(null);
+  const abortRef = useRef<"hidden" | "closed" | null>(null);
 
   const exportSupported = useMemo(() => isReelExportSupported(), []);
   const selectedPhotos = useMemo(
@@ -552,6 +554,11 @@ const ReelCreatorModal = ({
     setError("");
     setMutedNotice(false);
     setProgress(0);
+    abortRef.current = null;
+    const onHide = (): void => {
+      if (document.hidden) abortRef.current ??= "hidden";
+    };
+    document.addEventListener("visibilitychange", onHide);
     try {
       const blob = await renderReelToFile(canvas, images, {
         photoDuration: photoDur,
@@ -579,6 +586,7 @@ const ReelCreatorModal = ({
             }
           : null,
         onProgress: (r) => setProgress(r),
+        shouldAbort: () => abortRef.current !== null,
       });
       const ext = extensionForMime(blob.type || pickMimeType());
       const url = URL.createObjectURL(blob);
@@ -593,7 +601,8 @@ const ReelCreatorModal = ({
       } catch {
         // Best-effort cleanup.
       }
-      if ("muted" in blob && blob.muted === true) {
+      const muted = "muted" in blob && blob.muted === true;
+      if (muted) {
         setMutedNotice(true);
       }
       trackEvent(eventId, "reel_export", {
@@ -605,12 +614,21 @@ const ReelCreatorModal = ({
         hasMusic: Boolean(musicUrl),
         trimLen: trim ? Math.round((trim.end - trim.start) * 10) / 10 : null,
       });
-      toast.success(musicUrl ? "Reel exported." : "Reel exported without music.");
+      if (muted) {
+        toast("Reel exported without music — the track couldn't load.");
+      } else {
+        toast.success(musicUrl ? "Reel exported." : "Reel exported without music.");
+      }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Video export failed in this browser. Try Chrome or Safari 17+.";
-      setError(msg);
-      toast.error(msg);
+      if (e instanceof ReelExportAbortedError) {
+        toast(abortRef.current === "closed" ? "Export cancelled." : "Export stopped — keep this tab visible.");
+      } else {
+        const msg = e instanceof Error ? e.message : "Video export failed in this browser. Try Chrome or Safari 17+.";
+        setError(msg);
+        toast.error(msg);
+      }
     } finally {
+      document.removeEventListener("visibilitychange", onHide);
       setIsExporting(false);
     }
   };
@@ -632,7 +650,12 @@ const ReelCreatorModal = ({
   return (
     <ResponsiveModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(v) => {
+        // Closing mid-export freezes the capture canvas the same way a hidden
+        // tab does — abort through the same flag with its own toast reason.
+        if (!v && abortRef.current === null) abortRef.current = "closed";
+        onOpenChange(v);
+      }}
       title="Create Reel"
       description={eventName ? `Turn your matched photos from ${eventName} into a vertical video.` : "Turn your matched photos into a vertical video."}
       className="sm:max-w-3xl"
