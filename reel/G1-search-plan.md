@@ -6,8 +6,8 @@ track-loader, or renderer changes.
 
 ## UI
 
-- Sticky search row under the `Music` heading (`sticky top-0 z-10 bg-background
-  -pb-2` so catalog rows never bleed through): native `<input type="search">`,
+- Sticky search row under the `Music` heading (`sticky top-0 z-10 bg-background pb-2`
+  so catalog rows never bleed through): native `<input type="search">`,
   `min-h-[44px]`, `text-base` (16px blocks iOS focus-zoom), no autofocus,
   associated `<label>` (sr-only ok). `onKeyDown` intercepts Escape:
   `stopPropagation` + clear query — Escape must never bubble to the Radix/Vaul
@@ -18,6 +18,7 @@ track-loader, or renderer changes.
   `data-vaul-no-drag` so diagonal swipes don't pull-to-dismiss the Drawer),
   every chip `min-h-[44px] min-w-[44px] px-3`, `aria-pressed`. Chips render
   only when ≥1 track carries a mood (empty catalog → no chips).
+- Result count `aria-live="polite"` (`"3 of 12 tracks"`), updates on query/chip.
 
 ## Filtering rules
 
