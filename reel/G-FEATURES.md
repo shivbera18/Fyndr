@@ -11,7 +11,7 @@ through the independent-review loop before merge. P3 stays dropped.
 | G1 | Picker search + mood chips | F2-deferred: sticky search input + mood chips over `CatalogTrack.mood`, filters active preview/upload rows | | | todo |
 | G2 | Per-photo captions | F5-cut: caption field per photo in tray sheet, renderer text pass per hold, draft-persisted, empty = off | | | todo |
 | G3 | Export hardening | Abort export on tab-hide with toast (§6), failed-track auto-skip + explicit muted-export toast | | | todo |
-| G4 | Sticky summary action bar | `Back | ≈12.5s · 6 photos | Next/Export` sticky bar in Drawer + `safe-area-inset-bottom` (§4, §6) | | | todo |
+| G4 | Sticky summary action bar | `Back / ≈12.5s · 6 photos / Next-Export` sticky bar in Drawer + `safe-area-inset-bottom` (§4, §6) | | | todo |
 | G5 | Offline music | `public/sw.js` precaches `manifest.json` + bundled mp3s; picker serves stale catalog offline (§6) | | | todo |
 | G6 | Seed CC0 catalog | Vendor ~2MB CC0 preview cuts (FreePD) + manifest entries; attribution UI already wired (plan §2.1/§10.1) | | | todo |
 | G7 | Trim keyboard support | Plan §2.3: focusable trim handles, ←/→ nudge, keyboard parity with pointer drag in `waveform.tsx` | | | todo |
