@@ -81,6 +81,7 @@ interface ReelDraft {
   durations: Record<string, number>;
   anims?: Record<string, ReelAnimation>;
   joins?: Record<string, ReelTransition>;
+  captions?: Record<string, string>;
   transition: ReelTransition;
   animation: ReelAnimation;
   photoDur: number;
@@ -101,6 +102,7 @@ function isValidDraft(d: unknown): d is ReelDraft {
   if (!("fadeOn" in d) || typeof d.fadeOn !== "boolean") return false;
     if (!("durations" in d) || typeof d.durations !== "object" || d.durations === null) return false;
     if ("anims" in d && (typeof d.anims !== "object" || d.anims === null)) return false;
+    if ("captions" in d && (typeof d.captions !== "object" || d.captions === null)) return false;
     if ("joins" in d && (typeof d.joins !== "object" || d.joins === null)) return false;
   if (!("transition" in d) || typeof d.transition !== "string") return false;
   if (!("animation" in d) || typeof d.animation !== "string") return false;
@@ -162,6 +164,7 @@ const ReelCreatorModal = ({
   const [durations, setDurations] = useState<Record<string, number>>({});
   const [anims, setAnims] = useState<Record<string, ReelAnimation>>({});
   const [joins, setJoins] = useState<Record<string, ReelTransition>>({});
+  const [captions, setCaptions] = useState<Record<string, string>>({});
   const [liveMsg, setLiveMsg] = useState<string>("");
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const [images, setImages] = useState<HTMLImageElement[]>([]);
@@ -201,6 +204,7 @@ const ReelCreatorModal = ({
   const total = timeline.total;
   const joinList = useMemo(() => selected.slice(0, -1).map((n) => joins[n]), [selected, joins]);
   const animList = useMemo(() => selected.map((n) => anims[n]), [selected, anims]);
+  const captionList = useMemo(() => selected.map((n) => captions[n] ?? ""), [selected, captions]);
 
   const activeTrack: CatalogTrack | undefined = useMemo(
     () => catalog.find((t) => t.id === musicId),
@@ -246,6 +250,7 @@ const ReelCreatorModal = ({
     setDurations((d) => pruneKeys(d, keep));
     setAnims((a) => pruneKeys(a, keep));
     setJoins((j) => pruneKeys(j, keep));
+    setCaptions((c) => pruneKeys(c, keep));
   }, [selected]);
 
   const ANIM_CYCLE: (ReelAnimation | undefined)[] = [undefined, "none", "zoom-in", "zoom-out", "pan-left", "pan-right"];
@@ -304,6 +309,7 @@ const ReelCreatorModal = ({
     setDurations(d.durations);
     setAnims(d.anims ?? {});
     setJoins(d.joins ?? {});
+    setCaptions(d.captions ?? {});
     setTransition(d.transition);
     setAnimation(d.animation);
     setPhotoDur(d.photoDur);
@@ -341,14 +347,14 @@ const ReelCreatorModal = ({
     if (!open || suppressSaveRef.current || selected.length < REEL_MIN_PHOTOS) return;
     try {
       const d: ReelDraft = {
-        v: 1, selected, musicId, trim, volume, fadeOn, durations, anims, joins,
+        v: 1, selected, musicId, trim, volume, fadeOn, durations, anims, joins, captions,
         transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId,
       };
       localStorage.setItem(`fyndr:reel:draft:${eventId}`, JSON.stringify(d));
     } catch {
       // Quota/private mode — drafts are best-effort.
     }
-  }, [open, eventId, draft, selected, musicId, trim, volume, fadeOn, durations, anims, joins, transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId]);
+  }, [open, eventId, draft, selected, musicId, trim, volume, fadeOn, durations, anims, joins, captions, transition, animation, photoDur, transDur, ratio, filter, textStyle, templateId]);
 
   useEffect(() => {
     if (step !== "export" || images.length === 0) return;
@@ -472,10 +478,10 @@ const ReelCreatorModal = ({
     const handle = previewReel(
       canvas,
       images,
-      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds, joinTransitions: joinList, anims: animList, width: dims.w, height: dims.h, filter: filterValue, title: titleOpt, endCard }
+      { photoDuration: photoDur, transition, transitionDuration: transDur, animation, musicUrl: null, holds: timeline.holds, joinTransitions: joinList, anims: animList, captions: captionList, width: dims.w, height: dims.h, filter: filterValue, title: titleOpt, endCard }
     );
     return () => handle.stop();
-  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds, joinList, animList, dims, filterValue, titleOpt, endCard]);
+  }, [step, playing, images, photoDur, transition, transDur, clampedTrans, animation, timeline.holds, joinList, animList, captionList, dims, filterValue, titleOpt, endCard]);
 
   // Audible preview: plain element semantics (no AudioContext — the export owns
   // the single createMediaElementSource graph). Same fragment-loop as export.
@@ -560,6 +566,7 @@ const ReelCreatorModal = ({
         holds: timeline.holds,
         joinTransitions: joinList,
         anims: animList,
+        captions: captionList,
         musicUrl,
         mix: musicUrl
           ? {
@@ -776,6 +783,25 @@ const ReelCreatorModal = ({
                         FX: {anim ?? "Global"}
                       </button>
                     </div>
+                    <label htmlFor={`caption-${i}`} className="sr-only">
+                      {`Caption for ${name}`}
+                    </label>
+                    <input
+                      id={`caption-${i}`}
+                      value={captions[name] ?? ""}
+                      maxLength={80}
+                      placeholder="Add a caption…"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setCaptions((c) => {
+                          const next = { ...c };
+                          if (v === "") delete next[name];
+                          else next[name] = v;
+                          return next;
+                        });
+                      }}
+                      className="min-h-[44px] w-full rounded-lg bg-muted px-2 text-base"
+                    />
                   </div>
                 );
               })}

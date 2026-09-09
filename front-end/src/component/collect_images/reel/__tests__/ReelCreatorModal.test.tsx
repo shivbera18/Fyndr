@@ -340,4 +340,40 @@ describe("ReelCreatorModal", () => {
       })
     );
   });
+
+  it("passes per-photo captions to export positionally", async () => {
+    renderModal();
+    fireEvent.change(screen.getByLabelText("Caption for a.jpg"), { target: { value: "First light" } });
+    fireEvent.change(screen.getByLabelText("Caption for c.jpg"), { target: { value: "  " } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Preview & Export/i }));
+    const exportBtn = screen.getByRole("button", { name: /Export Reel/i });
+    await waitFor(() => expect(exportBtn).toBeEnabled());
+    fireEvent.click(exportBtn);
+    await screen.findByRole("link", { name: /Download/i });
+    const renderer = jest.requireMock("../reelRenderer") as { renderReelToFile: jest.Mock };
+    expect(renderer.renderReelToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ captions: ["First light", "", "  "] })
+    );
+  });
+
+  it("restores captions from a saved draft and tolerates drafts without them", () => {
+    localStorage.setItem(
+      "fyndr:reel:draft:evt1",
+      JSON.stringify({
+        v: 1, selected: ["a.jpg", "b.jpg"], musicId: "none", trim: null,
+        volume: 0.5, fadeOn: false, durations: {}, transition: "slide",
+        animation: "zoom-out", photoDur: 3, transDur: 1, ratio: "1:1",
+        filter: "bw", textStyle: "center", templateId: null,
+        captions: { "a.jpg": "Hello" },
+      })
+    );
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(screen.getByLabelText("Caption for a.jpg")).toHaveValue("Hello");
+    expect(screen.getByLabelText("Caption for b.jpg")).toHaveValue("");
+    localStorage.clear();
+  });
+
 });
