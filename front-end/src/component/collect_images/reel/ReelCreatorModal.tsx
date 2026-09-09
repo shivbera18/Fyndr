@@ -205,6 +205,12 @@ const ReelCreatorModal = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const customUrlRef = useRef<string | null>(null);
   const abortRef = useRef<"hidden" | "closed" | null>(null);
+  // Page back-navigation unmounts mid-export without going through the modal
+  // close handler — abort through the same flag so no phantom success toast
+  // fires after the result state is gone.
+  useEffect(() => () => {
+    if (abortRef.current === null) abortRef.current = "closed";
+  }, []);
 
   const exportSupported = useMemo(() => isReelExportSupported(), []);
   const selectedPhotos = useMemo(
@@ -1192,6 +1198,7 @@ const ReelCreatorModal = ({
               type="button"
               variant="outline"
               className="min-h-[44px]"
+              disabled={isExporting}
               onClick={() => setPlaying((p) => !p)}
             >
               {playing ? "Pause" : "Play"}
