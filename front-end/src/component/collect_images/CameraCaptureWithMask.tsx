@@ -805,6 +805,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                           state: {
                             photos: matchedPhotos.map((p) => ({ name: p.name })),
                             eventName,
+                            from: "camera",
                           },
                         });
                       }}
