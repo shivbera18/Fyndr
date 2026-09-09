@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
-import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
@@ -184,14 +183,26 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       formData.append("event_id", eventId);
       formData.append("threshold", String(overrideThreshold ?? threshold));
 
-      const response = await axios.post(`${ML_URL}/match_faces`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 30000,
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      let responseData: { matches?: MatchedPhoto[]; message?: string } | null = null;
+      try {
+        const response = await fetch(`${ML_URL}/match_faces`, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        responseData = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(responseData?.message || "Face detection failed.");
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const latencyMs = Date.now() - startTime;
-      if (response.data.matches && response.data.matches.length > 0) {
-        const matches = response.data.matches as MatchedPhoto[];
+      if (responseData && responseData.matches && responseData.matches.length > 0) {
+        const matches = responseData.matches as MatchedPhoto[];
         setMatchedPhotos(matches);
         // Reel page deep-links from a separate route: cache matched names so
         // /reel/:eventId survives navigation + refresh without refetching.
@@ -208,7 +219,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         } catch {
           // best-effort cache
         }
-        setErrorMessage(response.data.message || "No matching photos found in this event.");
+        setErrorMessage(responseData?.message || "No matching photos found in this event.");
         trackEvent(eventId, "selfie_search", { matchCount: 0, latencyMs });
       }
     } catch (error: unknown) {
@@ -220,16 +231,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         // best-effort cache
       }
       let msg = "Face detection failed. Please ensure your face is clearly visible.";
-      if (axios.isAxiosError(error)) {
-        const data = error.response?.data;
-        if (data && typeof data === "object") {
-          if ("error" in data && data.error) msg = String(data.error);
-          else if ("message" in data && data.message) msg = String(data.message);
-        } else if (error.message) {
-          msg = error.message;
-        }
-      } else if (error instanceof Error) {
-        msg = error.message;
+      if (error instanceof Error) {
+        msg = error.name === "AbortError" ? "Request timed out. Please retry." : error.message;
       }
       setErrorMessage(msg);
     } finally {

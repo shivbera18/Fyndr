@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Camera, ArrowDownToLine, ScanFace, Images, Zap, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -57,7 +57,7 @@ const DETAILS: Record<string, { title: string; body: string }> = {
 
 type Sel = { level: number; cam?: number } | null;
 
-function Packet({
+const Packet = React.memo(function Packet({
   path,
   color,
   dur,
@@ -75,9 +75,9 @@ function Packet({
       <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} />
     </circle>
   );
-}
+});
 
-export function CameraCloudFlow() {
+function CameraCloudFlowInner() {
   const reduce = useReducedMotion();
   const [sel, setSel] = useState<Sel>(null);
   const [leg, setLeg] = useState(-1); // -1 idle, 0..2 packet leg, 3 delivered
@@ -448,4 +448,6 @@ export function CameraCloudFlow() {
     </motion.div>
   );
 }
+
+export const CameraCloudFlow = React.memo(CameraCloudFlowInner);
 export default CameraCloudFlow;

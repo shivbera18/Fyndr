@@ -4,7 +4,6 @@ import { Button } from "./button";
 import { Badge } from "./badge";
 import { Check, Sparkles, ShieldCheck, Download, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import axios from "axios";
 import { toast } from "sonner";
 import { API_URL } from "../../utils/api";
 
@@ -102,19 +101,24 @@ export function PaywallModal({
         }, 800);
         return;
       }
-      const res = await axios.post(`${API_URL}/events/${eventId}/paywall/unlock`, {
-        tier: selectedTier,
-        photoName,
+      const res = await fetch(`${API_URL}/events/${eventId}/paywall/unlock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tier: selectedTier,
+          photoName,
+        }),
       });
+      const data = await res.json().catch(() => null);
 
-      if (res.data?.ok) {
+      if (res.ok && data?.ok) {
         setIsSuccess(true);
         toast.success("Payment simulated successfully! Downloads unlocked.");
         setTimeout(() => {
           onUnlockSuccess({
             tier: selectedTier,
             photoName,
-            transactionId: res.data.transactionId,
+            transactionId: data.transactionId,
           });
           onOpenChange(false);
         }, 800);

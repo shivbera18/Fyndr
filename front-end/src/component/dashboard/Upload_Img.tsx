@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import axios from "axios";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -119,20 +118,28 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     }
 
     try {
-      const res = await axios.post(`${API_URL}/photo`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setProgress(pct);
+      const uploadResult = await new Promise<{ status: number; message?: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_URL}/photo`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setProgress(Math.round((e.loaded * 100) / e.total));
           }
-        },
+        };
+        xhr.onload = () => {
+          let parsed;
+          try { parsed = JSON.parse(xhr.responseText); } catch {}
+          resolve({ status: xhr.status, message: parsed?.message });
+        };
+        xhr.onerror = () => reject(new Error("Upload failed. Please check network connection."));
+        xhr.ontimeout = () => reject(new Error("Upload timed out. Please try again."));
+        xhr.send(formData);
       });
 
-      if (res.status === 200 || res.status === 201) {
+      if (uploadResult.status === 200 || uploadResult.status === 201) {
         setUploadStatus({
           kind: "success",
-          text: `Successfully uploaded ${selectedFiles.length} photo${selectedFiles.length > 1 ? "s" : ""}. AI indexing started!`,
+          text: `Successfully uploaded ${selectedFiles.length} photo${selectedFiles.length > 1 ? "s" : ""}. AI indexing in background.`,
         });
         selectedFiles.forEach((f) => URL.revokeObjectURL(f.preview));
         setSelectedFiles([]);
@@ -140,21 +147,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           setTimeout(() => d_ref(), 1000);
         }
       } else {
-        setUploadStatus({ kind: "error", text: "Upload failed. Please try again." });
+        setUploadStatus({ kind: "error", text: uploadResult.message || "Upload failed. Please try again." });
       }
     } catch (err: unknown) {
-      let message = "Upload failed. Please check network connection.";
-      if (axios.isAxiosError(err)) {
-        const responseData = err.response?.data;
-        if (responseData && typeof responseData === "object" && "message" in responseData) {
-          message = String(responseData.message);
-        }
-      }
+      const message = err instanceof Error ? err.message : "Upload failed. Please check network connection.";
       setUploadStatus({
         kind: "error",
         text: message,
       });
-    } finally {
       setLoading(false);
     }
   };

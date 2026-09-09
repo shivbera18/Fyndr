@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 
 export interface BentoGridProps {
@@ -6,7 +6,7 @@ export interface BentoGridProps {
   children: ReactNode;
 }
 
-export function BentoGrid({ className, children }: BentoGridProps) {
+export const BentoGrid = React.memo(function BentoGrid({ className, children }: BentoGridProps) {
   return (
     <div
       className={cn(
@@ -17,7 +17,7 @@ export function BentoGrid({ className, children }: BentoGridProps) {
       {children}
     </div>
   );
-}
+});
 
 export interface BentoCardProps {
   className?: string;
@@ -29,7 +29,7 @@ export interface BentoCardProps {
   onClick?: () => void;
 }
 
-export function BentoCard({
+export const BentoCard = React.memo(function BentoCard({
   className,
   header,
   icon,
@@ -77,7 +77,7 @@ export function BentoCard({
       </div>
     </div>
   );
-}
+});
 
 export function BentoHeader({
   className,

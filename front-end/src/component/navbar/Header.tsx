@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import {
@@ -93,7 +93,7 @@ export default function Header(): React.JSX.Element {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = getNavItems(location.pathname, user);
+  const navItems = useMemo(() => getNavItems(location.pathname, user), [location.pathname, user]);
 
   useEffect(() => {
     const loadUser = () => {
@@ -109,39 +109,39 @@ export default function Header(): React.JSX.Element {
     setMobileOpen(false);
     return () => window.removeEventListener("user-updated", loadUser);
   }, [location]);
-  const logout = () => {
+  const logout = useCallback(() => {
     try {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
     } catch {}
     setUser(null);
     navigate("/login");
-  };
+  }, [navigate]);
 
-  const handleNavClick = (
-    e: React.MouseEvent<HTMLAnchorElement>,
-    item: NavItem
-  ) => {
-    if (item.external || item.link.startsWith("http")) return;
+  const handleNavClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>, item: NavItem) => {
+      if (item.external || item.link.startsWith("http")) return;
 
-    if (item.link.includes("#")) {
-      const hash = item.link.split("#")[1];
-      if (location.pathname === "/") {
-        const el = document.getElementById(hash);
-        if (el) {
-          e.preventDefault();
-          // ponytail: route through the router so location.hash stays in sync
-          // (pushState bypassed React Router — hash section never scrolled,
-          // back button broke). Home scrolls via location.hash.
-          navigate(item.link);
+      if (item.link.includes("#")) {
+        const hash = item.link.split("#")[1];
+        if (location.pathname === "/") {
+          const el = document.getElementById(hash);
+          if (el) {
+            e.preventDefault();
+            // ponytail: route through the router so location.hash stays in sync
+            // (pushState bypassed React Router — hash section never scrolled,
+            // back button broke). Home scrolls via location.hash.
+            navigate(item.link);
+          }
         }
+      } else if (item.link === "/" && location.pathname === "/") {
+        e.preventDefault();
+        navigate("/");
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
-    } else if (item.link === "/" && location.pathname === "/") {
-      e.preventDefault();
-      navigate("/");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
+    },
+    [location.pathname, navigate]
+  );
 
   return (
     <Navbar>
