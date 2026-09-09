@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import Header from "../../navbar/Header";
@@ -12,10 +12,10 @@ interface ReelPhoto {
   name: string;
   url: string;
 }
-
 interface LocationState {
   photos?: { name: string; url?: string }[];
   eventName?: string;
+  from?: string;
 }
 
 const photoUrl = (name: string): string => `${API_URL}/uploads/${encodeURIComponent(name)}`;
@@ -45,20 +45,38 @@ const ReelPage = (): React.JSX.Element => {
     return eventId ? readCachedNames(eventId) : [];
   });
 
+  const cameFromCamera = state.from === "camera";
   const backToPhotos = (): void => {
-    // Shared links / fresh tabs have no history: fall back to /camera.
-    if (typeof window !== "undefined" && window.history.length > 1) navigate(-1);
+    // -1 preserves the camera instance (matched photos stay in memory), but
+    // only when the navigation state proves we came from there — webviews and
+    // shared links can report external entries in history.length.
+    if (cameFromCamera && typeof window !== "undefined" && window.history.length > 1)
+      navigate(-1);
     else navigate("/camera", { state: eventId });
   };
+  const prevEventRef = useRef(eventId);
 
   useEffect(() => {
     if (!eventId) return;
-    try {
-      sessionStorage.setItem("fy-last-event", eventId);
-    } catch {
-      // best-effort
-    }
-    if (state.photos && state.photos.length > 0) {
+    // Same mounted route across events (/reel/evt1 -> /reel/evt2): drop the
+    // old event's photos, name, and gates before the fresh fetch lands, or
+    // guests export evt1 photos under evt2 gating.
+    if (prevEventRef.current !== eventId) {
+      prevEventRef.current = eventId;
+      setNames(
+        state.photos && state.photos.length > 0
+          ? state.photos.map((p) => p.name)
+          : readCachedNames(eventId)
+      );
+      let cachedName = "";
+      try {
+        cachedName = sessionStorage.getItem(`fy-event-name-${eventId}`) || "";
+      } catch {
+        cachedName = "";
+      }
+      setEventName(state.eventName || cachedName);
+      setPaywall(null);
+    } else if (state.photos && state.photos.length > 0) {
       setNames(state.photos.map((p) => p.name));
     }
     fetch(`${API_URL}/collect_event`, {
