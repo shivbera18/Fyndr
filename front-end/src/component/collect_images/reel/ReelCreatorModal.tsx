@@ -55,6 +55,7 @@ export interface ReelCreatorModalProps {
   photos: { name: string; url: string }[];
   isPhotoEligible?: (name: string) => boolean;
   onGatedPhoto?: () => void;
+  asPage?: boolean;
 }
 function pruneKeys<T>(m: Record<string, T>, keep: Set<string>): Record<string, T> {
   const stale = Object.keys(m).filter((k) => !keep.has(k));
@@ -132,11 +133,23 @@ const ReelCreatorModal = ({
   photos,
   isPhotoEligible,
   onGatedPhoto,
+  asPage = false,
 }: ReelCreatorModalProps): React.JSX.Element => {
   const [step, setStep] = useState<Step>("photos");
   const [selected, setSelected] = useState<string[]>(() =>
     photos.slice(0, Math.min(4, photos.length)).map((p) => p.name)
   );
+  // Photos arrive after mount (matched search / page deep link): seed the
+  // first photos per event instead of leaving a stale empty selection that
+  // renders a black preview with no way forward. Keyed by event so
+  // /reel/evt1 -> /reel/evt2 (same mounted route) reselects instead of
+  // keeping evt1 names that match nothing.
+  const seededForRef = useRef("");
+  useEffect(() => {
+    if (photos.length === 0 || seededForRef.current === eventId) return;
+    seededForRef.current = eventId;
+    setSelected(photos.slice(0, Math.min(4, photos.length)).map((p) => p.name));
+  }, [photos, eventId]);
   const [musicId, setMusicId] = useState<string>("none");
   const [customMusicUrl, setCustomMusicUrl] = useState<string | null>(null);
   const [customMusicName, setCustomMusicName] = useState<string>("");
@@ -192,6 +205,12 @@ const ReelCreatorModal = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const customUrlRef = useRef<string | null>(null);
   const abortRef = useRef<"hidden" | "closed" | null>(null);
+  // Page back-navigation unmounts mid-export without going through the modal
+  // close handler — abort through the same flag so no phantom success toast
+  // fires after the result state is gone.
+  useEffect(() => () => {
+    if (abortRef.current === null) abortRef.current = "closed";
+  }, []);
 
   const exportSupported = useMemo(() => isReelExportSupported(), []);
   const selectedPhotos = useMemo(
@@ -559,8 +578,13 @@ const ReelCreatorModal = ({
       onGatedPhoto?.();
       return;
     }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    // Export on an offscreen canvas: reusing the live preview canvas resizes
+    // it mid-playback and races the preview rAF for the same pixels, which
+    // froze or blanked the recording. Pause the preview loop (and its audio
+    // element) for the export duration — one paint loop, no doubled music.
+    const canvas = document.createElement("canvas");
+    const wasPlaying = playing;
+    setPlaying(false);
     setIsExporting(true);
     setError("");
     setMutedNotice(false);
@@ -641,6 +665,7 @@ const ReelCreatorModal = ({
     } finally {
       document.removeEventListener("visibilitychange", onHide);
       setIsExporting(false);
+      setPlaying(wasPlaying);
     }
   };
 
@@ -658,19 +683,7 @@ const ReelCreatorModal = ({
   const canNativeShare =
     typeof navigator !== "undefined" && typeof navigator.canShare === "function" && resultBlob !== null;
 
-  return (
-    <ResponsiveModal
-      open={open}
-      onOpenChange={(v) => {
-        // Closing mid-export freezes the capture canvas the same way a hidden
-        // tab does — abort through the same flag with its own toast reason.
-        if (!v && abortRef.current === null) abortRef.current = "closed";
-        onOpenChange(v);
-      }}
-      title="Create Reel"
-      description={eventName ? `Turn your matched photos from ${eventName} into a vertical video.` : "Turn your matched photos into a vertical video."}
-      className="sm:max-w-3xl"
-      footer={
+  const stepNav: React.JSX.Element = (
         <div role="navigation" aria-label="Reel steps" className="flex items-center gap-2">
           <div aria-live="polite" className="sr-only">
             {navMsg}
@@ -713,8 +726,8 @@ const ReelCreatorModal = ({
             </Button>
           )}
         </div>
-      }
-    >
+  );
+  const body: React.JSX.Element = (
       <Tabs value={step} onValueChange={(v) => setStep(v as Step)} className="pt-2">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="photos" className="min-h-[44px]">1. Photos</TabsTrigger>
@@ -1185,6 +1198,7 @@ const ReelCreatorModal = ({
               type="button"
               variant="outline"
               className="min-h-[44px]"
+              disabled={isExporting}
               onClick={() => setPlaying((p) => !p)}
             >
               {playing ? "Pause" : "Play"}
@@ -1223,6 +1237,38 @@ const ReelCreatorModal = ({
           )}
         </TabsContent>
       </Tabs>
+  );
+  if (asPage) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-4 pb-28">
+        <div className="space-y-1 pt-1">
+          <h1 className="text-xl font-bold tracking-tight">Create Reel</h1>
+          <p className="text-sm text-muted-foreground">
+            {eventName ? `Turn your matched photos from ${eventName} into a vertical video.` : "Turn your matched photos into a vertical video."}
+          </p>
+        </div>
+        {body}
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur">
+          <div className="mx-auto w-full max-w-3xl">{stepNav}</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={(v) => {
+        // Closing mid-export freezes the capture canvas the same way a hidden
+        // tab does — abort through the same flag with its own toast reason.
+        if (!v && abortRef.current === null) abortRef.current = "closed";
+        onOpenChange(v);
+      }}
+      title="Create Reel"
+      description={eventName ? `Turn your matched photos from ${eventName} into a vertical video.` : "Turn your matched photos into a vertical video."}
+      className="sm:max-w-3xl"
+      footer={stepNav}
+    >
+      {body}
     </ResponsiveModal>
   );
 };

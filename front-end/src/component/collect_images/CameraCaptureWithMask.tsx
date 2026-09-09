@@ -11,8 +11,15 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
-import ReelCreatorModal from "./reel/ReelCreatorModal";
 import { API_URL, ML_URL } from "../../utils/api";
+import {
+  gateOn,
+  getDownloadCount,
+  incrementDownloadCount,
+  isAlbumUnlocked,
+  isPhotoUnlocked,
+  leadKey,
+} from "../../utils/gates";
 import { trackEvent, getGuestSession } from "../../utils/analytics";
 import {
   buildMatchedPhotosWhatsAppText,
@@ -64,7 +71,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [eventName, setEventName] = useState<string>("");
   const [paywallConfig, setPaywallConfig] = useState<PaywallConfig | null>(null);
   const [showPaywallModal, setShowPaywallModal] = useState<boolean>(false);
-  const [showReel, setShowReel] = useState<boolean>(false);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
   const [whatsappOpened, setWhatsappOpened] = useState<boolean>(false);
 
@@ -187,15 +193,32 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
       if (response.data.matches && response.data.matches.length > 0) {
         const matches = response.data.matches as MatchedPhoto[];
         setMatchedPhotos(matches);
+        // Reel page deep-links from a separate route: cache matched names so
+        // /reel/:eventId survives navigation + refresh without refetching.
+        try {
+          if (eventId) sessionStorage.setItem(`fy-matched-${eventId}`, JSON.stringify(matches.map((m) => m.name)));
+        } catch {
+          // best-effort cache
+        }
         trackEvent(eventId, "selfie_search", { matchCount: matches.length, latencyMs });
       } else {
         setMatchedPhotos([]);
+        try {
+          if (eventId) sessionStorage.removeItem(`fy-matched-${eventId}`);
+        } catch {
+          // best-effort cache
+        }
         setErrorMessage(response.data.message || "No matching photos found in this event.");
         trackEvent(eventId, "selfie_search", { matchCount: 0, latencyMs });
       }
     } catch (error: unknown) {
       trackEvent(eventId, "selfie_search", { matchCount: 0, latencyMs: Date.now() - startTime, error: true });
       setMatchedPhotos([]);
+      try {
+        if (eventId) sessionStorage.removeItem(`fy-matched-${eventId}`);
+      } catch {
+        // best-effort cache
+      }
       let msg = "Face detection failed. Please ensure your face is clearly visible.";
       if (axios.isAxiosError(error)) {
         const data = error.response?.data;
@@ -219,6 +242,11 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     uploadedImageUrlRef.current = null;
     setImageSrc(null);
     setMatchedPhotos([]);
+    try {
+      if (eventId) sessionStorage.removeItem(`fy-matched-${eventId}`);
+    } catch {
+      // best-effort cache
+    }
     setErrorMessage("");
   };
 
@@ -267,38 +295,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     } catch {
       window.open(url, "_blank", "noopener,noreferrer");
     }
-  };
-  const leadKey = (id: string | null): string => (id ? `fy-lead-${id}` : "");
-  const gateOn = (id: string | null): boolean =>
-    !!id && sessionStorage.getItem(`fy-require-lead-${id}`) === "1" && sessionStorage.getItem(leadKey(id)) !== "1";
-
-  const isAlbumUnlocked = (id: string | null): boolean => {
-    if (!id) return false;
-    return sessionStorage.getItem(`fy-unlocked-album-${id}`) === "1";
-  };
-
-  const isPhotoUnlocked = (id: string | null, filename: string): boolean => {
-    if (!id) return false;
-    if (isAlbumUnlocked(id)) return true;
-    try {
-      const stored = sessionStorage.getItem(`fy-unlocked-photos-${id}`);
-      if (!stored) return false;
-      const list: unknown = JSON.parse(stored);
-      return Array.isArray(list) && list.includes(filename);
-    } catch {
-      return false;
-    }
-  };
-
-  const getDownloadCount = (id: string | null): number => {
-    if (!id) return 0;
-    return Number(sessionStorage.getItem(`fy-dl-count-${id}`) || "0");
-  };
-
-  const incrementDownloadCount = (id: string | null): void => {
-    if (!id) return;
-    const current = getDownloadCount(id);
-    sessionStorage.setItem(`fy-dl-count-${id}`, String(current + 1));
   };
 
   const handlePaywallUnlockSuccess = (result: { tier: "single" | "album"; photoName?: string }): void => {
@@ -418,31 +414,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     void downloadImage(url, filename);
   };
 
-  // Reel eligibility mirrors requestDownload with zero new policy: a photo can
-  // appear in an exported reel iff it could be downloaded right now.
-  const isReelPhotoEligible = (filename: string): boolean => {
-    if (paywallConfig?.enabled) {
-      if (paywallConfig.stage === "download" || paywallConfig.stage === "watermark_removal") {
-        if (!isPhotoUnlocked(eventId, filename)) return false;
-      }
-      if (paywallConfig.stage === "batch_download" && !isAlbumUnlocked(eventId)) {
-        const count = getDownloadCount(eventId);
-        if (count >= paywallConfig.freePhotoLimit && !isPhotoUnlocked(eventId, filename)) return false;
-      }
-      if (paywallConfig.stage === "entry" && !isAlbumUnlocked(eventId)) return false;
-    }
-    if (gateOn(eventId)) return false;
-    return true;
-  };
-
-  const handleReelGated = (): void => {
-    if (gateOn(eventId)) {
-      setLeadError("");
-      setShowLead(true);
-      return;
-    }
-    setShowPaywallModal(true);
-  };
   const submitLead = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!eventId || leadBusy) return;
@@ -827,7 +798,17 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                       type="button"
                       variant="brand"
                       size="sm"
-                      onClick={() => setShowReel(true)}
+                      onClick={() => {
+                        if (!eventId) return;
+                        if (eventId) trackEvent(eventId, "reel_open", { matchCount: matchedPhotos.length });
+                        navigate(`/reel/${eventId}`, {
+                          state: {
+                            photos: matchedPhotos.map((p) => ({ name: p.name })),
+                            eventName,
+                            from: "camera",
+                          },
+                        });
+                      }}
                       className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold"
                     >
                       <Clapperboard className="w-4 h-4" />
@@ -1100,18 +1081,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             onUnlockSuccess={handlePaywallUnlockSuccess}
           />
         )}
-        <ReelCreatorModal
-          open={showReel}
-          onOpenChange={setShowReel}
-          eventId={eventId ?? ""}
-          eventName={eventName}
-          photos={matchedPhotos.map((p) => ({
-            name: p.name,
-            url: `${getApiBase()}/uploads/${encodeURIComponent(p.name)}`,
-          }))}
-          isPhotoEligible={isReelPhotoEligible}
-          onGatedPhoto={handleReelGated}
-        />
       </main>
 
       <Footer />

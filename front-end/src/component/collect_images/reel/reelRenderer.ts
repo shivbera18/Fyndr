@@ -86,32 +86,50 @@ export function isReelExportSupported(): boolean {
   }
 }
 
+function loadImg(src: string, crossOrigin: string | null): Promise<HTMLImageElement> {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    if (crossOrigin !== null) el.crossOrigin = crossOrigin;
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("decode failed"));
+    el.src = src;
+  });
+}
+
 export async function loadReelImages(urls: string[]): Promise<HTMLImageElement[]> {
-  // ponytail: plain <img> + object URL keeps the declared HTMLImageElement[]
-  // type (createImageBitmap returns ImageBitmap instead) and stays CORS-clean
-  // on same-origin /uploads blobs.
+  // Fetch-first for CORS-clean pixels; direct <img> fallback keeps the
+  // preview visible when fetch is blocked (mixed content / CORS) where
+  // <img> display still works. Tainted fallback still paints + records.
   const out: HTMLImageElement[] = [];
   let failed = 0;
   for (const url of urls) {
+    let loaded: HTMLImageElement | null = null;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);
       try {
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const el = new Image();
-          el.onload = () => resolve(el);
-          el.onerror = () => reject(new Error("decode failed"));
-          el.src = objUrl;
-        });
-        out.push(img);
+        loaded = await loadImg(objUrl, null);
       } finally {
         URL.revokeObjectURL(objUrl);
       }
     } catch {
-      failed += 1;
+      loaded = null;
     }
+    if (!loaded) {
+      try {
+        loaded = await loadImg(url, "anonymous");
+      } catch {
+        try {
+          loaded = await loadImg(url, null);
+        } catch {
+          loaded = null;
+        }
+      }
+    }
+    if (loaded) out.push(loaded);
+    else failed += 1;
   }
   if (failed > 0) {
     throw new Error(
