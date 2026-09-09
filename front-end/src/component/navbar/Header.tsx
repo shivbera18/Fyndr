@@ -134,7 +134,6 @@ export default function Header(): React.JSX.Element {
           // (pushState bypassed React Router — hash section never scrolled,
           // back button broke). Home scrolls via location.hash.
           navigate(item.link);
-          el.scrollIntoView({ behavior: "smooth" });
         }
       }
     } else if (item.link === "/" && location.pathname === "/") {

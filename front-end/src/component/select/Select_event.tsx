@@ -331,12 +331,12 @@ const SelectEvent = (): React.JSX.Element => {
                     <div
                       key={photo._id}
                       className={cn(
-                        "group cv-auto relative rounded-xl overflow-hidden bg-muted border",
+                        "group cv-tile relative rounded-xl overflow-hidden bg-muted border",
                         photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
                       )}
                     >
                       <div className="aspect-square">
-                        <img src={photoUrl} alt={`Album candidate ${index + 1}`} loading="lazy" className="h-full w-full object-cover" />
+                        <img src={photoUrl} alt={`Album candidate ${index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                       </div>
                       <button
                         type="button"

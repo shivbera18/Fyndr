@@ -1334,7 +1334,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                 <div
                   key={photo._id || index}
                   className={cn(
-                    "group cv-auto relative aspect-square rounded-xl overflow-hidden bg-muted border",
+                    "group cv-tile relative aspect-square rounded-xl overflow-hidden bg-muted border",
                     photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
                   )}
                   title={photo.selectionNote ? `Client note: ${photo.selectionNote}` : undefined}

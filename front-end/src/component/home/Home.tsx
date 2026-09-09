@@ -454,7 +454,7 @@ function DemoPanel({ step }: { step: DemoStep }) {
       </div>
       <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-        {DEMO_PHOTOS.map((p) => (
+        {DEMO_PHOTOS.map((p, i) => (
           <img
             key={p.src}
             src={p.src}
@@ -463,6 +463,16 @@ function DemoPanel({ step }: { step: DemoStep }) {
             decoding="async"
             width={330}
             height={330}
+            // ponytail: local-only fallback — a missing /demo asset swaps to
+            // the next vendored shot instead of a broken-image icon (review).
+            onError={(e) => {
+              const el = e.currentTarget;
+              const fb = DEMO_PHOTOS[(i + 1) % DEMO_PHOTOS.length].src;
+              if (!el.dataset.fallback) {
+                el.dataset.fallback = "1";
+                el.src = fb;
+              }
+            }}
             className="aspect-square w-full rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover bg-muted"
           />
         ))}

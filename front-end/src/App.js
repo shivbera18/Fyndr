@@ -41,6 +41,28 @@ function RouteFallback() {
     </div>
   );
 }
+
+// Minimal chunk-failure recovery: a stale PWA chunk after deploy would
+// otherwise hang on "Loading…" forever (review: PerfReviewer).
+class RouteErrorBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-sm text-muted-foreground" role="alert">
+          <p>This page failed to load. A new version may be available.</p>
+          <button type="button" onClick={() => window.location.reload()} className="rounded-full bg-primary px-5 py-2 font-semibold text-primary-foreground min-h-[44px]">
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 function App() {
   useEffect(() => {
     let reloading = false;
@@ -92,6 +114,7 @@ function App() {
         <PWAOfflineIndicator />
         <PWAInstallBanner />
 
+        <RouteErrorBoundary>
         <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path='/' element={<Home />} />
@@ -113,6 +136,7 @@ function App() {
           <Route path='/about' element={<About />} />
         </Routes>
         </Suspense>
+        </RouteErrorBoundary>
 
       </BrowserRouter>
       </ThemeProvider>

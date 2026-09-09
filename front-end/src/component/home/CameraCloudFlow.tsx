@@ -102,7 +102,9 @@ export function CameraCloudFlow() {
     if (leg !== -1) return;
     if (reduce) {
       setShots((n) => n + 1);
-      setTiles((t) => [(t[0] + 4) % 12, ...t].slice(0, 4));
+      // ponytail: rotate the 4 local tiles — the old (t[0]+4)%12 seed math
+      // collapses mod-4 to duplicates (review: PerfReviewer).
+      setTiles((t) => [t[t.length - 1], ...t.slice(0, 3)]);
       setStatus("Shot delivered · 226 Transfer complete · live in the gallery.");
       return;
     }
@@ -124,7 +126,7 @@ export function CameraCloudFlow() {
     timers.current.push(
       window.setTimeout(() => {
         setShots((n) => n + 1);
-        setTiles((t) => [(t[0] + 4) % 12, ...t].slice(0, 4));
+        setTiles((t) => [t[t.length - 1], ...t.slice(0, 3)]);
         setStatus("Shot delivered · 226 Transfer complete · live in the gallery.");
         setLeg(3);
       }, 1650)
