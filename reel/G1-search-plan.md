@@ -6,13 +6,18 @@ track-loader, or renderer changes.
 
 ## UI
 
-- Sticky search row under the `Music` heading: native `<input type="search">`,
+- Sticky search row under the `Music` heading (`sticky top-0 z-10 bg-background
+  -pb-2` so catalog rows never bleed through): native `<input type="search">`,
   `min-h-[44px]`, `text-base` (16px blocks iOS focus-zoom), no autofocus,
-  associated `<label>` (sr-only ok), clears via native cancel + explicit reset.
+  associated `<label>` (sr-only ok). `onKeyDown` intercepts Escape:
+  `stopPropagation` + clear query — Escape must never bubble to the Radix/Vaul
+  root and dismiss the modal. Native cancel is pointer-only, so keyboard users
+  get parity via the Clear control below.
 - Mood chips row: `All` + union of `mood[]` across cataloged tracks (order of
-  first appearance), horizontal snap-scroll, `min-h-[44px]`, `aria-pressed`.
-  Chips render only when ≥1 track carries a mood (empty catalog → no chips).
-- Result count `aria-live="polite"` (`"3 of 12 tracks"`), updates on query/chip.
+  first appearance), horizontal snap-scroll (`overflow-x-auto`,
+  `data-vaul-no-drag` so diagonal swipes don't pull-to-dismiss the Drawer),
+  every chip `min-h-[44px] min-w-[44px] px-3`, `aria-pressed`. Chips render
+  only when ≥1 track carries a mood (empty catalog → no chips).
 
 ## Filtering rules
 
@@ -26,9 +31,9 @@ track-loader, or renderer changes.
 - Selection is modal-owned and untouched: a selected track filtered out of view
   stays selected; returning the filter restores its highlighted row. No prop
   changes on `MusicPicker`.
-- Empty result: `"No tracks match — "` + `Clear search` button resetting query
-  and chip to `All`. Active inline preview keeps playing; filtering never pauses
-  `audioRef` or touches `playingId`.
+- Empty result: `"No tracks match — "` + `Clear search` button (`min-h-[44px] px-3`)
+  resetting query and chip to `All`. Active inline preview keeps playing; filtering
+  never pauses `audioRef` or touches `playingId`.
 
 ## State
 
