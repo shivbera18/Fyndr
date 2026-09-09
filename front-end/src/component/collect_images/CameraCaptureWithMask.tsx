@@ -12,6 +12,14 @@ import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
 import { API_URL, ML_URL } from "../../utils/api";
+import {
+  gateOn,
+  getDownloadCount,
+  incrementDownloadCount,
+  isAlbumUnlocked,
+  isPhotoUnlocked,
+  leadKey,
+} from "../../utils/gates";
 import { trackEvent, getGuestSession } from "../../utils/analytics";
 import {
   buildMatchedPhotosWhatsAppText,
@@ -287,38 +295,6 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     } catch {
       window.open(url, "_blank", "noopener,noreferrer");
     }
-  };
-  const leadKey = (id: string | null): string => (id ? `fy-lead-${id}` : "");
-  const gateOn = (id: string | null): boolean =>
-    !!id && sessionStorage.getItem(`fy-require-lead-${id}`) === "1" && sessionStorage.getItem(leadKey(id)) !== "1";
-
-  const isAlbumUnlocked = (id: string | null): boolean => {
-    if (!id) return false;
-    return sessionStorage.getItem(`fy-unlocked-album-${id}`) === "1";
-  };
-
-  const isPhotoUnlocked = (id: string | null, filename: string): boolean => {
-    if (!id) return false;
-    if (isAlbumUnlocked(id)) return true;
-    try {
-      const stored = sessionStorage.getItem(`fy-unlocked-photos-${id}`);
-      if (!stored) return false;
-      const list: unknown = JSON.parse(stored);
-      return Array.isArray(list) && list.includes(filename);
-    } catch {
-      return false;
-    }
-  };
-
-  const getDownloadCount = (id: string | null): number => {
-    if (!id) return 0;
-    return Number(sessionStorage.getItem(`fy-dl-count-${id}`) || "0");
-  };
-
-  const incrementDownloadCount = (id: string | null): void => {
-    if (!id) return;
-    const current = getDownloadCount(id);
-    sessionStorage.setItem(`fy-dl-count-${id}`, String(current + 1));
   };
 
   const handlePaywallUnlockSuccess = (result: { tier: "single" | "album"; photoName?: string }): void => {
