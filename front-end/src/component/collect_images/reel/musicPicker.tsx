@@ -75,16 +75,34 @@ export function parseAudiusTracks(data: unknown, host: string = AUDIUS_HOSTS[0])
 export async function searchAudius(query: string, signal: AbortSignal): Promise<FreeTrack[]> {
   let lastErr: unknown = null;
   for (const host of AUDIUS_HOSTS) {
+    if (signal.aborted) throw signal.reason;
+    // Per-attempt timeout: one hung host must not stall the search, and the
+    // caller's abort relays through to stop burning hosts on unmount.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const relay = (): void => ctrl.abort();
+    signal.addEventListener("abort", relay, { once: true });
     try {
       const res = await fetch(
         `${host}/v1/tracks/search?query=${encodeURIComponent(query)}&limit=12&app_name=${AUDIUS_APP}`,
-        { headers: { Accept: "application/json" }, signal }
+        { headers: { Accept: "application/json" }, signal: ctrl.signal }
       );
-      if (!res.ok) throw new Error(`Free-music search failed (${res.status}).`);
+      // 429/5xx may clear on another host; other 4xx are deterministic — stop.
+      if (res.status === 429 || res.status >= 500) {
+        lastErr = new Error(`Free-music search failed (${res.status}).`);
+        continue;
+      }
+      if (!res.ok) {
+        lastErr = new Error(`Free-music search failed (${res.status}).`);
+        break;
+      }
       return parseAudiusTracks(await res.json(), host);
     } catch (e: unknown) {
       if (signal.aborted) throw e;
       lastErr = e;
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", relay);
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("Free-music search failed.");

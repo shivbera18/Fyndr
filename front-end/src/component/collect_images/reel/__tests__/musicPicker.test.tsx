@@ -300,4 +300,17 @@ describe("free tab", () => {
     expect(calls[1]).toContain("discoveryprovider2");
     expect(await screen.findByText(/No free tracks found/)).toBeInTheDocument();
   });
+
+  it("does not retry deterministic errors", async () => {
+    let calls = 0;
+    global.fetch = jest.fn(async () => {
+      calls += 1;
+      return { ok: false, status: 400, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote: jest.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Free music" }));
+    fireEvent.change(screen.getByLabelText("Search free music"), { target: { value: "quiet piano" } });
+    expect(await screen.findByText(/Free-music search failed \(400\)/)).toBeInTheDocument();
+    expect(calls).toBe(1);
+  });
 });
