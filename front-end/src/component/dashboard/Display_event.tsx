@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -23,11 +23,90 @@ type Props = {
 
 const PLACEHOLDER =
   "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='100%25' height='100%25' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' fill='%236b7280' font-family='sans-serif' font-size='24' text-anchor='middle' dy='.35em'%3EEvent%3C/text%3E%3C/svg%3E";
+type EventCardProps = {
+  event: EventItem;
+  index: number;
+  onOpen: (event: EventItem) => void;
+};
+
+const EventCard = React.memo(function EventCard({
+  event,
+  index,
+  onOpen,
+}: EventCardProps) {
+  const coverUrl = event.event_photo
+    ? `${API_URL}/event_profile/${event.event_photo}`
+    : "/images/wedding.jpg";
+
+  const handleClick = useCallback(() => {
+    onOpen(event);
+  }, [onOpen, event]);
+
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const t = e.target as HTMLImageElement;
+    t.onerror = null;
+    t.src = PLACEHOLDER;
+  }, []);
+
+  return (
+    <Card key={event._id || index} className="cv-auto overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+      <div className="relative aspect-[16/9] w-full bg-muted overflow-hidden">
+        <img
+          src={coverUrl}
+          alt={event.event_name}
+          loading="lazy"
+          decoding="async"
+          onError={handleImgError}
+          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+        />
+      </div>
+
+      <CardContent className="p-5 flex flex-col justify-between flex-1 space-y-4">
+        <div>
+          <h3 className="font-semibold text-lg line-clamp-1 text-foreground">
+            {event.event_name}
+          </h3>
+          <div className="flex items-center justify-between mt-2">
+            <Badge variant="outline" className="font-mono text-xs">
+              PIN: {event.pin || "123456"}
+            </Badge>
+            <span className="text-xs text-muted-foreground font-mono">
+              ID: {(event._id || "").slice(-6)}
+            </span>
+          </div>
+        </div>
+
+        <Button
+          className="w-full min-h-[44px]"
+          onClick={handleClick}
+        >
+          Open album &amp; upload →
+        </Button>
+      </CardContent>
+    </Card>
+  );
+});
+
 export default function Display_event({ refresh, onclick }: Props): React.JSX.Element {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ownerId, setOwnerId] = useState("");
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
+  const handleOpenEvent = useCallback(
+    (event: EventItem) => {
+      onclick(
+        event._id,
+        event.event_name,
+        event.pin || "123456",
+        ownerId,
+        event.folders || [{ name: "General" }],
+        event.selectionLimit || 0,
+        event.selectionLocked || false
+      );
+    },
+    [onclick, ownerId]
+  );
+
 
   const fetchEvents = async () => {
     const userString = localStorage.getItem("user");
@@ -109,52 +188,14 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event, index) => {
-          const coverUrl = event.event_photo
-            ? `${API_URL}/event_profile/${event.event_photo}`
-            : "/images/wedding.jpg";
-          return (
-            <Card key={event._id || index} className="cv-auto overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-              <div className="relative aspect-[16/9] w-full bg-muted overflow-hidden">
-                <img
-                  src={coverUrl}
-                  alt={event.event_name}
-                  loading="lazy"
-                  decoding="async"
-                  onError={(e) => {
-                    const t = e.target as HTMLImageElement;
-                    t.onerror = null;
-                    t.src = PLACEHOLDER;
-                  }}
-                  className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                />
-              </div>
-
-              <CardContent className="p-5 flex flex-col justify-between flex-1 space-y-4">
-                <div>
-                  <h3 className="font-semibold text-lg line-clamp-1 text-foreground">
-                    {event.event_name}
-                  </h3>
-                  <div className="flex items-center justify-between mt-2">
-                    <Badge variant="outline" className="font-mono text-xs">
-                      PIN: {event.pin || "123456"}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      ID: {(event._id || "").slice(-6)}
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full min-h-[44px]"
-                  onClick={() => onclick(event._id, event.event_name, event.pin || "123456", ownerId, event.folders || [], event.selectionLimit || 0, event.selectionLocked || false)}
-                >
-                  Open album &amp; upload →
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {events.map((event, index) => (
+          <EventCard
+            key={event._id || index}
+            event={event}
+            index={index}
+            onOpen={handleOpenEvent}
+          />
+        ))}
       </div>
     </div>
   );

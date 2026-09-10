@@ -8,14 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "./drawer";
 import { cn } from "../../lib/utils";
+// ponytail: vaul (~35KB) splits into its own chunk, fetched only when a
+// mobile drawer actually opens.
+const MobileDrawer = React.lazy(() => import("./drawer-lazy"));
 
 export interface ResponsiveModalProps {
   open: boolean;
@@ -41,24 +37,18 @@ export function ResponsiveModal({
 
   if (isMobile && !desktopOnly) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent
-          className={cn("px-4 pb-6", className)}
-          footer={
-            footer && (
-              <div className="border-t border-border bg-background px-4 pt-2 pb-2">{footer}</div>
-            )
-          }
+      <React.Suspense fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>}>
+        <MobileDrawer
+          open={open}
+          onOpenChange={onOpenChange}
+          className={className}
+          title={title}
+          description={description}
+          footer={footer}
         >
-          {(title || description) && (
-            <DrawerHeader className="text-left px-0 pb-3">
-              {title && <DrawerTitle>{title}</DrawerTitle>}
-              {description && <DrawerDescription>{description}</DrawerDescription>}
-            </DrawerHeader>
-          )}
           {children}
-        </DrawerContent>
-      </Drawer>
+        </MobileDrawer>
+      </React.Suspense>
     );
   }
 

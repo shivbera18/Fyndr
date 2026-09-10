@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import Header from "../navbar/Header";
@@ -45,6 +45,7 @@ export default function Dashboard(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<TabId>("events");
   const [selectedEvent, setSelectedEvent] = useState<SelectedEvent | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [, startTabTransition] = useTransition();
 
   // Create Event Form State
   const [eventName, setEventName] = useState("");
@@ -83,8 +84,10 @@ export default function Dashboard(): React.JSX.Element {
   };
 
   const handleTabChange = (id: TabId) => {
-    setActiveTab(id);
-    setCreateError("");
+    startTabTransition(() => {
+      setActiveTab(id);
+      setCreateError("");
+    });
   };
 
   const handleCreateEvent = async (e: React.FormEvent) => {

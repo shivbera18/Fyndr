@@ -1,9 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import UploadImg from "./Upload_Img";
-import Qrcode from "./Qrcode";
-import { QRCodeCanvas } from "qrcode.react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -33,6 +31,9 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+// ponytail: qrcode.react (~14KB) splits out — fetched only when QR UI opens.
+const Qrcode = React.lazy(() => import("./Qrcode"));
+const StandeeQr = React.lazy(() => import("./qr-standee"));
 type Photo = {
   _id: string;
   name: string;
@@ -62,6 +63,110 @@ type InEventProps = {
 };
 
 const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initialLimit, initialLocked, setRefresh }: InEventProps): React.JSX.Element => {
+type InEventPhotoCardProps = {
+  photo: Photo;
+  index: number;
+  photoUrl: string;
+  wmOn: boolean;
+  watermarkText: string;
+  onPreview: (preview: Preview) => void;
+  onDownload: (url: string, name: string) => void;
+  onDelete: (id: string) => void;
+  onImgError: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+};
+
+const InEventPhotoCard = React.memo(function InEventPhotoCard({
+  photo,
+  index,
+  photoUrl,
+  wmOn,
+  watermarkText,
+  onPreview,
+  onDownload,
+  onDelete,
+  onImgError,
+}: InEventPhotoCardProps) {
+  const handlePreviewClick = useCallback(() => {
+    onPreview({
+      url: photoUrl,
+      name: photo.name,
+      index: index + 1,
+      createdAt: photo.createdAt,
+    });
+  }, [onPreview, photoUrl, photo.name, index, photo.createdAt]);
+
+  const handleDownloadClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onDownload(photoUrl, photo.name);
+    },
+    [onDownload, photoUrl, photo.name]
+  );
+
+  const handleDeleteClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onDelete(photo._id);
+    },
+    [onDelete, photo._id]
+  );
+
+  return (
+    <div
+      className={cn(
+        "group cv-tile relative aspect-square rounded-xl overflow-hidden bg-muted border",
+        photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
+      )}
+      title={photo.selectionNote ? `Client note: ${photo.selectionNote}` : undefined}
+    >
+      {photo.isSelected ? (
+        <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground shadow-sm">
+          <Heart className="h-3 w-3 fill-current" /> Picked
+        </span>
+      ) : null}
+      <img
+        src={photoUrl}
+        alt={`Event item ${index + 1}`}
+        onError={onImgError}
+        loading="lazy"
+        decoding="async"
+        onClick={handlePreviewClick}
+        className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
+      />
+      {wmOn ? (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+          <span className="-rotate-[30deg] whitespace-nowrap text-lg font-bold text-white/25 select-none">
+            {watermarkText} • {watermarkText}
+          </span>
+        </span>
+      ) : null}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2.5 flex items-center justify-between pointer-events-auto">
+        <span className="text-xs font-mono text-white/90">#{index + 1}</span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleDownloadClick}
+            className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
+            title="Download photo"
+            aria-label="Download photo"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center transition-colors"
+            title="Delete photo"
+            aria-label="Delete photo"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
   const navigate = useNavigate();
   const [images, setImages] = useState<Photo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -103,6 +208,76 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const [pinFeedback, setPinFeedback] = useState<string>("");
   // ponytail: cap initial grid render — 5k-photo events rendered every card at once.
   const [visibleCount, setVisibleCount] = useState<number>(60);
+
+  const [, startFolderTransition] = useTransition();
+
+  const handleFolderChange = useCallback((folder: string) => {
+    startFolderTransition(() => {
+      setActiveFolder(folder);
+    });
+  }, []);
+
+  const handlePickedOnlyToggle = useCallback(() => {
+    startFolderTransition(() => {
+      setShowPickedOnly((v) => !v);
+    });
+  }, []);
+
+  const downloadImage = useCallback(async (url: string, filename: string): Promise<void> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename || "photo.jpg";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    },
+    []
+  );
+
+  const handleDeletePhoto = useCallback(
+    async (photoId: string): Promise<void> => {
+      try {
+        const res = await fetch(`${getApiBase()}/delete-img`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ _id: photoId, photo_id: photoId, event_id: eventID }),
+        });
+        if (res.ok) {
+          setImages((prev) => prev.filter((p) => p._id !== photoId));
+        }
+      } catch {}
+    },
+    [eventID]
+  );
+
+  const handlePreview = useCallback((preview: Preview) => {
+    setIsZoomed(false);
+    setPreviewImage(preview);
+  }, []);
+
+  const handleDownload = useCallback(
+    (url: string, filename: string) => {
+      void downloadImage(url, filename);
+    },
+    [downloadImage]
+  );
+
+  const handleDelete = useCallback(
+    (photoId: string) => {
+      void handleDeletePhoto(photoId);
+    },
+    [handleDeletePhoto]
+  );
+
+  const watermarkText = useMemo(() => studioName.trim() || name, [studioName, name]);
 
   const handleUpdatePin = async (newPinValue: string) => {
     setSavingPin(true);
@@ -208,22 +383,6 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
   const getApiBase = (): string => API_URL;
 
-  const downloadImage = async (url: string, filename: string): Promise<void> => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = filename || "photo.jpg";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  };
 
   const guestUrl = `${window.location.origin}/collect/${eventID}`;
 
@@ -268,19 +427,6 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         setShowDeleteModal(false);
         if (setRefresh) setRefresh((prev) => prev + 1);
         backbtn();
-      }
-    } catch {}
-  };
-
-  const handleDeletePhoto = async (photoId: string): Promise<void> => {
-    try {
-      const res = await fetch(`${getApiBase()}/delete-img`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: photoId, photo_id: photoId, event_id: eventID }),
-      });
-      if (res.ok) {
-        setImages((prev) => prev.filter((p) => p._id !== photoId));
       }
     } catch {}
   };
@@ -628,23 +774,26 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
     } catch {}
   };
 
-  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>): void => {
     const t = e.target as HTMLImageElement;
     t.onerror = null;
     t.src = fallbackPlaceholder;
-  };
+  }, []);
 
   const inFolder = (p: Photo, folder: string): boolean =>
     folder === "All" || (p.folder_name || "General") === folder;
-  const visibleImages = images.filter((p) => inFolder(p, activeFolder) && (!showPickedOnly || p.isSelected));
-  const shownImages = visibleImages.slice(0, visibleCount);
+  const visibleImages = useMemo(
+    () => images.filter((p) => inFolder(p, activeFolder) && (!showPickedOnly || p.isSelected)),
+    [images, activeFolder, showPickedOnly]
+  );
+  const shownImages = useMemo(() => visibleImages.slice(0, visibleCount), [visibleImages, visibleCount]);
 
   return (
     <div className="space-y-8">
       {/* Hidden high-res QR pixel source for the printable standee */}
-      <div id="fyndr-standee-qr" aria-hidden="true" style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
-        <QRCodeCanvas value={guestUrl} size={512} level="H" includeMargin bgColor="#FFFFFF" fgColor="#121212" />
-      </div>
+      <React.Suspense fallback={null}>
+        <StandeeQr value={guestUrl} />
+      </React.Suspense>
       {/* Header bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-border">
         <div>
@@ -842,8 +991,7 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                   key={folderTab}
                   type="button"
                   variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActiveFolder(folderTab)}
+                  onClick={() => handleFolderChange(folderTab)}
                   aria-pressed={isActive}
                   className="min-h-[44px]"
                 >
@@ -1183,7 +1331,6 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
                 className="w-full min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
               />
             </div>
-
             <div className="space-y-1.5">
               <label htmlFor="fy-pw-album" className="text-xs font-semibold text-foreground">
                 Full Album Pass Price
@@ -1285,9 +1432,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={showPickedOnly ? "default" : "outline"}
-              size="sm"
+              onClick={handlePickedOnlyToggle}
               aria-pressed={showPickedOnly}
-              onClick={() => setShowPickedOnly((v) => !v)}
               className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs sm:text-sm"
             >
               <Heart className="h-3.5 w-3.5 fill-current" />
@@ -1339,78 +1485,20 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         ) : (
             <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {shownImages.map((photo, index) => {
-              const photoUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
-              return (
-                <div
-                  key={photo._id || index}
-                  className={cn(
-                    "group cv-tile relative aspect-square rounded-xl overflow-hidden bg-muted border",
-                    photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
-                  )}
-                  title={photo.selectionNote ? `Client note: ${photo.selectionNote}` : undefined}
-                >
-                  {photo.isSelected ? (
-                    <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow">
-                      <Heart className="h-3 w-3 fill-current" /> Picked
-                    </span>
-                  ) : null}
-                  <img
-                    src={photoUrl}
-                    alt={`Event item ${index + 1}`}
-                    onError={handleImgError}
-                    loading="lazy"
-                    decoding="async"
-                    onClick={() => {
-                      setIsZoomed(false);
-                      setPreviewImage({
-                        url: photoUrl,
-                        name: photo.name,
-                        index: index + 1,
-                        createdAt: photo.createdAt,
-                      });
-                    }}
-                    className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                  />
-                  {wmOn ? (
-                    <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
-                      <span className="-rotate-[30deg] whitespace-nowrap text-lg font-bold text-white/25 select-none">
-                        {studioName.trim() || name} • {studioName.trim() || name}
-                      </span>
-                    </span>
-                  ) : null}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 flex items-center justify-between opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    <span className="text-xs font-mono text-white/90">#{index + 1}</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadImage(photoUrl, photo.name);
-                        }}
-                        className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
-                        title="Download photo"
-                        aria-label="Download photo"
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePhoto(photo._id);
-                        }}
-                        className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center transition-colors"
-                        title="Delete photo"
-                        aria-label="Delete photo"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {shownImages.map((photo, index) => (
+              <InEventPhotoCard
+                key={photo._id || index}
+                photo={photo}
+                index={index}
+                photoUrl={`${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`}
+                wmOn={wmOn}
+                watermarkText={watermarkText}
+                onPreview={handlePreview}
+                onDownload={handleDownload}
+                onDelete={handleDelete}
+                onImgError={handleImgError}
+              />
+            ))}
           </div>
             {visibleImages.length > shownImages.length && (
               <div className="flex justify-center pt-2">
@@ -1469,7 +1557,9 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         description="Share this code with guests to access the photo search."
       >
         <div className="pt-2">
-          <Qrcode url={guestUrl} eventName={name} />
+          <React.Suspense fallback={null}>
+            <Qrcode url={guestUrl} eventName={name} />
+          </React.Suspense>
         </div>
       </ResponsiveModal>
 

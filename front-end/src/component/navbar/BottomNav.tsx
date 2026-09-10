@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Calendar, PlusCircle, BarChart3, Sliders, User } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { name: "Account", link: "/account", icon: User },
 ];
 
-export default function BottomNav(): React.JSX.Element | null {
+function BottomNav(): React.JSX.Element | null {
   const location = useLocation();
   const [user, setUser] = useState<SessionUser | null>(null);
 
@@ -29,12 +29,15 @@ export default function BottomNav(): React.JSX.Element | null {
     }
   }, [location]);
   // Only render bottom nav bar on dashboard/photographer routes for logged-in users
-  const isDashboardRoute =
-    location.pathname === "/dashboard" ||
-    location.pathname === "/events" ||
-    location.pathname === "/create-event" ||
-    location.pathname === "/analytics" ||
-    location.pathname === "/settings";
+  const isDashboardRoute = useMemo(
+    () =>
+      location.pathname === "/dashboard" ||
+      location.pathname === "/events" ||
+      location.pathname === "/create-event" ||
+      location.pathname === "/analytics" ||
+      location.pathname === "/settings",
+    [location.pathname]
+  );
 
   if (!user || !isDashboardRoute) return null;
 
@@ -70,3 +73,5 @@ export default function BottomNav(): React.JSX.Element | null {
     </nav>
   );
 }
+
+export default React.memo(BottomNav);

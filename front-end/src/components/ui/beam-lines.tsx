@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import React, { useId, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Upload, ScanFace, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -51,7 +51,7 @@ const DEFAULT_HUB: BeamHub = {
   sub: "Instant Delivery",
   pill: "100% Private · Zero App Needed",
 };
-export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOURCES, hub = DEFAULT_HUB }: BeamLinesProps) {
+function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCES, hub = DEFAULT_HUB }: BeamLinesProps) {
   const id = useId().replace(/:/g, "-");
   const reduce = useReducedMotion();
   // ponytail: infinite gradient loops pause for reduced-motion users (static beam).
@@ -223,4 +223,5 @@ export function BeamLines({ className, showLabels = true, sources = DEFAULT_SOUR
     </div>
   );
 }
+export const BeamLines = React.memo(BeamLinesInner);
 export default BeamLines;

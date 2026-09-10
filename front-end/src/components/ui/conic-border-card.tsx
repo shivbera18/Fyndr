@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 
 export interface ConicBorderCardProps {
@@ -10,7 +10,7 @@ export interface ConicBorderCardProps {
   badge?: ReactNode;
 }
 
-export function ConicBorderCard({
+function ConicBorderCardInner({
   children,
   className,
   containerClassName,
@@ -69,5 +69,5 @@ export function ConicBorderCard({
     </div>
   );
 }
-
+export const ConicBorderCard = React.memo(ConicBorderCardInner);
 export default ConicBorderCard;

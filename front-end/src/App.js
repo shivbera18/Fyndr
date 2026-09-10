@@ -11,7 +11,7 @@ import { PWAInstallBanner, PWAOfflineIndicator } from './components/pwa';
 // dashboard/camera/analytics JS. Add new pages as lazy() here, never eager.
 const Home = lazy(() => import('./component/home/Home'));
 const About = lazy(() => import('./component/About'));
-const LoginRegister = lazy(() => import('./component/login/Login_Register'));
+const LoginRegister = lazy(() => import(/* webpackPrefetch: true */ './component/login/Login_Register'));
 const EmailVerified = lazy(() => import('./component/login/EmailVerify'));
 const ConfirmVerify = lazy(() => import('./component/login/ConfirmVerify'));
 const ForgetPass = lazy(() => import('./component/login/ForgetPass'));

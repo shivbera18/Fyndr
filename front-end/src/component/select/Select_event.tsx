@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useParams } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
@@ -29,6 +29,81 @@ type SelectEventData = {
   folders: { name: string }[];
 };
 
+type SelectPhotoCardProps = {
+  photo: SelectPhoto;
+  index: number;
+  photoUrl: string;
+  locked: boolean;
+  isPending: boolean;
+  onToggleSelect: (photoId: string) => void;
+  onSaveNote: (photoId: string, note: string) => void;
+};
+
+const SelectPhotoCard = React.memo(function SelectPhotoCard({
+  photo,
+  index,
+  photoUrl,
+  locked,
+  isPending,
+  onToggleSelect,
+  onSaveNote,
+}: SelectPhotoCardProps) {
+  const handleToggleClick = useCallback(() => {
+    onToggleSelect(photo._id);
+  }, [onToggleSelect, photo._id]);
+
+  const handleNoteBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      onSaveNote(photo._id, e.target.value);
+    },
+    [onSaveNote, photo._id]
+  );
+
+  const handleNoteKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+  }, []);
+
+  return (
+    <div
+      key={photo._id}
+      className={cn(
+        "group cv-tile relative rounded-xl overflow-hidden bg-muted border",
+        photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
+      )}
+    >
+      <div className="aspect-square">
+        <img src={photoUrl} alt={`Album candidate ${index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+      </div>
+      <button
+        type="button"
+        onClick={handleToggleClick}
+        disabled={locked || isPending}
+        aria-pressed={photo.isSelected}
+        aria-label={photo.isSelected ? "Unselect photo" : "Select photo"}
+        className={cn(
+          "absolute top-2 right-2 h-11 w-11 min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center transition-colors shadow-sm",
+          photo.isSelected ? "bg-primary text-primary-foreground" : "bg-black/50 text-white hover:bg-black/70"
+        )}
+      >
+        <Heart className={cn("h-5 w-5", photo.isSelected && "fill-current")} />
+      </button>
+      {photo.isSelected && !locked ? (
+        <input
+          defaultValue={photo.selectionNote || ""}
+          placeholder="Note for photographer…"
+          aria-label="Retouch note for photographer"
+          maxLength={500}
+          disabled={isPending}
+          title={isPending ? "Saving…" : undefined}
+          onBlur={handleNoteBlur}
+          onKeyDown={handleNoteKeyDown}
+          className="w-full px-3 py-2.5 min-h-[44px] text-xs bg-background border-t border-border outline-none focus:ring-1 focus:ring-primary font-sans text-foreground placeholder:text-muted-foreground"
+        />
+      ) : null}
+    </div>
+  );
+});
+
 const SelectEvent = (): React.JSX.Element => {
   const { eventId } = useParams<{ eventId: string }>();
   const [eventData, setEventData] = useState<SelectEventData | null>(null);
@@ -44,6 +119,20 @@ const SelectEvent = (): React.JSX.Element => {
   const confirmTimer = useRef<number | undefined>(undefined);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
   // ponytail: cap initial grid render — large albums rendered every card at once.
+  const [, startFilterTransition] = useTransition();
+
+  const handleFolderChange = useCallback((folder: string) => {
+    startFilterTransition(() => {
+      setActiveFolder(folder);
+    });
+  }, []);
+
+  const handleSelectedOnlyToggle = useCallback(() => {
+    startFilterTransition(() => {
+      setSelectedOnly((v) => !v);
+    });
+  }, []);
+
   const [visibleCount, setVisibleCount] = useState<number>(60);
   // Fresh mirror: onBlur/toggle closures read current picks, never a stale render snapshot
   const photosRef = useRef<SelectPhoto[]>([]);
@@ -101,8 +190,7 @@ const SelectEvent = (): React.JSX.Element => {
       setLoading(false);
     }
   };
-
-  const toggleSelect = async (photoId: string): Promise<void> => {
+  const toggleSelect = useCallback(async (photoId: string): Promise<void> => {
     if (locked || !eventId || pendingIds.has(photoId)) return;
     const current = photosRef.current.find((p) => p._id === photoId);
     if (!current) return;
@@ -138,9 +226,9 @@ const SelectEvent = (): React.JSX.Element => {
         return copy;
       });
     }
-  };
+  }, [locked, eventId, pendingIds, pin, limit]);
 
-  const saveNote = async (photoId: string, noteText: string): Promise<void> => {
+  const saveNote = useCallback(async (photoId: string, noteText: string): Promise<void> => {
     if (locked || !eventId || pendingIds.has(photoId)) return;
     const current = photosRef.current.find((p) => p._id === photoId);
     if (!current) return;
@@ -164,7 +252,7 @@ const SelectEvent = (): React.JSX.Element => {
         return copy;
       });
     }
-  };
+  }, [locked, eventId, pendingIds, pin]);
 
   const lockSelection = async (): Promise<void> => {
     if (locked || !eventId || locking) return;
@@ -195,12 +283,16 @@ const SelectEvent = (): React.JSX.Element => {
     }
   };
 
-  const visible = photos.filter((p) => {
-    if (selectedOnly && !p.isSelected) return false;
-    if (activeFolder !== "All" && (p.folder_name || "General") !== activeFolder) return false;
-    return true;
-  });
-  const shown = visible.slice(0, visibleCount);
+  const visible = useMemo(
+    () =>
+      photos.filter((p) => {
+        if (selectedOnly && !p.isSelected) return false;
+        if (activeFolder !== "All" && (p.folder_name || "General") !== activeFolder) return false;
+        return true;
+      }),
+    [photos, selectedOnly, activeFolder]
+  );
+  const shown = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   useEffect(() => {
     setVisibleCount(60);
   }, [activeFolder, selectedOnly, eventId]);
@@ -297,7 +389,7 @@ const SelectEvent = (): React.JSX.Element => {
                   variant={activeFolder === tab ? "default" : "outline"}
                   size="sm"
                   aria-pressed={activeFolder === tab}
-                  onClick={() => setActiveFolder(tab)}
+                  onClick={() => handleFolderChange(tab)}
                   className="min-h-[44px]"
                 >
                   {tab}
@@ -308,7 +400,7 @@ const SelectEvent = (): React.JSX.Element => {
                 variant={selectedOnly ? "default" : "outline"}
                 size="sm"
                 aria-pressed={selectedOnly}
-                onClick={() => setSelectedOnly((v) => !v)}
+                onClick={handleSelectedOnlyToggle}
                 className="min-h-[44px]"
               >
                 <Heart className="h-3.5 w-3.5 fill-current mr-1 inline" />
@@ -325,50 +417,18 @@ const SelectEvent = (): React.JSX.Element => {
             ) : (
               <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {shown.map((photo, index) => {
-                  const photoUrl = `${API_URL}/uploads/${encodeURIComponent(photo.name)}`;
-                  return (
-                    <div
-                      key={photo._id}
-                      className={cn(
-                        "group cv-tile relative rounded-xl overflow-hidden bg-muted border",
-                        photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
-                      )}
-                    >
-                      <div className="aspect-square">
-                        <img src={photoUrl} alt={`Album candidate ${index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void toggleSelect(photo._id)}
-                        disabled={locked || pendingIds.has(photo._id)}
-                        aria-pressed={photo.isSelected}
-                        aria-label={photo.isSelected ? "Unselect photo" : "Select photo"}
-                        className={cn(
-                          "absolute top-2 right-2 h-11 w-11 min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center shadow",
-                          photo.isSelected ? "bg-primary text-primary-foreground" : "bg-black/50 text-white hover:bg-black/70"
-                        )}
-                      >
-                        <Heart className={cn("h-5 w-5", photo.isSelected && "fill-current")} />
-                      </button>
-                      {photo.isSelected && !locked ? (
-                        <input
-                          defaultValue={photo.selectionNote || ""}
-                          placeholder="Note for photographer…"
-                          aria-label="Retouch note for photographer"
-                          maxLength={500}
-                          disabled={pendingIds.has(photo._id)}
-                          title={pendingIds.has(photo._id) ? "Saving…" : undefined}
-                          onBlur={(e) => void saveNote(photo._id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                          }}
-                          className="w-full px-3 py-2.5 min-h-[44px] text-xs bg-background border-t border-border outline-none disabled:opacity-60"
-                        />
-                      ) : null}
-                    </div>
-                  );
-                })}
+                {shown.map((photo, index) => (
+                  <SelectPhotoCard
+                    key={photo._id}
+                    photo={photo}
+                    index={index}
+                    photoUrl={`${API_URL}/uploads/${encodeURIComponent(photo.name)}`}
+                    locked={locked}
+                    isPending={pendingIds.has(photo._id)}
+                    onToggleSelect={toggleSelect}
+                    onSaveNote={saveNote}
+                  />
+                ))}
               </div>
               {visible.length > shown.length && (
                 <div className="flex justify-center pt-2">
