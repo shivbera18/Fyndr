@@ -8,10 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
+import { cn } from "../../lib/utils";
 // ponytail: vaul (~35KB) splits into its own chunk, fetched only when a
 // mobile drawer actually opens.
 const MobileDrawer = React.lazy(() => import("./drawer-lazy"));
-import { cn } from "../../lib/utils";
 
 export interface ResponsiveModalProps {
   open: boolean;

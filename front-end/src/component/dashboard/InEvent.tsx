@@ -2,9 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState, useTransition } from 
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import UploadImg from "./Upload_Img";
-// ponytail: qrcode.react (~14KB) splits out — fetched only when QR UI opens.
-const Qrcode = React.lazy(() => import("./Qrcode"));
-const StandeeQr = React.lazy(() => import("./qr-standee"));
 import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -34,6 +31,9 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+// ponytail: qrcode.react (~14KB) splits out — fetched only when QR UI opens.
+const Qrcode = React.lazy(() => import("./Qrcode"));
+const StandeeQr = React.lazy(() => import("./qr-standee"));
 type Photo = {
   _id: string;
   name: string;
@@ -223,18 +223,59 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     });
   }, []);
 
+  const downloadImage = useCallback(async (url: string, filename: string): Promise<void> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename || "photo.jpg";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    },
+    []
+  );
+
+  const handleDeletePhoto = useCallback(
+    async (photoId: string): Promise<void> => {
+      try {
+        const res = await fetch(`${getApiBase()}/delete-img`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ _id: photoId, photo_id: photoId, event_id: eventID }),
+        });
+        if (res.ok) {
+          setImages((prev) => prev.filter((p) => p._id !== photoId));
+        }
+      } catch {}
+    },
+    [eventID]
+  );
+
   const handlePreview = useCallback((preview: Preview) => {
     setIsZoomed(false);
     setPreviewImage(preview);
   }, []);
 
-  const handleDownload = useCallback((url: string, filename: string) => {
-    void downloadImage(url, filename);
-  }, []);
+  const handleDownload = useCallback(
+    (url: string, filename: string) => {
+      void downloadImage(url, filename);
+    },
+    [downloadImage]
+  );
 
-  const handleDelete = useCallback((photoId: string) => {
-    void handleDeletePhoto(photoId);
-  }, []);
+  const handleDelete = useCallback(
+    (photoId: string) => {
+      void handleDeletePhoto(photoId);
+    },
+    [handleDeletePhoto]
+  );
 
   const watermarkText = useMemo(() => studioName.trim() || name, [studioName, name]);
 
@@ -342,22 +383,6 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
 
   const getApiBase = (): string => API_URL;
 
-  const downloadImage = async (url: string, filename: string): Promise<void> => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = filename || "photo.jpg";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  };
 
   const guestUrl = `${window.location.origin}/collect/${eventID}`;
 
@@ -402,19 +427,6 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         setShowDeleteModal(false);
         if (setRefresh) setRefresh((prev) => prev + 1);
         backbtn();
-      }
-    } catch {}
-  };
-
-  const handleDeletePhoto = async (photoId: string): Promise<void> => {
-    try {
-      const res = await fetch(`${getApiBase()}/delete-img`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: photoId, photo_id: photoId, event_id: eventID }),
-      });
-      if (res.ok) {
-        setImages((prev) => prev.filter((p) => p._id !== photoId));
       }
     } catch {}
   };
