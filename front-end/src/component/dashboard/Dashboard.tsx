@@ -44,6 +44,7 @@ export default function Dashboard(): React.JSX.Element {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>("events");
   const [selectedEvent, setSelectedEvent] = useState<SelectedEvent | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [, startTabTransition] = useTransition();
 
   // Create Event Form State

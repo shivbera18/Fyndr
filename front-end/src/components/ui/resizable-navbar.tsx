@@ -106,6 +106,8 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
               target="_blank"
               rel="noopener noreferrer"
               onMouseEnter={() => setHovered(idx)}
+              onFocus={() => setHovered(idx)}
+              onBlur={() => setHovered(null)}
               onClick={(e) => onItemClick?.(e, item)}
               className="relative px-3.5 py-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -119,6 +121,8 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
             key={`link-${idx}`}
             to={item.link}
             onMouseEnter={() => setHovered(idx)}
+            onFocus={() => setHovered(idx)}
+            onBlur={() => setHovered(null)}
             onClick={(e) => onItemClick?.(e, item)}
             className="relative px-3.5 py-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -166,11 +170,12 @@ export const MobileNavMenu = ({
 }: MobileNavMenuProps) => {
   return (
     <div
+      aria-hidden={!isOpen}
       className={cn(
         "absolute inset-x-0 top-full mt-2 z-50 flex w-full flex-col items-start justify-start gap-4 rounded-2xl border border-border bg-background p-4 shadow-lg transition-all duration-150 origin-top",
         isOpen
           ? "opacity-100 translate-y-0 scale-100"
-          : "pointer-events-none opacity-0 -translate-y-2 scale-[0.98]",
+          : "invisible pointer-events-none opacity-0 -translate-y-2 scale-[0.98]",
         className
       )}
     >

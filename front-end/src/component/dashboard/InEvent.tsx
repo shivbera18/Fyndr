@@ -721,11 +721,6 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   };
 
   const guestCopied = (): void => {
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  const copyGuestLink = (): void => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
         .writeText(guestUrl)
@@ -751,11 +746,11 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     } catch {}
   };
 
-  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
+  const handleImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement>): void => {
     const t = e.target as HTMLImageElement;
     t.onerror = null;
     t.src = fallbackPlaceholder;
-  };
+  }, []);
 
   const inFolder = (p: Photo, folder: string): boolean =>
     folder === "All" || (p.folder_name || "General") === folder;

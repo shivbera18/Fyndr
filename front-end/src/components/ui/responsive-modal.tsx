@@ -37,7 +37,7 @@ export function ResponsiveModal({
 
   if (isMobile && !desktopOnly) {
     return (
-      <React.Suspense fallback={null}>
+      <React.Suspense fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>}>
         <MobileDrawer
           open={open}
           onOpenChange={onOpenChange}
