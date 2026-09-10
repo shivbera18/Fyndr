@@ -60,15 +60,21 @@ export function parseShortsLines(out: string): Array<Omit<ShortTrack, "audioUrl"
 }
 
 // es2020 lib target: Promise.withResolvers is unavailable, executor form it is.
-function runYtDlp(args: string[]): Promise<string> {
+function runYtDlp(args: string[], req: Request): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(ytDlpBin(), args, { timeout: SEARCH_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+    const child = execFile(ytDlpBin(), args, { timeout: SEARCH_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+      if (typeof req.on === "function") req.removeListener("close", onReqClose);
       if (err) {
         reject(err);
         return;
       }
       resolve(stdout);
     });
+    // Client abort must not squat a search slot for the full 30s timeout.
+    const onReqClose = (): void => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    };
+    if (typeof req.on === "function") req.on("close", onReqClose);
   });
 }
 
@@ -91,7 +97,9 @@ router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
       "--print",
       "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s",
       `ytsearch${SEARCH_COUNT}:${q} shorts`,
-    ]);
+    ],
+    req
+    );
     const tracks: ShortTrack[] = parseShortsLines(out).map((t) => ({
       ...t,
       audioUrl: audioUrlFor(t.id),
