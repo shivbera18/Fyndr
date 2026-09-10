@@ -35,7 +35,8 @@ function BottomNav(): React.JSX.Element | null {
       location.pathname === "/events" ||
       location.pathname === "/create-event" ||
       location.pathname === "/analytics" ||
-      location.pathname === "/settings",
+      location.pathname === "/settings" ||
+      location.pathname === "/account",
     [location.pathname]
   );
 
@@ -45,7 +46,7 @@ function BottomNav(): React.JSX.Element | null {
     <nav
       aria-label="Mobile Navigation Bar"
       // ponytail: solid bg, no backdrop-blur — blur on a fixed bar repaints every scroll frame.
-      className="fixed bottom-0 inset-x-0 z-40 bg-background border-t border-border px-3 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+      className="flex flex-row items-stretch justify-around fixed bottom-0 inset-x-0 z-40 bg-background border-t border-border px-3 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:hidden"
     >
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
