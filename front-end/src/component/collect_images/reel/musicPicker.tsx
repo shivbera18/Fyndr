@@ -136,14 +136,20 @@ export interface ShortResult {
   audioUrl: string;
 }
 
+const SHORT_ID_RE = /^[\w-]{11}$/;
+const SHORT_AUDIO_RE = /^\/api\/music\/audio\?v=[\w-]{11}$/;
+
 export function parseShortsResponse(data: unknown): ShortResult[] {
   if (!isRecord(data) || !Array.isArray(data.tracks)) return [];
   const out: ShortResult[] = [];
   for (const entry of data.tracks) {
     if (!isRecord(entry)) continue;
     const { id, title, channel, duration, audioUrl } = entry;
-    if (typeof id !== "string" || typeof title !== "string" || typeof audioUrl !== "string") continue;
-    if (title === "" || audioUrl === "") continue;
+    // Backend contract: 11-char id, same-origin proxied audio path. Anything
+    // else is unusable downstream (thumbnail + exporter), so drop it here.
+    if (typeof id !== "string" || !SHORT_ID_RE.test(id)) continue;
+    if (typeof title !== "string" || title === "") continue;
+    if (typeof audioUrl !== "string" || !SHORT_AUDIO_RE.test(audioUrl)) continue;
     out.push({
       id,
       title,

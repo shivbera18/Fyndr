@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { extractYoutubeId, MusicPicker, parseAudiusTracks } from "../musicPicker";
+import { extractYoutubeId, MusicPicker, parseAudiusTracks, parseShortsResponse } from "../musicPicker";
+import { API_URL } from "../../../../utils/api";
 import type { CatalogTrack } from "../tracks";
 
 const instances: Array<{
@@ -360,4 +361,67 @@ describe("shorts tab", () => {
     fireEvent.change(screen.getByLabelText("Search YouTube Shorts audio"), { target: { value: "sayyara" } });
     expect(await screen.findByText(/isn't set up on this server/, {}, { timeout: 3000 })).toBeInTheDocument();
   });
+
+  it("shows generic failures and empty results", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote: jest.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Shorts" }));
+    fireEvent.change(screen.getByLabelText("Search YouTube Shorts audio"), { target: { value: "sayyara" } });
+    expect(await screen.findByText(/Shorts search failed/, {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  it("shows an empty state when no Shorts match", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ tracks: [] }),
+    })) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote: jest.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Shorts" }));
+    fireEvent.change(screen.getByLabelText("Search YouTube Shorts audio"), { target: { value: "sayyara" } });
+    expect(await screen.findByText(/No Shorts found/, {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  it("marks the in-use Shorts audio", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tracks: [
+          {
+            id: "DGxS_26XM7Y",
+            title: "Saiyaara Status",
+            channel: "Rafi",
+            duration: 6,
+            audioUrl: "/api/music/audio?v=DGxS_26XM7Y",
+          },
+        ],
+      }),
+    })) as unknown as typeof fetch;
+    renderPicker({
+      onSelectRemote: jest.fn(),
+      musicId: "custom",
+      customAudio: { url: `${API_URL}/api/music/audio?v=DGxS_26XM7Y`, name: "x" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Shorts" }));
+    fireEvent.change(screen.getByLabelText("Search YouTube Shorts audio"), { target: { value: "sayyara" } });
+    expect(await screen.findByText(/Saiyaara Status · Using/, {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  it("drops off-contract Shorts rows", () => {
+    expect(
+      parseShortsResponse({
+        tracks: [
+          { id: "DGxS_26XM7Y", title: "Ok", channel: "Rafi", duration: 6, audioUrl: "/api/music/audio?v=DGxS_26XM7Y" },
+          { id: "short", title: "Bad id", channel: "X", duration: 5, audioUrl: "/api/music/audio?v=short" },
+          { id: "DGxS_26XM7Y", title: "Evil", channel: "X", duration: 5, audioUrl: "https://evil.com/x.mp3" },
+        ],
+      })
+    ).toHaveLength(1);
+  });
+
 });
