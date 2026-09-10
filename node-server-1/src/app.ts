@@ -13,6 +13,7 @@ import photosRouter from "./routes/photos";
 import studioRouter from "./routes/studio";
 import analyticsRouter from "./routes/analytics";
 import ftpRouter from "./routes/ftp";
+import musicRouter from "./routes/music";
 
 export function createApp(): express.Express {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp(): express.Express {
   app.use(studioRouter);
   app.use(opsRouter);
   app.use("/api/analytics", analyticsRouter);
+  app.use(musicRouter);
   app.use(ftpRouter);
 
   // Global error logging — main error log is logs/error.log
