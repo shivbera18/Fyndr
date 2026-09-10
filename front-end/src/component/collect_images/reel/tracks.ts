@@ -45,7 +45,7 @@ function isAllowedSrc(src: string): boolean {
 }
 
 export function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function warn(msg: string): void {

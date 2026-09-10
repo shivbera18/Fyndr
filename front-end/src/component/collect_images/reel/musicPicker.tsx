@@ -37,11 +37,16 @@ export interface FreeTrack {
 
 // --- Free-music search (Audius discovery API, no key) ---
 
-const AUDIUS_API = "https://discoveryprovider.audius.co";
 const AUDIUS_APP = "FYNDR";
+// Discovery hosts in failover order — search and stream stay on the host that answers.
+const AUDIUS_HOSTS = [
+  "https://discoveryprovider.audius.co",
+  "https://discoveryprovider2.audius.co",
+  "https://discoveryprovider3.audius.co",
+];
 
 // Defensive parse: one odd entry skips, never throws.
-export function parseAudiusTracks(data: unknown): FreeTrack[] {
+export function parseAudiusTracks(data: unknown, host: string = AUDIUS_HOSTS[0]): FreeTrack[] {
   if (!isRecord(data) || !Array.isArray(data.data)) return [];
   const out: FreeTrack[] = [];
   for (const entry of data.data) {
@@ -57,7 +62,7 @@ export function parseAudiusTracks(data: unknown): FreeTrack[] {
       title,
       artist,
       duration,
-      streamUrl: `${AUDIUS_API}/v1/tracks/${String(id)}/stream?app_name=${AUDIUS_APP}`,
+      streamUrl: `${host}/v1/tracks/${String(id)}/stream?app_name=${AUDIUS_APP}`,
     };
     if (isRecord(entry.artwork) && typeof entry.artwork["150x150"] === "string") {
       track.artwork = entry.artwork["150x150"];
@@ -68,17 +73,26 @@ export function parseAudiusTracks(data: unknown): FreeTrack[] {
 }
 
 export async function searchAudius(query: string, signal: AbortSignal): Promise<FreeTrack[]> {
-  const res = await fetch(
-    `${AUDIUS_API}/v1/tracks/search?query=${encodeURIComponent(query)}&limit=12&app_name=${AUDIUS_APP}`,
-    { headers: { Accept: "application/json" }, signal }
-  );
-  if (!res.ok) throw new Error(`Free-music search failed (${res.status}).`);
-  return parseAudiusTracks(await res.json());
+  let lastErr: unknown = null;
+  for (const host of AUDIUS_HOSTS) {
+    try {
+      const res = await fetch(
+        `${host}/v1/tracks/search?query=${encodeURIComponent(query)}&limit=12&app_name=${AUDIUS_APP}`,
+        { headers: { Accept: "application/json" }, signal }
+      );
+      if (!res.ok) throw new Error(`Free-music search failed (${res.status}).`);
+      return parseAudiusTracks(await res.json(), host);
+    } catch (e: unknown) {
+      if (signal.aborted) throw e;
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Free-music search failed.");
 }
 
 // --- YouTube / direct-link audio ---
 
-const YT_RE = /(?:youtube\.com\/(?:watch\?[^#]*v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/;
+const YT_RE = /(?:youtube\.com\/(?:watch\?[^\s#]*v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})(?![\w-])/;
 
 export function extractYoutubeId(url: string): string | null {
   const m = url.trim().match(YT_RE);
@@ -170,6 +184,12 @@ export function MusicPicker({
   const [floading, setFloading] = useState(false);
   const [ferr, setFerr] = useState("");
 
+  // Switching source tabs must not leave audio playing with no visible pause control.
+  useEffect(() => {
+    audioRef.current?.pause();
+    setPlayingId(null);
+  }, [source]);
+
   useEffect(() => {
     if (source !== "free") return;
     const trimmed = fq.trim();
@@ -214,18 +234,20 @@ export function MusicPicker({
       setLinkErr("Paste an https:// link.");
       return;
     }
+    // YouTube pages are HTML, not audio — feeding one to the export muxes
+    // silence. Preview stays available via the embed above.
+    if (ytId) {
+      setLinkErr("YouTube pages can't go in the export — pick a Free-music track or upload the file instead.");
+      return;
+    }
     setLinkErr("");
     let name = url;
-    if (ytId) {
-      name = `YouTube ${ytId}`;
-    } else {
-      try {
-        const u = new URL(url);
-        const tail = u.pathname.split("/").filter(Boolean).pop();
-        name = tail ? `${u.hostname} · ${decodeURIComponent(tail)}` : u.hostname;
-      } catch {
-        // Keep the raw URL as the display name.
-      }
+    try {
+      const u = new URL(url);
+      const tail = u.pathname.split("/").filter(Boolean).pop();
+      name = tail ? `${u.hostname} · ${decodeURIComponent(tail)}` : u.hostname;
+    } catch {
+      // Keep the raw URL as the display name.
     }
     onSelectRemote?.(url, name);
   };

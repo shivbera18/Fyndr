@@ -448,4 +448,19 @@ describe("ReelCreatorModal", () => {
     expect(renderer.renderReelToFile).toHaveBeenCalledTimes(1);
   });
 
+
+  it("locks stepper steps below the photo minimum", () => {
+    render(
+      <ReelCreatorModal
+        open={true}
+        onOpenChange={jest.fn()}
+        eventId="evt1"
+        eventName="Test Event"
+        photos={[PHOTOS[0]]}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Step 1: Photos" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Step 2: Music" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Step 4: Preview & Export" })).toBeDisabled();
+  });
 });

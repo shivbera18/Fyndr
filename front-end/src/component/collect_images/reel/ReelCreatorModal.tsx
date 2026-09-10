@@ -161,7 +161,7 @@ function ReelStepper({
                   !reachable && "opacity-40"
                 )}
               >
-                {done && !active ? "✓" : i + 1}
+                {done && !active ? <span aria-hidden="true">✓</span> : i + 1}
               </button>
               {i < STEPS.length - 1 && (
                 <span
@@ -510,13 +510,19 @@ const ReelCreatorModal = ({
   }, [musicId, customMusicUrl]);
 
   useEffect(() => {
+    // Reset first: a dead remote URL must not keep the previous track's
+    // duration in the trim UI and export end.
+    setUploadDuration(0);
     if (musicId !== "custom" || !customMusicUrl) return;
     const el = new Audio(customMusicUrl);
     el.preload = "metadata";
     const onMeta = (): void => setUploadDuration(Number.isFinite(el.duration) ? el.duration : 0);
+    const onErr = (): void => setUploadDuration(0);
     el.addEventListener("loadedmetadata", onMeta);
+    el.addEventListener("error", onErr);
     return () => {
       el.removeEventListener("loadedmetadata", onMeta);
+      el.removeEventListener("error", onErr);
       el.removeAttribute("src");
     };
   }, [musicId, customMusicUrl]);
@@ -754,7 +760,7 @@ const ReelCreatorModal = ({
     typeof navigator !== "undefined" && typeof navigator.canShare === "function" && resultBlob !== null;
 
   const stepNav: React.JSX.Element = (
-        <div role="navigation" aria-label="Reel steps" className="flex items-center gap-2">
+        <nav aria-label="Reel steps" className="flex items-center gap-2">
           <div aria-live="polite" className="sr-only">
             {navMsg}
           </div>
@@ -795,7 +801,7 @@ const ReelCreatorModal = ({
               Next →
             </Button>
           )}
-        </div>
+        </nav>
   );
   const body: React.JSX.Element = (
       <Tabs value={step} onValueChange={(v) => setStep(v as Step)} className="space-y-3 pt-2">

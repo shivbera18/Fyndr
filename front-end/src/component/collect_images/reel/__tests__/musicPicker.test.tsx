@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { extractYoutubeId, MusicPicker, parseAudiusTracks } from "../musicPicker";
 import type { CatalogTrack } from "../tracks";
 
@@ -213,5 +213,91 @@ describe("extractYoutubeId", () => {
     expect(extractYoutubeId("https://youtu.be/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
     expect(extractYoutubeId("https://www.youtube.com/shorts/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
     expect(extractYoutubeId("https://example.com/song.mp3")).toBeNull();
+  });
+
+  it("rejects over-long youtube slugs", () => {
+    expect(extractYoutubeId("https://youtu.be/dQw4w9WgXcQ-extra")).toBeNull();
+  });
+});
+
+describe("link tab", () => {
+  function openLinkTab() {
+    const onSelectRemote = jest.fn();
+    renderPicker({ onSelectRemote });
+    fireEvent.click(screen.getByRole("button", { name: "YouTube & link" }));
+    return onSelectRemote;
+  }
+
+  it("rejects non-https links", () => {
+    const onSelectRemote = openLinkTab();
+    fireEvent.change(screen.getByLabelText("Audio or YouTube link"), {
+      target: { value: "http://example.com/song.mp3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Use this audio" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/https:\/\//);
+    expect(onSelectRemote).not.toHaveBeenCalled();
+  });
+
+  it("rejects YouTube pages instead of exporting silence", () => {
+    const onSelectRemote = openLinkTab();
+    fireEvent.change(screen.getByLabelText("Audio or YouTube link"), {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Use this audio" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/can't go in the export/);
+    expect(onSelectRemote).not.toHaveBeenCalled();
+  });
+
+  it("forwards direct audio links with a readable name", () => {
+    const onSelectRemote = openLinkTab();
+    fireEvent.change(screen.getByLabelText("Audio or YouTube link"), {
+      target: { value: "https://cdn.example.com/tracks/bride-entry.mp3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Use this audio" }));
+    expect(onSelectRemote).toHaveBeenCalledWith(
+      "https://cdn.example.com/tracks/bride-entry.mp3",
+      "cdn.example.com · bride-entry.mp3"
+    );
+  });
+});
+
+describe("free tab", () => {
+  const realFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("searches Audius and forwards the stream URL", async () => {
+    const onSelectRemote = jest.fn();
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [{ id: 7, title: "Open Sky", user: { name: "Free Artist" }, duration: 120 }],
+      }),
+    })) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote });
+    fireEvent.click(screen.getByRole("button", { name: "Free music" }));
+    fireEvent.change(screen.getByLabelText("Search free music"), { target: { value: "open sky" } });
+    fireEvent.click(await screen.findByText("Open Sky", {}, { timeout: 3000 }));
+    expect(onSelectRemote).toHaveBeenCalledWith(
+      expect.stringContaining("/v1/tracks/7/stream"),
+      "Open Sky — Free Artist"
+    );
+  });
+
+  it("falls back to the next host when the first is down", async () => {
+    const calls: string[] = [];
+    global.fetch = jest.fn(async (url: unknown) => {
+      calls.push(String(url));
+      if (calls.length === 1) throw new TypeError("down");
+      return { ok: true, json: async () => ({ data: [] }) };
+    }) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote: jest.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Free music" }));
+    fireEvent.change(screen.getByLabelText("Search free music"), { target: { value: "quiet piano" } });
+    await waitFor(() => expect(calls.length).toBe(2), { timeout: 3000 });
+    expect(calls[1]).toContain("discoveryprovider2");
+    expect(await screen.findByText(/No free tracks found/)).toBeInTheDocument();
   });
 });
