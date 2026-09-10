@@ -314,3 +314,50 @@ describe("free tab", () => {
     expect(calls).toBe(1);
   });
 });
+
+describe("shorts tab", () => {
+  const realFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("searches Shorts and forwards the proxied audio URL", async () => {
+    const onSelectRemote = jest.fn();
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tracks: [
+          {
+            id: "DGxS_26XM7Y",
+            title: "Saiyaara Status",
+            channel: "Rafi",
+            duration: 6,
+            audioUrl: "/api/music/audio?v=DGxS_26XM7Y",
+          },
+        ],
+      }),
+    })) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote });
+    fireEvent.click(screen.getByRole("button", { name: "Shorts" }));
+    fireEvent.change(screen.getByLabelText("Search YouTube Shorts audio"), { target: { value: "sayyara" } });
+    fireEvent.click(await screen.findByText("Saiyaara Status", {}, { timeout: 3000 }));
+    expect(onSelectRemote).toHaveBeenCalledWith(
+      expect.stringContaining("/api/music/audio?v=DGxS_26XM7Y"),
+      "Saiyaara Status — Rafi"
+    );
+  });
+
+  it("surfaces the server-missing message", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
+    renderPicker({ onSelectRemote: jest.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Shorts" }));
+    fireEvent.change(screen.getByLabelText("Search YouTube Shorts audio"), { target: { value: "sayyara" } });
+    expect(await screen.findByText(/isn't set up on this server/, {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+});
