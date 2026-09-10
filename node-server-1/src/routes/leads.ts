@@ -64,7 +64,20 @@ router.post("/leads", async (req: Request, res: Response) => {
     // Normalize for dedupe+storage: keep leading +, digits only (formatting variants collapse)
     const cleanPhone = phone.trim().replace(/(?!^\+)[^\d]/g, "");
 
-    // Separate per-event hourly stuffing caps to prevent booking flooding from DOSing photo downloads
+    // Kind-scoped deduplication FIRST:
+    // Returning guests re-verifying or double-submitting within the dedupe window
+    // must succeed immediately (200) without being locked out by hourly caps.
+    // - Gate leads: 24h window, backward-compatible query matching { $in: ["gate", null] } for pre-deployment docs
+    // - Booking inquiries: 2-minute debounce to prevent double-clicks without discarding follow-ups
+    const dedupeWindowMs = kind === "booking" ? 2 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const since = new Date(Date.now() - dedupeWindowMs);
+    const kindQuery = kind === "gate" ? { $in: ["gate", null] } : "booking";
+    const existing = await Lead.findOne({ event_id, phone: cleanPhone, kind: kindQuery, createdAt: { $gt: since } });
+
+    // IDOR / PII protection: never echo existing document content back on dedupe
+    if (existing) return res.status(200).send({ ok: true, deduped: true });
+
+    // Separate per-event hourly stuffing caps for NEW leads only
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
     if (kind === "booking") {
       const recentBooking = await Lead.countDocuments({ event_id, kind: "booking", createdAt: { $gt: hourAgo } });
@@ -81,17 +94,6 @@ router.post("/leads", async (req: Request, res: Response) => {
         return res.status(429).send({ error: "Too many submissions for this event right now" });
       }
     }
-
-    // Kind-scoped deduplication:
-    // - Gate leads: 24h window, backward-compatible query matching { $in: ["gate", null] } for pre-deployment docs
-    // - Booking inquiries: 2-minute debounce to prevent double-clicks without discarding follow-ups
-    const dedupeWindowMs = kind === "booking" ? 2 * 60 * 1000 : 24 * 60 * 60 * 1000;
-    const since = new Date(Date.now() - dedupeWindowMs);
-    const kindQuery = kind === "gate" ? { $in: ["gate", null] } : "booking";
-    const existing = await Lead.findOne({ event_id, phone: cleanPhone, kind: kindQuery, createdAt: { $gt: since } });
-
-    // IDOR / PII protection: never echo existing document content back on dedupe
-    if (existing) return res.status(200).send({ ok: true, deduped: true });
 
     const lead = new Lead({
       event_id,

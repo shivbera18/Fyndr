@@ -3,6 +3,7 @@ import test from "node:test";
 import type { Request, Response } from "express";
 import leadsRouter from "../leads";
 import analyticsRouter from "../analytics";
+import AnalyticsEvent from "../../models/AnalyticsEvent";
 
 interface MockResponse {
   statusCode: number;
@@ -96,9 +97,14 @@ test("Leads & Booking Inquiry validation tests", async (t) => {
     const layers = analyticsRouter.stack as LayerWithRoute[];
     const route = layers.find((l) => l.route?.path === "/track" && l.route?.methods?.post);
     assert.ok(route?.route, "Route POST /track should be defined");
-    await route.route.stack[0].handle(req, res as unknown as Response, () => {});
-
-    // If type was invalid, statusCode would be 400 with "Valid eventId and allowed type are required"
-    assert.notStrictEqual(res.body?.message, "Valid eventId and allowed type are required");
+    const origCreate = AnalyticsEvent.create;
+    AnalyticsEvent.create = (() => Promise.resolve({} as unknown)) as unknown as typeof AnalyticsEvent.create;
+    try {
+      await route.route.stack[0].handle(req, res as unknown as Response, () => {});
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body?.ok, true);
+    } finally {
+      AnalyticsEvent.create = origCreate;
+    }
   });
 });

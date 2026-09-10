@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { API_URL } from "../../utils/api";
+import { leadKey } from "../../utils/gates";
 import { trackEvent } from "../../utils/analytics";
 import { CheckCircle2, MessageCircle, Send } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const InquiryModal = ({
     if (open) {
       setError("");
       setSubmitted(false);
+      setMessage("");
       try {
         const cachedName = initialName || sessionStorage.getItem("fyndr_guest_name") || "";
         const cachedPhone = initialPhone || sessionStorage.getItem("fyndr_guest_phone") || "";
@@ -71,7 +73,7 @@ export const InquiryModal = ({
           name: cleanName.slice(0, 100),
           phone: cleanPhone.slice(0, 20),
           kind: "booking",
-          message: message.trim().slice(0, 500),
+          ...(message.trim() ? { message: message.trim().slice(0, 500) } : {}),
         }),
       });
 
@@ -95,7 +97,7 @@ export const InquiryModal = ({
 
       try {
         // High-intent booking satisfies lead gate so guests aren't re-prompted to download
-        sessionStorage.setItem(`fy-lead-${eventId}`, "1");
+        sessionStorage.setItem(leadKey(eventId), "1");
         sessionStorage.setItem("fyndr_guest_name", cleanName);
         sessionStorage.setItem("fyndr_guest_phone", cleanPhone);
       } catch {

@@ -433,8 +433,8 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
   const csvCell = (v: unknown): string => {
     // Flatten newlines to prevent formula injection bypass on subsequent lines
     const s = String(v ?? "").replace(/[\r\n]+/g, " ");
-    // Formula-injection guard: Excel/Sheets execute =-+@-leading cells
-    const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
+    // Formula-injection guard: Excel/Sheets strip leading whitespace and execute =-+@|-triggers
+    const safe = /^[\s]*[=+\-@|%]/.test(s) ? `'${s}` : s;
     return `"${safe.replace(/"/g, '""')}"`;
   };
 
