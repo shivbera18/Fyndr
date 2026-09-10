@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MusicPicker } from "../musicPicker";
+import { extractYoutubeId, MusicPicker, parseAudiusTracks } from "../musicPicker";
 import type { CatalogTrack } from "../tracks";
 
 const instances: Array<{
@@ -180,5 +180,38 @@ describe("MusicPicker", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.getByText("Calm Piano")).toBeInTheDocument();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseAudiusTracks", () => {
+  it("parses tracks and skips malformed entries without throwing", () => {
+    expect(
+      parseAudiusTracks({
+        data: [
+          { id: 42, title: "Night Drive", user: { name: "DJ Open" }, duration: 95.5, artwork: { "150x150": "https://img/x.jpg" } },
+          { id: "bad-no-title", user: { name: "X" } },
+          null,
+        ],
+      })
+    ).toEqual([
+      {
+        id: "audius-42",
+        title: "Night Drive",
+        artist: "DJ Open",
+        duration: 95.5,
+        streamUrl: expect.stringContaining("/v1/tracks/42/stream"),
+        artwork: "https://img/x.jpg",
+      },
+    ]);
+    expect(parseAudiusTracks({ data: "nope" })).toEqual([]);
+  });
+});
+
+describe("extractYoutubeId", () => {
+  it("matches watch, shorts, and youtu.be URLs", () => {
+    expect(extractYoutubeId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(extractYoutubeId("https://youtu.be/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(extractYoutubeId("https://www.youtube.com/shorts/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(extractYoutubeId("https://example.com/song.mp3")).toBeNull();
   });
 });
