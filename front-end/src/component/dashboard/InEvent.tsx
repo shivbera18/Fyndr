@@ -721,6 +721,11 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   };
 
   const guestCopied = (): void => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const copyGuestLink = (): void => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
         .writeText(guestUrl)
