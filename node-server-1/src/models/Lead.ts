@@ -4,10 +4,12 @@ import mongoose, { InferSchemaType } from "mongoose";
 // PII retention: auto-expires 180d after capture (TTL index below).
 const leadSchema = new mongoose.Schema(
   {
-    event_id: { type: String, required: true, index: true },
+    event_id: { type: String, required: true },
     photographer_id: { type: String, index: true },
     name: { type: String, required: true, trim: true, minlength: 1, maxlength: 100 },
     phone: { type: String, required: true, trim: true, minlength: 5, maxlength: 20 },
+    kind: { type: String, enum: ["gate", "booking"], default: "gate" },
+    message: { type: String, trim: true, maxlength: 500 },
     photos_found: { type: Number, default: 0 },
     expiresAt: { type: Date, default: () => new Date(Date.now() + 180 * 24 * 60 * 60 * 1000) },
   },

@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
+import { InquiryModal } from "./InquiryModal";
 import { API_URL, ML_URL } from "../../utils/api";
 import {
   gateOn,
@@ -73,6 +74,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   const [showPaywallModal, setShowPaywallModal] = useState<boolean>(false);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
   const [whatsappOpened, setWhatsappOpened] = useState<boolean>(false);
+  const [showInquiry, setShowInquiry] = useState<boolean>(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -523,16 +525,13 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             {studioName && (
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-xs text-muted-foreground">Photos by {studioName}</span>
-                <a
-                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                    `Hi ${studioName}, I saw your photography on Fyndr and would love to inquire about booking a session!`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 rounded-full transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setShowInquiry(true)}
+                  className="inline-flex min-h-[44px] items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
                 >
                   Book Studio ↗
-                </a>
+                </button>
               </div>
             )}
           </div>
@@ -1081,6 +1080,14 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             onUnlockSuccess={handlePaywallUnlockSuccess}
           />
         )}
+        <InquiryModal
+          open={showInquiry}
+          onOpenChange={setShowInquiry}
+          eventId={eventId ?? ""}
+          studioName={studioName}
+          initialName={leadName}
+          initialPhone={leadPhone}
+        />
       </main>
 
       <Footer />

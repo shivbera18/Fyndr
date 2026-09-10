@@ -18,6 +18,7 @@ const analyticsEventSchema = new Schema(
         "retake_selfie",
         "whatsapp_send_matched",
         "reel_export",
+        "booking_inquiry",
       ],
       required: true,
       index: true,

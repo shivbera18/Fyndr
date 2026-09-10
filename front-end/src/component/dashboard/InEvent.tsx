@@ -431,9 +431,10 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
 
 
   const csvCell = (v: unknown): string => {
-    const s = String(v ?? "");
-    // Formula-injection guard: Excel/Sheets execute =-+@-leading cells
-    const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
+    // Flatten newlines to prevent formula injection bypass on subsequent lines
+    const s = String(v ?? "").replace(/[\r\n]+/g, " ");
+    // Formula-injection guard: Excel/Sheets strip leading whitespace and execute =-+@|-triggers
+    const safe = /^[\s]*[=+\-@|%]/.test(s) ? `'${s}` : s;
     return `"${safe.replace(/"/g, '""')}"`;
   };
 
@@ -451,14 +452,19 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
         setProofMsg("Could not load leads.");
         return;
       }
-      const rows: string[] = ["name,phone,photos_found,captured_at"];
+      const rows: string[] = ["name,phone,photos_found,captured_at,kind,message"];
+      let bookingCount = 0;
       for (const lead of data.leads) {
         if (!lead || typeof lead !== "object") continue;
+        const kind = "kind" in lead && lead.kind === "booking" ? "booking" : "gate";
+        if (kind === "booking") bookingCount += 1;
         const row = [
           "name" in lead ? lead.name : "",
           "phone" in lead ? lead.phone : "",
           "photos_found" in lead ? lead.photos_found : 0,
           "createdAt" in lead ? lead.createdAt : "",
+          kind,
+          "message" in lead && typeof lead.message === "string" ? lead.message : "",
         ].map(csvCell);
         rows.push(row.join(","));
       }
@@ -471,7 +477,12 @@ const InEvent = ({ backbtn, eventID, name, pin, ownerId, initialFolders, initial
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      setProofMsg(`Downloaded ${rows.length - 1} guest lead${rows.length === 2 ? "" : "s"}.`);
+      const totalLeads = rows.length - 1;
+      const summaryMsg =
+        bookingCount > 0
+          ? `Downloaded ${totalLeads} lead${totalLeads === 1 ? "" : "s"} (${bookingCount} booking ${bookingCount === 1 ? "inquiry" : "inquiries"}).`
+          : `Downloaded ${totalLeads} guest lead${totalLeads === 1 ? "" : "s"}.`;
+      setProofMsg(summaryMsg);
     } catch {
       setProofMsg("Could not load leads. Please check connection.");
     } finally {

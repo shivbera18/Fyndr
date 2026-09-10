@@ -15,6 +15,9 @@ router.post("/leads", async (req: Request, res: Response) => {
     const phone: unknown = body && typeof body === "object" && "phone" in body ? body.phone : undefined;
     const rawFound: unknown =
       body && typeof body === "object" && "photos_found" in body ? body.photos_found : undefined;
+    const rawKind: unknown = body && typeof body === "object" && "kind" in body ? body.kind : undefined;
+    const rawMessage: unknown = body && typeof body === "object" && "message" in body ? body.message : undefined;
+
     if (typeof event_id !== "string" || !mongoose.Types.ObjectId.isValid(event_id)) {
       return res.status(400).send({ error: "event_id required" });
     }
@@ -24,6 +27,27 @@ router.post("/leads", async (req: Request, res: Response) => {
     if (typeof phone !== "string" || !/^[+\d][\d\s\-.()]{3,20}[\d]$/.test(phone.trim())) {
       return res.status(400).send({ error: "phone number looks invalid" });
     }
+
+    let kind: "gate" | "booking" = "gate";
+    if (rawKind !== undefined) {
+      if (rawKind !== "gate" && rawKind !== "booking") {
+        return res.status(400).send({ error: "kind must be 'gate' or 'booking'" });
+      }
+      kind = rawKind;
+    }
+
+    let message = "";
+    if (rawMessage !== undefined) {
+      if (typeof rawMessage !== "string") {
+        return res.status(400).send({ error: "message must be a string" });
+      }
+      const trimmed = rawMessage.trim();
+      if (trimmed.length > 500) {
+        return res.status(400).send({ error: "message must be 500 characters or less" });
+      }
+      message = trimmed;
+    }
+
     let photos_found = 0;
     if (rawFound !== undefined) {
       if (typeof rawFound !== "number" && typeof rawFound !== "string") {
@@ -39,24 +63,49 @@ router.post("/leads", async (req: Request, res: Response) => {
     if (!event) return res.status(404).send({ error: "event not found" });
     // Normalize for dedupe+storage: keep leading +, digits only (formatting variants collapse)
     const cleanPhone = phone.trim().replace(/(?!^\+)[^\d]/g, "");
-    // Per-event hourly stuffing cap — no rate-limit infra, one indexed count
+
+    // Kind-scoped deduplication FIRST:
+    // Returning guests re-verifying or double-submitting within the dedupe window
+    // must succeed immediately (200) without being locked out by hourly caps.
+    // - Gate leads: 24h window, backward-compatible query matching { $in: ["gate", null] } for pre-deployment docs
+    // - Booking inquiries: 2-minute debounce to prevent double-clicks without discarding follow-ups
+    const dedupeWindowMs = kind === "booking" ? 2 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const since = new Date(Date.now() - dedupeWindowMs);
+    const kindQuery = kind === "gate" ? { $in: ["gate", null] } : "booking";
+    const existing = await Lead.findOne({ event_id, phone: cleanPhone, kind: kindQuery, createdAt: { $gt: since } });
+
+    // IDOR / PII protection: never echo existing document content back on dedupe
+    if (existing) return res.status(200).send({ ok: true, deduped: true });
+
+    // Separate per-event hourly stuffing caps for NEW leads only
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentCount = await Lead.countDocuments({ event_id, createdAt: { $gt: hourAgo } });
-    if (recentCount >= 200) {
-      return res.status(429).send({ error: "Too many submissions for this event right now" });
+    if (kind === "booking") {
+      const recentBooking = await Lead.countDocuments({ event_id, kind: "booking", createdAt: { $gt: hourAgo } });
+      if (recentBooking >= 50) {
+        return res.status(429).send({ error: "Too many inquiries for this event right now" });
+      }
+    } else {
+      const recentGate = await Lead.countDocuments({
+        event_id,
+        kind: { $in: ["gate", null] },
+        createdAt: { $gt: hourAgo },
+      });
+      if (recentGate >= 200) {
+        return res.status(429).send({ error: "Too many submissions for this event right now" });
+      }
     }
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const existing = await Lead.findOne({ event_id, phone: cleanPhone, createdAt: { $gt: since } });
-    if (existing) return res.status(200).send({ deduped: true, lead: existing });
+
     const lead = new Lead({
       event_id,
       photographer_id: event.created_id,
       name: name.trim(),
       phone: cleanPhone,
+      kind,
+      ...(message ? { message } : {}),
       photos_found,
     });
     await lead.save();
-    return res.status(201).send({ deduped: false, lead });
+    return res.status(201).send({ ok: true, deduped: false, lead: { _id: lead._id, name: lead.name, kind: lead.kind } });
   } catch (e) {
     logger.error("Error saving lead", e instanceof Error ? { message: e.message } : {});
     return res.status(500).send({ error: "Internal server error" });
@@ -77,7 +126,7 @@ router.post("/events/:id/leads", async (req: Request, res: Response) => {
     if (typeof caller !== "string" || caller !== event.created_id) {
       return res.status(403).json({ message: "Only the event owner can view leads." });
     }
-    const leads = await Lead.find({ event_id: id }).select("name phone photos_found createdAt").sort({ createdAt: -1 }).limit(1000);
+    const leads = await Lead.find({ event_id: id }).select("name phone kind message photos_found createdAt").sort({ createdAt: -1 }).limit(1000);
     return res.status(200).json({ leads });
   } catch (e) {
     logger.error("Error listing leads", e instanceof Error ? { message: e.message } : {});
