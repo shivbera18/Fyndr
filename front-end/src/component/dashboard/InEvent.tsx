@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState, useTransition } from 
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import UploadImg from "./Upload_Img";
-import Qrcode from "./Qrcode";
-import { QRCodeCanvas } from "qrcode.react";
+// ponytail: qrcode.react (~14KB) splits out — fetched only when QR UI opens.
+const Qrcode = React.lazy(() => import("./Qrcode"));
+const StandeeQr = React.lazy(() => import("./qr-standee"));
 import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -767,9 +768,9 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   return (
     <div className="space-y-8">
       {/* Hidden high-res QR pixel source for the printable standee */}
-      <div id="fyndr-standee-qr" aria-hidden="true" style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
-        <QRCodeCanvas value={guestUrl} size={512} level="H" includeMargin bgColor="#FFFFFF" fgColor="#121212" />
-      </div>
+      <React.Suspense fallback={null}>
+        <StandeeQr value={guestUrl} />
+      </React.Suspense>
       {/* Header bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-border">
         <div>
@@ -1533,7 +1534,9 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         description="Share this code with guests to access the photo search."
       >
         <div className="pt-2">
-          <Qrcode url={guestUrl} eventName={name} />
+          <React.Suspense fallback={null}>
+            <Qrcode url={guestUrl} eventName={name} />
+          </React.Suspense>
         </div>
       </ResponsiveModal>
 

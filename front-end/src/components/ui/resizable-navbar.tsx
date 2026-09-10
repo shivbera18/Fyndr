@@ -1,9 +1,5 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  motion,
-  AnimatePresence,
-} from "motion/react";
 import { Menu, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -78,7 +74,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
   const [hovered, setHovered] = useState<number | null>(null);
 
   return (
-    <motion.div
+    <div
       onMouseLeave={() => setHovered(null)}
       className={cn(
         "relative hidden flex-row items-center justify-center space-x-1 text-sm font-medium text-muted-foreground lg:flex",
@@ -87,16 +83,17 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
     >
       {items.map((item, idx) => {
         const isExternal = item.external || item.link.startsWith("http");
+        const isHovered = hovered === idx;
 
         const content = (
           <>
-            {hovered === idx && (
-              <motion.div
-                layoutId="nav-hovered"
-                className="absolute inset-0 h-full w-full rounded-full bg-accent/60"
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              />
-            )}
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute inset-0 h-full w-full rounded-full bg-accent/60 transition-all duration-150",
+                isHovered ? "opacity-100 scale-100" : "opacity-0 scale-95"
+              )}
+            />
             <span className="relative z-20 transition-colors">{item.name}</span>
           </>
         );
@@ -129,7 +126,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
           </Link>
         );
       })}
-    </motion.div>
+    </div>
   );
 };
 
@@ -168,22 +165,17 @@ export const MobileNavMenu = ({
   isOpen,
 }: MobileNavMenuProps) => {
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -10, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -10, scale: 0.98 }}
-          transition={{ duration: 0.15 }}
-          className={cn(
-            "absolute inset-x-0 top-full mt-2 z-50 flex w-full flex-col items-start justify-start gap-4 rounded-2xl border border-border bg-background/95 p-5 shadow-xl backdrop-blur-md",
-            className
-          )}
-        >
-          {children}
-        </motion.div>
+    <div
+      className={cn(
+        "absolute inset-x-0 top-full mt-2 z-50 flex w-full flex-col items-start justify-start gap-4 rounded-2xl border border-border bg-background p-4 shadow-lg transition-all duration-150 origin-top",
+        isOpen
+          ? "opacity-100 translate-y-0 scale-100"
+          : "pointer-events-none opacity-0 -translate-y-2 scale-[0.98]",
+        className
       )}
-    </AnimatePresence>
+    >
+      {children}
+    </div>
   );
 };
 
