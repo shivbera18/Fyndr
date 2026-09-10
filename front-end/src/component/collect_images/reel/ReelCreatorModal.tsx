@@ -124,6 +124,64 @@ function isValidDraft(d: unknown): d is ReelDraft {
 type Step = "photos" | "music" | "style" | "export";
 const STEPS: Step[] = ["photos", "music", "style", "export"];
 const STEP_LABEL: Record<Step, string> = { photos: "Photos", music: "Music", style: "Style", export: "Preview & Export" };
+// Mobile step indicator: numbered circles on a connected string. The active
+// circle scales up with a ring and the trail fills, so progress reads as
+// movement from 1 → 4. Desktop keeps the pill tabs below.
+function ReelStepper({
+  step,
+  index,
+  unlocked,
+  onGo,
+}: {
+  step: Step;
+  index: number;
+  unlocked: boolean;
+  onGo: (s: Step) => void;
+}): React.JSX.Element {
+  return (
+    <div className="sm:hidden">
+      <ol aria-label="Reel progress" className="flex items-center">
+        {STEPS.map((s, i) => {
+          const active = s === step;
+          const done = i < index;
+          const reachable = i === 0 || unlocked;
+          return (
+            <li key={s} className={i < STEPS.length - 1 ? "flex flex-1 items-center" : "flex items-center"}>
+              <button
+                type="button"
+                onClick={() => onGo(s)}
+                disabled={!reachable}
+                aria-label={`Step ${i + 1}: ${STEP_LABEL[s]}`}
+                aria-current={active ? "step" : undefined}
+                className={cn(
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 motion-reduce:transition-none",
+                  active && "scale-110 bg-primary text-primary-foreground ring-4 ring-primary/25",
+                  !active && done && "bg-primary/70 text-primary-foreground",
+                  !active && !done && "bg-muted text-muted-foreground",
+                  !reachable && "opacity-40"
+                )}
+              >
+                {done && !active ? <span aria-hidden="true">✓</span> : i + 1}
+              </button>
+              {i < STEPS.length - 1 && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "mx-1.5 h-0.5 flex-1 rounded-full transition-colors duration-300 motion-reduce:transition-none",
+                    i < index ? "bg-primary" : "bg-muted"
+                  )}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <p aria-hidden="true" className="mt-1.5 text-center text-xs font-medium text-muted-foreground">
+        Step {index + 1} of 4 · {STEP_LABEL[step]}
+      </p>
+    </div>
+  );
+}
 
 const ReelCreatorModal = ({
   open,
@@ -452,13 +510,19 @@ const ReelCreatorModal = ({
   }, [musicId, customMusicUrl]);
 
   useEffect(() => {
+    // Reset first: a dead remote URL must not keep the previous track's
+    // duration in the trim UI and export end.
+    setUploadDuration(0);
     if (musicId !== "custom" || !customMusicUrl) return;
     const el = new Audio(customMusicUrl);
     el.preload = "metadata";
     const onMeta = (): void => setUploadDuration(Number.isFinite(el.duration) ? el.duration : 0);
+    const onErr = (): void => setUploadDuration(0);
     el.addEventListener("loadedmetadata", onMeta);
+    el.addEventListener("error", onErr);
     return () => {
       el.removeEventListener("loadedmetadata", onMeta);
+      el.removeEventListener("error", onErr);
       el.removeAttribute("src");
     };
   }, [musicId, customMusicUrl]);
@@ -571,6 +635,18 @@ const ReelCreatorModal = ({
     setCustomMusicName(file.name);
     setMusicId("custom");
   };
+  // Remote picks (free-music search, pasted links) reuse the custom slot: the
+  // trim/volume/mute/export path already handles any URL, degrading to a
+  // muted export with a notice when the host blocks audio reads (no CORS).
+  const handleRemoteAudio = (url: string, name: string): void => {
+    if (customUrlRef.current) {
+      URL.revokeObjectURL(customUrlRef.current);
+      customUrlRef.current = null;
+    }
+    setCustomMusicUrl(url);
+    setCustomMusicName(name);
+    setMusicId("custom");
+  }
 
   const handleExport = async (): Promise<void> => {
     if (isExporting || images.length < REEL_MIN_PHOTOS) return;
@@ -684,21 +760,21 @@ const ReelCreatorModal = ({
     typeof navigator !== "undefined" && typeof navigator.canShare === "function" && resultBlob !== null;
 
   const stepNav: React.JSX.Element = (
-        <div role="navigation" aria-label="Reel steps" className="flex items-center gap-2">
+        <nav aria-label="Reel steps" className="flex items-center gap-2">
           <div aria-live="polite" className="sr-only">
             {navMsg}
           </div>
           <Button
             type="button"
             variant="outline"
-            className="min-h-[44px] shrink-0"
+            className="min-h-[44px] shrink-0 px-4 font-semibold"
             disabled={stepIndex === 0}
             aria-label={stepIndex === 0 ? "Back" : `Back to ${STEP_LABEL[prevStep]}`}
             onClick={() => setStep(prevStep)}
           >
             ← Back
           </Button>
-          <p className="min-w-0 flex-1 truncate text-center text-sm text-muted-foreground">
+          <p className="min-w-0 flex-1 truncate text-center text-xs text-muted-foreground sm:text-sm">
             {selected.length < REEL_MIN_PHOTOS
               ? `Select at least ${REEL_MIN_PHOTOS} photos`
               : `≈${total.toFixed(1)}s · ${selected.length} photos`}
@@ -706,7 +782,7 @@ const ReelCreatorModal = ({
           {step === "export" ? (
             <Button
               type="button"
-              className="min-h-[44px] shrink-0"
+              className="min-h-[44px] shrink-0 px-4 font-semibold"
               loading={isExporting}
               disabled={!exportSupported || images.length < REEL_MIN_PHOTOS}
               aria-label="Export Reel"
@@ -717,7 +793,7 @@ const ReelCreatorModal = ({
           ) : (
             <Button
               type="button"
-              className="min-h-[44px] shrink-0"
+              className="min-h-[44px] shrink-0 px-4 font-semibold"
               disabled={selected.length < REEL_MIN_PHOTOS}
               aria-label={`Continue to ${STEP_LABEL[nextStep]}`}
               onClick={() => setStep(nextStep)}
@@ -725,15 +801,16 @@ const ReelCreatorModal = ({
               Next →
             </Button>
           )}
-        </div>
+        </nav>
   );
   const body: React.JSX.Element = (
-      <Tabs value={step} onValueChange={(v) => setStep(v as Step)} className="pt-2">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="photos" className="min-h-[44px]">1. Photos</TabsTrigger>
-          <TabsTrigger value="music" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px]">2. Music</TabsTrigger>
-          <TabsTrigger value="style" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px]">3. Style</TabsTrigger>
-          <TabsTrigger value="export" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px]">
+      <Tabs value={step} onValueChange={(v) => setStep(v as Step)} className="space-y-3 pt-2">
+        <ReelStepper step={step} index={stepIndex} unlocked={selected.length >= REEL_MIN_PHOTOS} onGo={setStep} />
+        <TabsList className="hidden h-auto w-full grid-cols-4 gap-1 p-1 sm:grid">
+          <TabsTrigger value="photos" className="min-h-[44px] px-2 py-2 text-xs lg:text-sm">1. Photos</TabsTrigger>
+          <TabsTrigger value="music" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px] px-2 py-2 text-xs lg:text-sm">2. Music</TabsTrigger>
+          <TabsTrigger value="style" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px] px-2 py-2 text-xs lg:text-sm">3. Style</TabsTrigger>
+          <TabsTrigger value="export" disabled={selected.length < REEL_MIN_PHOTOS} className="min-h-[44px] px-2 py-2 text-xs lg:text-sm">
             4. Preview &amp; Export
           </TabsTrigger>
         </TabsList>
@@ -926,6 +1003,7 @@ const ReelCreatorModal = ({
             onSelect={setMusicId}
             customAudio={customMusicUrl ? { url: customMusicUrl, name: customMusicName } : null}
             onUpload={(file) => handleAudioUpload(file)}
+            onSelectRemote={handleRemoteAudio}
             loading={musicLoading}
           />
           {musicUrl && trackDuration > 0 && (
