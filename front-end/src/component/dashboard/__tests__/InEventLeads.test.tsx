@@ -46,6 +46,15 @@ describe("InEvent leads CSV export", () => {
                 // Multiline message starting with formula trigger on 2nd line
                 message: "Hi,\n=cmd|' /C calc'!A0",
               },
+              {
+                name: "=cmd|' /C calc'!A0",
+                phone: "+919800011122",
+                photos_found: 0,
+                createdAt: "2026-09-09T10:20:00.000Z",
+                kind: "booking",
+                // Leading-tab formula trigger (Excel strips whitespace before evaluating)
+                message: "\t+1234",
+              },
             ],
           }),
         } as Response);
@@ -74,7 +83,7 @@ describe("InEvent leads CSV export", () => {
     fireEvent.click(downloadBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Downloaded 2 leads \(1 booking inquiry\)\./i)).toBeInTheDocument();
+      expect(screen.getByText(/Downloaded 3 leads \(2 booking inquiries\)\./i)).toBeInTheDocument();
     });
 
     // Check CSV structure: header has kind and message appended
@@ -86,6 +95,9 @@ describe("InEvent leads CSV export", () => {
     expect(capturedCsv).toContain('"booking"');
     // Notice formula injection '=cmd' after flattening newline should become safe with leading quote
     expect(capturedCsv).toContain("Hi, =cmd");
+    // Leading-formula cells must carry the apostrophe guard (exact fix for the hardened regex)
+    expect(capturedCsv).toContain("\"'=cmd|' /C calc'!A0\"");
+    expect(capturedCsv).toContain("\"'\t+1234\"");
 
     global.Blob = originalBlob;
   });
