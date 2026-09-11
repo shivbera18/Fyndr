@@ -14,15 +14,22 @@ function ytDlpBin(): string {
 // Oracle IPs are bot-blocked for anonymous YouTube watch calls. Point
 // YT_DLP_COOKIES at an exported youtube.com cookies.txt (Netscape format)
 // and both endpoints authenticate with it.
-function cookieArgs(): string[] {
+// Bad paths warn once (not per request); a stat is noise next to a yt-dlp spawn.
+let warnedBadCookies = false;
+
+export function cookieArgs(): string[] {
   const p = process.env.YT_DLP_COOKIES;
   if (!p) return [];
   try {
-    if (!fs.existsSync(p)) return [];
+    if (fs.statSync(p).isFile()) return ["--cookies", p];
   } catch {
-    return [];
+    // fall through to the warning below
   }
-  return ["--cookies", p];
+  if (!warnedBadCookies) {
+    warnedBadCookies = true;
+    logger.warn("YT_DLP_COOKIES is set but not a readable file — running without YouTube auth");
+  }
+  return [];
 }
 const VIDEO_ID_RE = /^[\w-]{11}$/;
 const MAX_QUERY = 80;
@@ -125,7 +132,8 @@ router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
       res.status(503).send({ error: "audio engine unavailable (install yt-dlp)" });
       return;
     }
-    const msg = e instanceof Error ? e.message : "search failed";
+    // execFile errors embed the full argv — redact the cookie path (server log only, low risk, still cheap).
+    const msg = e instanceof Error ? e.message.replace(/--cookies \S+/g, "--cookies [redacted]") : "search failed";
     logger.error("Shorts search failed", { error: msg, q });
     res.status(502).send({ error: "shorts search failed, try again" });
   } finally {
