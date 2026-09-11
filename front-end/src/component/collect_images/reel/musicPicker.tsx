@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Pause, Play, Search, Upload } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { isRecord } from "./tracks";
+import { API_URL } from "../../../utils/api";
 import type { CatalogTrack } from "./tracks";
 
 export interface PickerAudio {
@@ -117,12 +118,58 @@ export function extractYoutubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-type Source = "library" | "free" | "link";
+type Source = "library" | "free" | "link" | "shorts";
 const SOURCES: { id: Source; label: string }[] = [
   { id: "library", label: "Library" },
   { id: "free", label: "Free music" },
+  { id: "shorts", label: "Shorts" },
   { id: "link", label: "YouTube & link" },
 ];
+
+// --- YouTube Shorts audio (backend yt-dlp search + same-origin audio pipe) ---
+
+export interface ShortResult {
+  id: string;
+  title: string;
+  channel: string;
+  duration: number;
+  audioUrl: string;
+}
+
+const SHORT_ID_RE = /^[\w-]{11}$/;
+const SHORT_AUDIO_RE = /^\/api\/music\/audio\?v=[\w-]{11}$/;
+
+export function parseShortsResponse(data: unknown): ShortResult[] {
+  if (!isRecord(data) || !Array.isArray(data.tracks)) return [];
+  const out: ShortResult[] = [];
+  for (const entry of data.tracks) {
+    if (!isRecord(entry)) continue;
+    const { id, title, channel, duration, audioUrl } = entry;
+    // Backend contract: 11-char id, same-origin proxied audio path. Anything
+    // else is unusable downstream (thumbnail + exporter), so drop it here.
+    if (typeof id !== "string" || !SHORT_ID_RE.test(id)) continue;
+    if (typeof title !== "string" || title === "") continue;
+    if (typeof audioUrl !== "string" || !SHORT_AUDIO_RE.test(audioUrl)) continue;
+    out.push({
+      id,
+      title,
+      channel: typeof channel === "string" ? channel : "YouTube",
+      duration: typeof duration === "number" && duration > 0 ? duration : 0,
+      audioUrl,
+    });
+  }
+  return out;
+}
+
+export async function searchShorts(query: string, signal: AbortSignal): Promise<ShortResult[]> {
+  const res = await fetch(`${API_URL}/api/music/shorts-search?q=${encodeURIComponent(query)}`, {
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (res.status === 503) throw new Error("Shorts audio isn't set up on this server yet.");
+  if (!res.ok) throw new Error("Shorts search failed.");
+  return parseShortsResponse(await res.json());
+}
 
 // List + inline preview + upload row. Validation and object-URL lifecycle stay in
 // the modal (it owns the 15MB rule and revocation); this component only forwards Files.
@@ -241,6 +288,45 @@ export function MusicPicker({
     };
   }, [fq, source]);
 
+  // --- Shorts search state ---
+  const [sq, setSq] = useState("");
+  const [sresults, setSresults] = useState<ShortResult[]>([]);
+  const [sloading, setSloading] = useState(false);
+  const [serr, setSerr] = useState("");
+
+  useEffect(() => {
+    if (source !== "shorts") return;
+    const trimmed = sq.trim();
+    if (trimmed.length < 2) {
+      setSresults([]);
+      setSerr("");
+      setSloading(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      setSloading(true);
+      setSerr("");
+      searchShorts(trimmed, ctrl.signal)
+        .then((tracks) => {
+          if (!ctrl.signal.aborted) setSresults(tracks);
+        })
+        .catch((e: unknown) => {
+          if (!ctrl.signal.aborted) {
+            setSresults([]);
+            setSerr(e instanceof Error ? e.message : "Search failed.");
+          }
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setSloading(false);
+        });
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [sq, source]);
+
   // --- YouTube / direct-link state ---
   const [link, setLink] = useState("");
   const [linkErr, setLinkErr] = useState("");
@@ -316,7 +402,7 @@ export function MusicPicker({
               className="min-h-[44px] w-full rounded-xl border border-border bg-card px-3 text-base"
             />
             {moods.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1" data-vaul-no-drag>
+              <div className="scroll-thin flex gap-2 overflow-x-auto pb-1" data-vaul-no-drag>
                 {["All", ...moods].map((m) => (
                   <button
                     key={m}
@@ -477,6 +563,87 @@ export function MusicPicker({
                   <button
                     type="button"
                     onClick={() => onSelectRemote(t.streamUrl, `${t.title} — ${t.artist}`)}
+                    aria-pressed={using}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <span className="block truncate text-sm font-medium">
+                      {t.title}
+                      {using ? " · Using" : ""}
+                    </span>
+                    {meta !== "" && <span className="block truncate text-xs text-muted-foreground">{meta}</span>}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {source === "shorts" && onSelectRemote && (
+        <div className="space-y-2">
+          <label htmlFor="reel-shorts-search" className="sr-only">
+            Search YouTube Shorts audio
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="reel-shorts-search"
+              type="search"
+              value={sq}
+              onChange={(e) => setSq(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") e.stopPropagation();
+              }}
+              placeholder="Search viral Shorts audio (e.g. Sayyara)"
+              className="min-h-[44px] w-full rounded-xl border border-border bg-card py-2 pl-9 pr-3 text-base"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Audio pulled from YouTube Shorts — personal use only.</p>
+          {sloading && <p className="text-sm text-muted-foreground">Searching Shorts…</p>}
+          {serr !== "" && (
+            <p role="alert" className="text-sm text-destructive">
+              {serr}
+            </p>
+          )}
+          {!sloading && serr === "" && sq.trim().length >= 2 && sresults.length === 0 && (
+            <p className="text-sm text-muted-foreground">No Shorts found — try another search.</p>
+          )}
+          {!sloading && serr === "" && sq.trim().length < 2 && (
+            <p className="text-sm text-muted-foreground">Type at least 2 characters to search.</p>
+          )}
+          <div className="grid grid-cols-1 gap-2">
+            {sresults.map((t) => {
+              const src = `${API_URL}${t.audioUrl}`;
+              const playing = playingId === t.id;
+              const using = musicId === "custom" && customAudio?.url === src;
+              const meta = [t.channel, formatDuration(t.duration)].filter(Boolean).join(" · ");
+              return (
+                <div
+                  key={t.id}
+                  className={cn(
+                    "flex min-h-[44px] items-center gap-2 rounded-xl border px-2 py-2 text-left",
+                    using ? "border-primary bg-primary/10" : "border-border bg-card"
+                  )}
+                >
+                  <button
+                    type="button"
+                    aria-label={playing ? `Pause ${t.title}` : `Play ${t.title}`}
+                    aria-pressed={playing}
+                    onClick={() => togglePreview(t.id, t.title, src)}
+                    className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-muted"
+                  >
+                    {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </button>
+                  <img
+                    src={`https://i.ytimg.com/vi/${t.id}/hqdefault.jpg`}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onSelectRemote(src, `${t.title} — ${t.channel}`)}
                     aria-pressed={using}
                     className="min-w-0 flex-1 text-left"
                   >

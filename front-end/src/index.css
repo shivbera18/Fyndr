@@ -145,6 +145,22 @@
     content-visibility: auto;
     contain-intrinsic-size: auto 200px;
   }
+  /* Hairline themed scrollbar for short horizontal rails (music mood chips). */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    height: 4px;
+    width: 4px;
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.4);
+    border-radius: 999px;
+  }
 }
 
 /* Smooth View Transition for theme toggling without DOM tearing or filter strobe */
