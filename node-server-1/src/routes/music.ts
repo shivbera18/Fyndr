@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { execFile, spawn, type ChildProcess } from "child_process";
+import fs from "fs";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -9,6 +10,19 @@ const router = Router();
 // Read lazily so tests can point it at a stub binary via env.
 function ytDlpBin(): string {
   return process.env.YT_DLP_BIN || "yt-dlp";
+}
+// Oracle IPs are bot-blocked for anonymous YouTube watch calls. Point
+// YT_DLP_COOKIES at an exported youtube.com cookies.txt (Netscape format)
+// and both endpoints authenticate with it.
+function cookieArgs(): string[] {
+  const p = process.env.YT_DLP_COOKIES;
+  if (!p) return [];
+  try {
+    if (!fs.existsSync(p)) return [];
+  } catch {
+    return [];
+  }
+  return ["--cookies", p];
 }
 const VIDEO_ID_RE = /^[\w-]{11}$/;
 const MAX_QUERY = 80;
@@ -93,6 +107,7 @@ router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
   try {
     const out = await runYtDlp([
       "--flat-playlist",
+      ...cookieArgs(),
       "--no-playlist",
       "--print",
       "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s",
@@ -134,6 +149,7 @@ router.get("/api/music/audio", (req: Request, res: Response) => {
       "--no-playlist",
       "-o",
       "-",
+      ...cookieArgs(),
       `https://www.youtube.com/watch?v=${v}`,
     ]);
   } catch {
