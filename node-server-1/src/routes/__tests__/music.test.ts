@@ -1,8 +1,11 @@
 import assert from "node:assert";
 import test from "node:test";
 import { EventEmitter } from "node:events";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { Request, Response } from "express";
-import musicRouter, { parseShortsLines, audioUrlFor, isVideoId } from "../music";
+import musicRouter, { parseShortsLines, audioUrlFor, isVideoId, cookieArgs } from "../music";
 
 interface MockResponse {
   statusCode: number;
@@ -189,6 +192,26 @@ test("Shorts music endpoint tests", async (t) => {
     } finally {
       if (prev === undefined) delete process.env.YT_DLP_BIN;
       else process.env.YT_DLP_BIN = prev;
+    }
+  });
+
+  await t.test("cookieArgs follows YT_DLP_COOKIES only for real files", () => {
+    const prev = process.env.YT_DLP_COOKIES;
+    try {
+      delete process.env.YT_DLP_COOKIES;
+      assert.deepStrictEqual(cookieArgs(), []);
+      process.env.YT_DLP_COOKIES = "/definitely/missing/cookies.txt";
+      assert.deepStrictEqual(cookieArgs(), []);
+      process.env.YT_DLP_COOKIES = os.tmpdir();
+      assert.deepStrictEqual(cookieArgs(), []);
+      const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "fyndr-cookies-")), "cookies.txt");
+      fs.writeFileSync(f, "# Netscape HTTP Cookie File\n");
+      process.env.YT_DLP_COOKIES = f;
+      assert.deepStrictEqual(cookieArgs(), ["--cookies", f]);
+      fs.rmSync(path.dirname(f), { recursive: true, force: true });
+    } finally {
+      if (prev === undefined) delete process.env.YT_DLP_COOKIES;
+      else process.env.YT_DLP_COOKIES = prev;
     }
   });
 });

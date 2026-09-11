@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { execFile, spawn, type ChildProcess } from "child_process";
+import fs from "fs";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -9,6 +10,26 @@ const router = Router();
 // Read lazily so tests can point it at a stub binary via env.
 function ytDlpBin(): string {
   return process.env.YT_DLP_BIN || "yt-dlp";
+}
+// Oracle IPs are bot-blocked for anonymous YouTube watch calls. Point
+// YT_DLP_COOKIES at an exported youtube.com cookies.txt (Netscape format)
+// and both endpoints authenticate with it.
+// Bad paths warn once (not per request); a stat is noise next to a yt-dlp spawn.
+let warnedBadCookies = false;
+
+export function cookieArgs(): string[] {
+  const p = process.env.YT_DLP_COOKIES;
+  if (!p) return [];
+  try {
+    if (fs.statSync(p).isFile()) return ["--cookies", p];
+  } catch {
+    // fall through to the warning below
+  }
+  if (!warnedBadCookies) {
+    warnedBadCookies = true;
+    logger.warn("YT_DLP_COOKIES is set but not a readable file — running without YouTube auth");
+  }
+  return [];
 }
 const VIDEO_ID_RE = /^[\w-]{11}$/;
 const MAX_QUERY = 80;
@@ -93,6 +114,7 @@ router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
   try {
     const out = await runYtDlp([
       "--flat-playlist",
+      ...cookieArgs(),
       "--no-playlist",
       "--print",
       "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s",
@@ -110,7 +132,8 @@ router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
       res.status(503).send({ error: "audio engine unavailable (install yt-dlp)" });
       return;
     }
-    const msg = e instanceof Error ? e.message : "search failed";
+    // execFile errors embed the full argv — redact the cookie path (server log only, low risk, still cheap).
+    const msg = e instanceof Error ? e.message.replace(/--cookies \S+/g, "--cookies [redacted]") : "search failed";
     logger.error("Shorts search failed", { error: msg, q });
     res.status(502).send({ error: "shorts search failed, try again" });
   } finally {
@@ -134,6 +157,7 @@ router.get("/api/music/audio", (req: Request, res: Response) => {
       "--no-playlist",
       "-o",
       "-",
+      ...cookieArgs(),
       `https://www.youtube.com/watch?v=${v}`,
     ]);
   } catch {
