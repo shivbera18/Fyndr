@@ -21,7 +21,7 @@ export default function Qrcode({ url, eventName = "Event" }: Props): React.JSX.E
     const fileName = sanitizeFileName(eventName, "_QRCode.png");
     const dataUrl = canvas.toDataURL("image/png");
     const blob = dataURLToBlob(dataUrl);
-    shareOrDownload(blob, fileName, eventName, dataUrl, undefined);
+    shareOrDownload(blob, fileName, eventName);
   };
 
   const copyLink = () => {

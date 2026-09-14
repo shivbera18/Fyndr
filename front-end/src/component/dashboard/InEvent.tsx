@@ -738,8 +738,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     const fileName = sanitizeFileName(name, "_standee.png");
     const dataUrl = canvas.toDataURL("image/png");
     const blob = dataURLToBlob(dataUrl);
-    const url = URL.createObjectURL(blob);
-    shareOrDownload(blob, fileName, name, url, setProofMsg);
+    shareOrDownload(blob, fileName, name, setProofMsg);
   };
 
   const guestCopied = (): void => {

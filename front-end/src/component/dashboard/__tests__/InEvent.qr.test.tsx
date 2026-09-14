@@ -103,6 +103,37 @@ describe("mobile download utilities", () => {
   const sampleDataUrl =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+  let origShare: typeof navigator.share;
+  let origCanShare: typeof navigator.canShare;
+  let origUserAgent: string;
+  let origPlatform: string;
+  let origOpen: typeof window.open;
+  let origCreateObjectURL: typeof window.URL.createObjectURL;
+  let origRevokeObjectURL: typeof window.URL.revokeObjectURL;
+
+  beforeEach(() => {
+    origShare = navigator.share;
+    origCanShare = navigator.canShare;
+    origUserAgent = navigator.userAgent;
+    origPlatform = navigator.platform;
+    origOpen = window.open;
+    origCreateObjectURL = window.URL.createObjectURL;
+    origRevokeObjectURL = window.URL.revokeObjectURL;
+    window.URL.createObjectURL = jest.fn(() => "mock-blob-url");
+    window.URL.revokeObjectURL = jest.fn();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "share", { value: origShare, configurable: true });
+    Object.defineProperty(navigator, "canShare", { value: origCanShare, configurable: true });
+    Object.defineProperty(navigator, "userAgent", { value: origUserAgent, configurable: true });
+    Object.defineProperty(navigator, "platform", { value: origPlatform, configurable: true });
+    window.open = origOpen;
+    window.URL.createObjectURL = origCreateObjectURL;
+    window.URL.revokeObjectURL = origRevokeObjectURL;
+    jest.restoreAllMocks();
+  });
+
   it("dataURLToBlob parses PNG dataUrl to Blob correctly", () => {
     const blob = dataURLToBlob(sampleDataUrl);
     expect(blob).toBeInstanceOf(Blob);
@@ -110,8 +141,20 @@ describe("mobile download utilities", () => {
     expect(blob.size).toBeGreaterThan(0);
   });
 
-  it("sanitizeFileName sanitizes special characters, whitespace, and truncates", () => {
-    expect(sanitizeFileName("My Event 2026!", "_QRCode.png")).toBe("My_Event_2026_QRCode.png");
+  it("dataURLToBlob handles malformed or missing input safely", () => {
+    const emptyBlob = dataURLToBlob("");
+    expect(emptyBlob).toBeInstanceOf(Blob);
+    expect(emptyBlob.size).toBe(0);
+
+    const invalidBlob = dataURLToBlob("not-a-valid-data-url");
+    expect(invalidBlob).toBeInstanceOf(Blob);
+    expect(invalidBlob.size).toBe(0);
+  });
+
+  it("sanitizeFileName preserves international characters and removes illegal fs chars", () => {
+    expect(sanitizeFileName("My:Event*2026?", "_QRCode.png")).toBe("MyEvent2026_QRCode.png");
+    expect(sanitizeFileName("वैवाहिक कार्यक्रम 2026", "_standee.png")).toBe("वैवाहिक_कार्यक्रम_2026_standee.png");
+    expect(sanitizeFileName("Fête d'été / 2026", "_standee.png")).toBe("Fête_d'été_2026_standee.png");
     expect(sanitizeFileName("   ", "_standee.png")).toBe("Event_standee.png");
     const longName = "A".repeat(80);
     expect(sanitizeFileName(longName, ".png")).toBe("A".repeat(50) + ".png");
@@ -125,51 +168,70 @@ describe("mobile download utilities", () => {
     Object.defineProperty(navigator, "share", { value: mockShare, configurable: true });
 
     const setMsg = jest.fn();
-    shareOrDownload(blob, "test.png", "Title", "blob:mock", setMsg);
+    shareOrDownload(blob, "test.png", "Title", setMsg);
 
     expect(mockCanShare).toHaveBeenCalled();
     expect(mockShare).toHaveBeenCalled();
   });
 
-  it("shareOrDownload opens new tab on iOS devices when share unavailable", () => {
+  it("shareOrDownload falls back to download when navigator.share rejects with error", async () => {
+    const blob = new Blob(["test"], { type: "image/png" });
+    const shareError = new Error("Share failed");
+    shareError.name = "NotAllowedError";
+    const mockShare = jest.fn(() => Promise.reject(shareError));
+    const mockCanShare = jest.fn(() => true);
+    Object.defineProperty(navigator, "canShare", { value: mockCanShare, configurable: true });
+    Object.defineProperty(navigator, "share", { value: mockShare, configurable: true });
+
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const setMsg = jest.fn();
+    shareOrDownload(blob, "test.png", "Title", setMsg);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(clickSpy).toHaveBeenCalled();
+    expect(setMsg).toHaveBeenCalledWith(expect.stringContaining("Downloaded"));
+  });
+
+  it("shareOrDownload ignores AbortError when user dismisses share sheet", async () => {
+    const blob = new Blob(["test"], { type: "image/png" });
+    const abortError = new Error("User cancelled");
+    abortError.name = "AbortError";
+    const mockShare = jest.fn(() => Promise.reject(abortError));
+    const mockCanShare = jest.fn(() => true);
+    Object.defineProperty(navigator, "canShare", { value: mockCanShare, configurable: true });
+    Object.defineProperty(navigator, "share", { value: mockShare, configurable: true });
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const setMsg = jest.fn();
+    shareOrDownload(blob, "test.png", "Title", setMsg);
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("shareOrDownload falls back to window.open when anchor click throws", () => {
     Object.defineProperty(navigator, "canShare", { value: undefined, configurable: true });
-    const origUserAgent = navigator.userAgent;
-    Object.defineProperty(navigator, "userAgent", {
-      value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-      configurable: true,
-    });
     const mockOpen = jest.fn();
     window.open = mockOpen;
+    jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      throw new Error("Anchor click not allowed");
+    });
 
     const blob = new Blob(["test"], { type: "image/png" });
     const setMsg = jest.fn();
-    shareOrDownload(blob, "test.png", "Title", "blob:mock", setMsg);
+    shareOrDownload(blob, "test.png", "Title", setMsg);
 
     expect(mockOpen).toHaveBeenCalledWith(expect.any(String), "_blank");
     expect(setMsg).toHaveBeenCalledWith(expect.stringContaining("Opened in new tab"));
-
-    Object.defineProperty(navigator, "userAgent", { value: origUserAgent, configurable: true });
   });
 
-  it("shareOrDownload falls back to anchor download on desktop", () => {
+  it("shareOrDownload performs standard anchor download on desktop", () => {
     Object.defineProperty(navigator, "canShare", { value: undefined, configurable: true });
-    const origUserAgent = navigator.userAgent;
-    Object.defineProperty(navigator, "userAgent", {
-      value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      configurable: true,
-    });
-    Object.defineProperty(navigator, "platform", { value: "Win32", configurable: true });
-
     const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
     const blob = new Blob(["test"], { type: "image/png" });
     const setMsg = jest.fn();
-    shareOrDownload(blob, "test.png", "Title", "blob:mock", setMsg);
+    shareOrDownload(blob, "test.png", "Title", setMsg);
 
     expect(clickSpy).toHaveBeenCalled();
     expect(setMsg).toHaveBeenCalledWith(expect.stringContaining("Downloaded"));
-
-    clickSpy.mockRestore();
-    Object.defineProperty(navigator, "userAgent", { value: origUserAgent, configurable: true });
   });
 });
