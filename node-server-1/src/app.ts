@@ -1,3 +1,4 @@
+import multer from "multer";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import "./db";
@@ -37,9 +38,23 @@ export function createApp(): express.Express {
   app.use(ftpRouter);
 
   // Global error logging — main error log is logs/error.log
-  // NOTE: 4-arg signature required so Express treats this as error middleware.
   app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
     void _next;
+    if (err instanceof multer.MulterError) {
+      logger.warn("Multer upload error", {
+        code: err.code,
+        message: err.message,
+        method: req.method,
+        route: req.path,
+      });
+      return res.status(400).send({
+        error:
+          err.code === "LIMIT_UNEXPECTED_FILE"
+            ? "Too many files in a single batch (max 100). Please upload in smaller batches."
+            : err.message,
+        message: err.message,
+      });
+    }
     logger.error("Unhandled Express error", {
       error: err.message,
       stack: err.stack,
