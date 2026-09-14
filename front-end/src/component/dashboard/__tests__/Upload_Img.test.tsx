@@ -2,9 +2,20 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE } from "../Upload_Img";
 
-jest.mock("axios");
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
+jest.mock("axios", () => {
+  return {
+    __esModule: true,
+    default: {
+      post: jest.fn(),
+      isCancel: jest.fn(() => false),
+      isAxiosError: jest.fn((err: unknown): boolean => Boolean(err && typeof err === "object" && "isAxiosError" in err)),
+    },
+    post: jest.fn(),
+    isCancel: jest.fn(() => false),
+    isAxiosError: jest.fn((err: unknown): boolean => Boolean(err && typeof err === "object" && "isAxiosError" in err)),
+  };
+});
+const mockedAxios = axios as unknown as { post: jest.Mock; isCancel: jest.Mock; isAxiosError: jest.Mock };
 describe("Upload_Img component memory safety and batching", () => {
   let createdUrls: string[] = [];
   let revokedUrls: string[] = [];
@@ -23,9 +34,8 @@ describe("Upload_Img component memory safety and batching", () => {
     window.URL.revokeObjectURL = jest.fn((url: string) => {
       revokedUrls.push(url);
     });
-
-    mockedAxios.isCancel = jest.fn().mockReturnValue(false) as unknown as typeof axios.isCancel;
-    mockedAxios.isAxiosError = jest.fn().mockReturnValue(false) as unknown as typeof axios.isAxiosError;
+    mockedAxios.isCancel.mockReturnValue(false);
+    mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => Boolean(err && typeof err === "object" && "isAxiosError" in err));
     localStorage.setItem("user", JSON.stringify({ _id: "usr_photographer_123" }));
   });
 
@@ -126,7 +136,7 @@ describe("Upload_Img component memory safety and batching", () => {
     mockedAxios.post
       .mockResolvedValueOnce({ status: 200, data: [] })
       .mockRejectedValueOnce(axiosError);
-    mockedAxios.isAxiosError = jest.fn((err: unknown): err is typeof axiosError => err === axiosError) as unknown as typeof axios.isAxiosError;
+    mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === axiosError);
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
 
