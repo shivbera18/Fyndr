@@ -26,6 +26,7 @@ services:
       - EMAIL_USER=dummy@example.com
       - EMAIL_PASS=dummy
       - FLASK_URL=http://ml:5001
+      # strictly lowercase "true" only, see FEATURE_FLAGS_PLAN.md §5.2
       - FEATURE_REEL=${FEATURE_REEL:-false}
       - PORT=5000
     depends_on:
@@ -60,6 +61,7 @@ services:
     environment:
       - REACT_APP_API_URL=http://localhost:5000
       - REACT_APP_ML_URL=http://localhost:5001
+      # strictly lowercase "true" only, see FEATURE_FLAGS_PLAN.md §5.2
       - REACT_APP_FEATURE_REEL=${REACT_APP_FEATURE_REEL:-false}
       - PORT=3000
       - HOST=0.0.0.0

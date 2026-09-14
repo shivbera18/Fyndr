@@ -15,8 +15,9 @@ export const FLAGS: Record<FlagId, FlagDef> = {
 // env by mutating process.env + resetModules. Tests MUST use the overrides
 // param or mock the module. No direct process.env reads in components.
 export function isFeatureEnabled(id: FlagId, overrides?: Partial<Record<FlagId, boolean>>): boolean {
-  if (overrides && id in overrides) return overrides[id] as boolean;
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, id)) return overrides[id] as boolean;
   const def = FLAGS[id];
+  if (!def) return false;
   const raw = process.env[def.envKey];
   if (raw === undefined) return def.defaultEnabled;
   return raw === "true";

@@ -18,6 +18,7 @@ export const FLAGS: Record<FlagId, FlagDef> = {
 // broken for the right reason: different build semantics.
 export function isFeatureEnabled(id: FlagId): boolean {
   const def = FLAGS[id];
+  if (!def) return false;
   const raw = process.env[def.envKey];
   if (raw === undefined) return def.defaultEnabled;
   return raw === "true";

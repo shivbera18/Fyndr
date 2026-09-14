@@ -122,8 +122,9 @@ function App() {
           <Route path='/' element={<Home />} />
           <Route path='/forgetpassword' element={<ForgetPass/>}/>
           <Route path='/confirmed' element={<ConfirmVerify/>}/>
+          <Route path="/emailverified" element={<EmailVerified />} />
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
-          <Route path='/reel/:eventId' element={isFeatureEnabled("reel") ? <ReelPage /> : <Navigate to="/" replace />} />
+          <Route path='/reel/:eventId' element={isFeatureEnabled("reel") ? <ReelPage /> : <Navigate to="/" replace state={{ disabledFeature: "reel" }} />} />
           <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/events' element={<Dashboard />} />
           <Route path='/create-event' element={<CreateEventPage />} />

@@ -10,14 +10,17 @@ import musicRouter, { parseShortsLines, audioUrlFor, isVideoId, cookieArgs } fro
 interface MockResponse {
   statusCode: number;
   body: Record<string, unknown> | null;
+  headers: Record<string, string>;
   status(code: number): MockResponse;
   send(payload: unknown): MockResponse;
+  setHeader(name: string, value: string): void;
 }
 
 function createMockResponse(): MockResponse {
   const res: MockResponse = {
     statusCode: 0,
     body: null,
+    headers: {},
     status(code: number) {
       this.statusCode = code;
       return this;
@@ -25,6 +28,9 @@ function createMockResponse(): MockResponse {
     send(payload: unknown) {
       this.body = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
       return this;
+    },
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
     },
   };
   return res;
