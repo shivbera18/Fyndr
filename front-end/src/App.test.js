@@ -3,30 +3,31 @@ import { render, screen } from '@testing-library/react';
 import App from './App';
 
 describe('Fyndr Web App Routing & Landing', () => {
-  test('renders FYNDR brand logo and navigation links', () => {
+  test('renders FYNDR brand logo and navigation links', async () => {
     render(<App />);
-    const brandElements = screen.getAllByText(/FYNDR/i);
+    const brandElements = await screen.findAllByText(/FYNDR/i);
     expect(brandElements.length).toBeGreaterThan(0);
 
-    const overviewLinks = screen.getAllByText(/Overview/i);
+    const overviewLinks = await screen.findAllByText(/Overview/i);
     expect(overviewLinks.length).toBeGreaterThan(0);
   });
 
-  test('renders main hero headline and call-to-action buttons', () => {
+  test('renders main hero headline and call-to-action buttons', async () => {
     render(<App />);
-    const heroHeadline = screen.getByText(/FIND YOURSELF IN/i);
+    const heroHeadline = await screen.findByText(/FIND YOURSELF IN/i);
     expect(heroHeadline).toBeInTheDocument();
 
-    const ctaButton = screen.getByRole('button', { name: /Create Free Event/i });
+    const ctaButton = await screen.findByRole('button', { name: /Create Free Event/i });
     expect(ctaButton).toBeInTheDocument();
   });
 
-  test('renders features and FAQ section', () => {
+  test('renders features and FAQ section', async () => {
     render(<App />);
-    const faqHeading = screen.getByText(/Frequently Asked Questions/i);
+    const faqHeading = await screen.findByText(/Frequently Asked Questions/i);
     expect(faqHeading).toBeInTheDocument();
 
-    const featuresHeadings = screen.getAllByText(/Built for modern event photographers/i);
+    const featuresHeadings = await screen.findAllByText(/Built for modern event photographers/i);
     expect(featuresHeadings.length).toBeGreaterThan(0);
   });
 });
+

@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { execFile, spawn, type ChildProcess } from "child_process";
 import fs from "fs";
 import logger from "../utils/logger";
+import { isFeatureEnabled } from "../config/featureFlags";
 
 const router = Router();
 
@@ -104,8 +105,11 @@ function missingBinary(e: unknown): boolean {
 }
 
 // Viral audio for reels: searches YouTube Shorts and returns audio-only
-// same-origin URLs the reel exporter can mux without CORS issues.
 router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
+  if (!isFeatureEnabled("reel")) {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(404).send({ error: "feature disabled" });
+  }
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   if (q.length < 2) return res.status(400).send({ error: "q (min 2 chars) required" });
   if (q.length > MAX_QUERY) return res.status(400).send({ error: "q too long" });
@@ -143,8 +147,11 @@ router.get("/api/music/shorts-search", async (req: Request, res: Response) => {
 
 // Pipes best-audio m4a for a Shorts video id. Same-origin pipe (never a
 // redirect): the browser + exporter read it without CORS, and the id
-// allowlist plus execFile (no shell) keeps this from becoming a proxy.
 router.get("/api/music/audio", (req: Request, res: Response) => {
+  if (!isFeatureEnabled("reel")) {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(404).send({ error: "feature disabled" });
+  }
   const v = req.query.v;
   if (!isVideoId(v)) return res.status(400).send({ error: "valid v (11-char video id) required" });
   if (audioJobs >= MAX_AUDIO_JOBS) return res.status(429).send({ error: "busy, try again" });

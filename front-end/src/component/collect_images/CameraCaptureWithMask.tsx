@@ -22,6 +22,7 @@ import {
   leadKey,
 } from "../../utils/gates";
 import { trackEvent, getGuestSession } from "../../utils/analytics";
+import { isFeatureEnabled } from "../../config/featureFlags";
 import {
   buildMatchedPhotosWhatsAppText,
   buildWhatsAppSendUrl,
@@ -793,26 +794,28 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                       <Share2 className="w-4 h-4 text-emerald-500" />
                       {shareCopied ? "Link Copied!" : "Share My Gallery"}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="brand"
-                      size="sm"
-                      onClick={() => {
-                        if (!eventId) return;
-                        if (eventId) trackEvent(eventId, "reel_open", { matchCount: matchedPhotos.length });
-                        navigate(`/reel/${eventId}`, {
-                          state: {
-                            photos: matchedPhotos.map((p) => ({ name: p.name })),
-                            eventName,
-                            from: "camera",
-                          },
-                        });
-                      }}
-                      className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold"
-                    >
-                      <Clapperboard className="w-4 h-4" />
-                      Create Reel
-                    </Button>
+                    {isFeatureEnabled("reel") && (
+                      <Button
+                        type="button"
+                        variant="brand"
+                        size="sm"
+                        onClick={() => {
+                          if (!eventId) return;
+                          if (eventId) trackEvent(eventId, "reel_open", { matchCount: matchedPhotos.length });
+                          navigate(`/reel/${eventId}`, {
+                            state: {
+                              photos: matchedPhotos.map((p) => ({ name: p.name })),
+                              eventName,
+                              from: "camera",
+                            },
+                          });
+                        }}
+                        className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold"
+                      >
+                        <Clapperboard className="w-4 h-4" />
+                        Create Reel
+                      </Button>
+                    )}
                   </div>
                 </div>
 

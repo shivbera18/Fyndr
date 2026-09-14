@@ -10,14 +10,17 @@ import musicRouter, { parseShortsLines, audioUrlFor, isVideoId, cookieArgs } fro
 interface MockResponse {
   statusCode: number;
   body: Record<string, unknown> | null;
+  headers: Record<string, string>;
   status(code: number): MockResponse;
   send(payload: unknown): MockResponse;
+  setHeader(name: string, value: string): void;
 }
 
 function createMockResponse(): MockResponse {
   const res: MockResponse = {
     statusCode: 0,
     body: null,
+    headers: {},
     status(code: number) {
       this.statusCode = code;
       return this;
@@ -25,6 +28,9 @@ function createMockResponse(): MockResponse {
     send(payload: unknown) {
       this.body = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
       return this;
+    },
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
     },
   };
   return res;
@@ -127,23 +133,39 @@ test("Shorts music endpoint tests", async (t) => {
     assert.strictEqual(isVideoId(undefined), false);
   });
 
-  await t.test("GET /api/music/shorts-search rejects short queries", async () => {
-    const res = createMockResponse();
-    const req = { query: { q: "a" } } as unknown as Request;
-    await findRoute("/api/music/shorts-search").handle(req, res as unknown as Response, () => {});
-    assert.strictEqual(res.statusCode, 400);
-  });
-
-  await t.test("GET /api/music/audio rejects non-ids", async () => {
-    for (const v of ["https://evil.com/x", "..", "short", undefined]) {
+  await t.test("GET /api/music/shorts-search rejects short queries when flag ON", async () => {
+    const prev = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "true";
+    try {
       const res = createMockResponse();
-      const req = { query: { v } } as unknown as Request;
-      await findRoute("/api/music/audio").handle(req, res as unknown as Response, () => {});
-      assert.strictEqual(res.statusCode, 400, `v=${String(v)} should 400`);
+      const req = { query: { q: "a" } } as unknown as Request;
+      await findRoute("/api/music/shorts-search").handle(req, res as unknown as Response, () => {});
+      assert.strictEqual(res.statusCode, 400);
+    } finally {
+      if (prev === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prev;
     }
   });
 
-  await t.test("GET /api/music/shorts-search 502s when the engine fails", async () => {
+  await t.test("GET /api/music/audio rejects non-ids when flag ON", async () => {
+    const prev = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "true";
+    try {
+      for (const v of ["https://evil.com/x", "..", "short", undefined]) {
+        const res = createMockResponse();
+        const req = { query: { v } } as unknown as Request;
+        await findRoute("/api/music/audio").handle(req, res as unknown as Response, () => {});
+        assert.strictEqual(res.statusCode, 400, `v=${String(v)} should 400`);
+      }
+    } finally {
+      if (prev === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prev;
+    }
+  });
+
+  await t.test("GET /api/music/shorts-search 502s when the engine fails and flag ON", async () => {
+    const prevFlag = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "true";
     const prev = process.env.YT_DLP_BIN;
     process.env.YT_DLP_BIN = process.execPath;
     try {
@@ -154,10 +176,14 @@ test("Shorts music endpoint tests", async (t) => {
     } finally {
       if (prev === undefined) delete process.env.YT_DLP_BIN;
       else process.env.YT_DLP_BIN = prev;
+      if (prevFlag === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prevFlag;
     }
   });
 
-  await t.test("GET /api/music/shorts-search 503s when the binary is missing", async () => {
+  await t.test("GET /api/music/shorts-search 503s when the binary is missing and flag ON", async () => {
+    const prevFlag = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "true";
     const prev = process.env.YT_DLP_BIN;
     process.env.YT_DLP_BIN = "/definitely/missing/yt-dlp";
     try {
@@ -168,10 +194,14 @@ test("Shorts music endpoint tests", async (t) => {
     } finally {
       if (prev === undefined) delete process.env.YT_DLP_BIN;
       else process.env.YT_DLP_BIN = prev;
+      if (prevFlag === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prevFlag;
     }
   });
 
-  await t.test("GET /api/music/audio 503s when the binary is missing", async () => {
+  await t.test("GET /api/music/audio 503s when the binary is missing and flag ON", async () => {
+    const prevFlag = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "true";
     const prev = process.env.YT_DLP_BIN;
     process.env.YT_DLP_BIN = "/definitely/missing/yt-dlp";
     try {
@@ -180,10 +210,42 @@ test("Shorts music endpoint tests", async (t) => {
     } finally {
       if (prev === undefined) delete process.env.YT_DLP_BIN;
       else process.env.YT_DLP_BIN = prev;
+      if (prevFlag === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prevFlag;
     }
   });
 
-  await t.test("GET /api/music/audio 502s when extraction fails", async () => {
+
+  await t.test("GET /api/music/shorts-search 404s when reel flag OFF (before any validation)", async () => {
+    const prev = process.env.FEATURE_REEL;
+    delete process.env.FEATURE_REEL;
+    try {
+      const res = createMockResponse();
+      const req = { query: { q: "a" } } as unknown as Request; // would be 400 if flag not checked first
+      await findRoute("/api/music/shorts-search").handle(req, res as unknown as Response, () => {});
+      assert.strictEqual(res.statusCode, 404);
+      assert.deepStrictEqual(res.body, { error: "feature disabled" });
+    } finally {
+      if (prev === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prev;
+    }
+  });
+
+  await t.test("GET /api/music/audio 404s when reel flag OFF (before id validation)", async () => {
+    const prev = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "false";
+    try {
+      const out = await runAudio("bad-id");
+      assert.strictEqual(out.statusCode, 404);
+    } finally {
+      if (prev === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prev;
+    }
+  });
+
+  await t.test("GET /api/music/audio 502s when extraction fails and flag ON", async () => {
+    const prevFlag = process.env.FEATURE_REEL;
+    process.env.FEATURE_REEL = "true";
     const prev = process.env.YT_DLP_BIN;
     process.env.YT_DLP_BIN = process.execPath;
     try {
@@ -192,6 +254,8 @@ test("Shorts music endpoint tests", async (t) => {
     } finally {
       if (prev === undefined) delete process.env.YT_DLP_BIN;
       else process.env.YT_DLP_BIN = prev;
+      if (prevFlag === undefined) delete process.env.FEATURE_REEL;
+      else process.env.FEATURE_REEL = prevFlag;
     }
   });
 
