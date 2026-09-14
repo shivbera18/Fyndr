@@ -47,12 +47,13 @@ export function createApp(): express.Express {
         method: req.method,
         route: req.path,
       });
+      const errorMessage =
+        err.code === "LIMIT_UNEXPECTED_FILE"
+          ? "Too many files in a single batch (max 100). Please upload in smaller batches."
+          : err.message;
       return res.status(400).send({
-        error:
-          err.code === "LIMIT_UNEXPECTED_FILE"
-            ? "Too many files in a single batch (max 100). Please upload in smaller batches."
-            : err.message,
-        message: err.message,
+        error: errorMessage,
+        message: errorMessage,
       });
     }
     logger.error("Unhandled Express error", {

@@ -141,9 +141,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   const cancelUpload = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      abortControllerRef.current = null;
     }
-    setLoading(false);
     setUploadStatus({ kind: "error", text: "Upload cancelled by user." });
   };
 
@@ -168,7 +166,9 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
     try {
       for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-        if (abortController.signal.aborted) break;
+        if (abortController.signal.aborted) {
+          throw new Error("CanceledError");
+        }
 
         const currentBatch = batches[batchIdx];
         setBatchInfo({ current: batchIdx + 1, total: totalBatches });
@@ -184,7 +184,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           formData.append("user_id", USER_ID);
         }
 
-        await axios.post(`${API_URL}/photo`, formData, {
+        const res = await axios.post(`${API_URL}/photo`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
           signal: abortController.signal,
           onUploadProgress: (progressEvent) => {
@@ -196,13 +196,17 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           },
         });
 
+        if (res.status === 207) {
+          throw new Error("Some photos in this batch failed to process.");
+        }
         uploadedCount += currentBatch.length;
-        currentBatch.forEach((f) => {
-          if (f.preview) URL.revokeObjectURL(f.preview);
-        });
-
         setSelectedFiles((prev) => {
           const uploadedIds = new Set(currentBatch.map((b) => b.id));
+          prev.forEach((item) => {
+            if (uploadedIds.has(item.id) && item.preview) {
+              URL.revokeObjectURL(item.preview);
+            }
+          });
           const remaining = prev.filter((item) => !uploadedIds.has(item.id));
           return remaining.map((item, idx) => {
             if (idx < MAX_PREVIEWS && !item.preview) {
@@ -211,7 +215,6 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             return item;
           });
         });
-
         const overallPct = Math.round((uploadedCount / totalFilesCount) * 100);
         setProgress(overallPct);
       }
@@ -232,7 +235,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
         });
       } else {
-        let message = "Upload failed. Please check network connection.";
+        let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
         if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
           const responseData = err.response?.data;
           if (responseData && typeof responseData === "object" && "message" in responseData) {

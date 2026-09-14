@@ -141,4 +141,45 @@ describe("Upload_Img component memory safety and batching", () => {
     // 10 remaining files stay queued for retry
     expect(screen.getByText(/10 photos queued/i)).toBeInTheDocument();
   });
+  test("supports cancelling an upload in progress", async () => {
+    // Delay the post request to keep upload in progress
+    let resolvePost: (value: unknown) => void = () => {};
+    mockedAxios.post.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve;
+        })
+    );
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+
+    const files = createDummyFiles(20);
+    fireEvent.change(input, { target: { files } });
+
+    const uploadBtn = screen.getByRole("button", { name: /Upload 20 photos/i });
+    fireEvent.click(uploadBtn);
+
+    const cancelBtn = await screen.findByRole("button", { name: /Cancel upload/i });
+    fireEvent.click(cancelBtn);
+
+    expect(await screen.findByText(/Upload cancelled/i)).toBeInTheDocument();
+    expect(screen.queryByText(/AI indexing started/i)).not.toBeInTheDocument();
+    resolvePost({ status: 200, data: [] });
+  });
+
+  test("treats HTTP 207 Multi-Status as a batch failure", async () => {
+    mockedAxios.post.mockResolvedValueOnce({ status: 207, data: [{ error: "dedupe duplicate" }] });
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+
+    const files = createDummyFiles(15);
+    fireEvent.change(input, { target: { files } });
+
+    const uploadBtn = screen.getByRole("button", { name: /Upload 15 photos/i });
+    fireEvent.click(uploadBtn);
+
+    expect(await screen.findByText(/Some photos in this batch failed to process/i)).toBeInTheDocument();
+  });
 });
