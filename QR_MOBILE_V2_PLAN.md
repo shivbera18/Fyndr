@@ -101,7 +101,7 @@ Mobile QR is invisible because the **only** mobile entry is a `fixed` sticky bar
 
 - The previous plan’s `pb-[calc(8rem+env(...))]` (128+safe) plus `Dashboard pb-20` (80) = 208+safe is indeed more than the minimal 122+safe, but it ensures the last photo and `Show more` button at `1504` are not hidden behind the two fixed bars even at 200% font scale. The gulf on short events (0 photos) is acceptable — short events show “No photos yet” card, not a blank gulf. Keep as is.
 
-**Files `Qrcode.tsx:16` + `InEvent.tsx:698` — Download on phones (the “easily download” part):**
+**Files `Qrcode.tsx:16` + `InEvent.tsx:698` — Download on phones (the “easily download” part, gesture-safe):**
 
 ```ts
 // Before:
@@ -110,28 +110,38 @@ a.download = `${name}_QRCode.png`;
 a.href = canvas.toDataURL("image/png");
 a.click();
 
-// After (fix — keep desktop path, add mobile share/open fallback):
-const downloadQRCode = async () => {
+// After (fix — synchronous, gesture-safe, no await breaks transient activation):
+function dataURLToBlob(dataUrl: string): Blob {
+  const [header, data] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] || "image/png";
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+const downloadQRCode = () => {
   const canvas = document.getElementById("fyndr-qrcode")?.querySelector("canvas") as HTMLCanvasElement | null;
   if (!canvas) return;
-  const fileName = `${eventName.replace(/\s+/g, "_")}_QRCode.png`;
-  // Try Web Share API with file (iOS 17+, Android) — lets user save to Photos/Files
+  const safeName = eventName.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/s+/g, "_") || "Event";
+  const fileName = `${safeName}_QRCode.png`;
+  const dataUrl = canvas.toDataURL("image/png");
   try {
-    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/png"));
-    if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: "image/png" })] })) {
-      await navigator.share({ files: [new File([blob], fileName, { type: "image/png" })], title: eventName });
+    const blob = dataURLToBlob(dataUrl);
+    if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: "image/png" })] })) {
+      navigator.share({ files: [new File([blob], fileName, { type: "image/png" })], title: eventName }).catch(() => {});
       return;
     }
   } catch {}
-  // Fallback: data URL + download attr (desktop) or open in new tab (iOS where download is ignored)
-  const url = canvas.toDataURL("image/png");
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  // iOS Safari ignores download attr for data URLs — open the image so user can long-press Save
-  if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator as unknown as { standalone?: boolean }).standalone) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) || (navigator as unknown as { standalone?: boolean }).standalone || /Instagram|FBAN|FBAV/.test(navigator.userAgent);
+  if (isIOS) {
+    const blob = dataURLToBlob(dataUrl);
+    const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   } else {
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
