@@ -73,6 +73,7 @@ describe("InEvent leads CSV export", () => {
           name="Test Gala"
           pin="123456"
           initialFolders={[]}
+          ownerId="usr_owner_leads"
           initialLimit={0}
           initialLocked={false}
           setRefresh={jest.fn()}
