@@ -789,7 +789,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   const shownImages = useMemo(() => visibleImages.slice(0, visibleCount), [visibleImages, visibleCount]);
 
   return (
-    <div className="space-y-8 pb-16 md:pb-0">
+    <div className="space-y-8 pb-[calc(8rem_+_env(safe-area-inset-bottom))] md:pb-0">
       {/* Hidden high-res QR pixel source for the printable standee */}
       <React.Suspense fallback={null}>
         <StandeeQr value={guestUrl} />
@@ -1516,7 +1516,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
       </div>
 
       {/* Mobile Sticky Action Bar */}
-      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-50 md:hidden bg-background border-t border-border p-3 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap">
+      <div className="fixed bottom-[calc(4rem_+_env(safe-area-inset-bottom))] inset-x-0 z-40 md:hidden bg-background border-t border-border p-3 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap pb-safe">
         <Button variant="ghost" size="default" onClick={backbtn} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
           <ArrowLeft className="h-4 w-4" />
           Back

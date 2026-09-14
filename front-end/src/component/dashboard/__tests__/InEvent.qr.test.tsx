@@ -32,43 +32,65 @@ const renderInEvent = (props = {}) =>
   );
 
 describe("InEvent QR mobile visibility", () => {
+  const origGetContext = HTMLCanvasElement.prototype.getContext;
+  const origCreateObjectURL = window.URL.createObjectURL;
+  const origRevokeObjectURL = window.URL.revokeObjectURL;
+
   beforeAll(() => {
     HTMLCanvasElement.prototype.getContext = jest.fn(() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
     window.URL.createObjectURL = jest.fn(() => "mock-blob-url");
     window.URL.revokeObjectURL = jest.fn();
   });
 
+  afterAll(() => {
+    HTMLCanvasElement.prototype.getContext = origGetContext;
+    window.URL.createObjectURL = origCreateObjectURL;
+    window.URL.revokeObjectURL = origRevokeObjectURL;
+  });
+
   it("header QR is hidden on mobile via hidden md:flex", () => {
     const { container } = renderInEvent();
     const headerActions = container.querySelector(".hidden.md\\:flex");
     expect(headerActions).not.toBeNull();
+    expect(headerActions).toHaveClass("hidden");
+    expect(headerActions).toHaveClass("md:flex");
     expect(headerActions?.textContent).toContain("Guest QR Code");
+    // Header button itself is inside the hidden container — assert via container query
+    expect(headerActions?.querySelector("button")).toBeInTheDocument();
   });
 
-  it("sticky bar is fixed bottom-[calc] z-50 md:hidden with overflow handling", () => {
+  it("sticky bar is fixed bottom-[calc] z-40 md:hidden with overflow handling", () => {
     const { container } = renderInEvent();
-    const html = container.innerHTML;
-    expect(html).toContain("bottom-[calc(4rem+env(safe-area-inset-bottom))]");
-    expect(html).toContain("z-50");
-    expect(html).toContain("md:hidden");
-    expect(html).toContain("bg-background");
-    expect(html).not.toContain("backdrop-blur");
-    expect(html).toContain("overflow-x-auto");
-    expect(html).toContain("scrollbar-hide");
-    expect(html).toContain("flex-nowrap");
+    const sticky = container.querySelector(".fixed.bottom-\\[calc\\(4rem\\_+\\_env\\(safe-area-inset-bottom\\)\\)\\]");
+    // Fallback to class string search if escaped selector fails in jsdom
+    const stickyEl = sticky || Array.from(container.querySelectorAll("div")).find((el) => el.className.includes("bottom-[calc"));
+    expect(stickyEl).not.toBeNull();
+    expect(stickyEl).toHaveClass("fixed");
+    expect(stickyEl).toHaveClass("z-40");
+    expect(stickyEl).toHaveClass("md:hidden");
+    expect(stickyEl).toHaveClass("bg-background");
+    expect(stickyEl?.className).not.toContain("backdrop-blur");
+    expect(stickyEl).toHaveClass("overflow-x-auto");
+    expect(stickyEl).toHaveClass("scrollbar-hide");
+    expect(stickyEl).toHaveClass("flex-nowrap");
+    expect(stickyEl).toHaveClass("pb-safe");
   });
 
-  it("wrapper has pb-16 md:pb-0 to avoid content underlap", () => {
+  it("wrapper has pb-[calc(8rem+env)] md:pb-0 to avoid content underlap", () => {
     const { container } = renderInEvent();
-    const wrapper = container.querySelector(".space-y-8.pb-16");
+    const wrapper = container.querySelector(".space-y-8");
     expect(wrapper).not.toBeNull();
+    expect(wrapper?.className).toContain("pb-[calc(8rem_+_env(safe-area-inset-bottom))]");
     expect(wrapper?.className).toContain("md:pb-0");
   });
 
-  it("QR trigger is accessible by role", () => {
-    renderInEvent();
+  it("QR triggers are accessible by role in both header and sticky", () => {
+    const { container } = renderInEvent();
+    const headerActions = container.querySelector(".hidden.md\\:flex");
+    const sticky = container.querySelector(".fixed.bottom-\\[calc\\(4rem\\_+\\_env\\(safe-area-inset-bottom\\)\\)\\]") || Array.from(container.querySelectorAll("div")).find((el) => el.className.includes("bottom-[calc"));
+    expect(headerActions?.querySelector("button")).toBeInTheDocument();
+    expect(sticky?.querySelector("button")).toBeInTheDocument();
     const qrButtons = screen.getAllByRole("button", { name: /QR Code/i });
     expect(qrButtons.length).toBeGreaterThanOrEqual(2);
-    expect(qrButtons[0]).toBeInTheDocument();
   });
 });
