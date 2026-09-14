@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
+import { isFeatureEnabled } from './config/featureFlags';
 
 import { ThemeProvider } from './component/landing/Theme';
 import { Toaster } from './components/ui/sonner';
@@ -121,9 +122,8 @@ function App() {
           <Route path='/' element={<Home />} />
           <Route path='/forgetpassword' element={<ForgetPass/>}/>
           <Route path='/confirmed' element={<ConfirmVerify/>}/>
-          <Route path="/emailverified" element={<EmailVerified />} />
           <Route path='/camera' element={<CameraCaptureWithMask/>}/>
-          <Route path='/reel/:eventId' element={<ReelPage />} />
+          <Route path='/reel/:eventId' element={isFeatureEnabled("reel") ? <ReelPage /> : <Navigate to="/" replace />} />
           <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/events' element={<Dashboard />} />
           <Route path='/create-event' element={<CreateEventPage />} />
