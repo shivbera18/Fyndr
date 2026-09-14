@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
+import { dataURLToBlob, sanitizeFileName, shareOrDownload } from "../../utils/download";
 import UploadImg from "./Upload_Img";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
@@ -734,13 +735,11 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     ctx.font = "500 36px system-ui, sans-serif";
     ctx.fillStyle = "#a1a1aa";
     ctx.fillText("No app needed · Powered by Fyndr", W / 2, 1650);
-    const a = document.createElement("a");
-    a.download = `${name.replace(/\s+/g, "_")}_standee.png`;
-    a.href = canvas.toDataURL("image/png");
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setProofMsg("Standee downloaded — print A5/4×6 and place on tables.");
+    const fileName = sanitizeFileName(name, "_standee.png");
+    const dataUrl = canvas.toDataURL("image/png");
+    const blob = dataURLToBlob(dataUrl);
+    const url = URL.createObjectURL(blob);
+    shareOrDownload(blob, fileName, name, url, setProofMsg);
   };
 
   const guestCopied = (): void => {
