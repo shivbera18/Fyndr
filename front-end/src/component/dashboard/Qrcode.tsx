@@ -1,3 +1,4 @@
+import { dataURLToBlob, sanitizeFileName, shareOrDownload } from "../../utils/download";
 import { useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { Card, CardContent } from "../../components/ui/card";
@@ -16,14 +17,11 @@ export default function Qrcode({ url, eventName = "Event" }: Props): React.JSX.E
   const downloadQRCode = () => {
     const container = document.getElementById("fyndr-qrcode");
     const canvas = container?.querySelector("canvas");
-    if (canvas) {
-      const a = document.createElement("a");
-      a.download = `${eventName.replace(/\s+/g, "_")}_QRCode.png`;
-      a.href = canvas.toDataURL("image/png");
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
+    if (!canvas) return;
+    const fileName = sanitizeFileName(eventName, "_QRCode.png");
+    const dataUrl = canvas.toDataURL("image/png");
+    const blob = dataURLToBlob(dataUrl);
+    shareOrDownload(blob, fileName, eventName);
   };
 
   const copyLink = () => {

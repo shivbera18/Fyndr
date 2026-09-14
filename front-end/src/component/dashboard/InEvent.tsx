@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
+import { dataURLToBlob, sanitizeFileName, shareOrDownload } from "../../utils/download";
 import UploadImg from "./Upload_Img";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
@@ -734,13 +735,10 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     ctx.font = "500 36px system-ui, sans-serif";
     ctx.fillStyle = "#a1a1aa";
     ctx.fillText("No app needed · Powered by Fyndr", W / 2, 1650);
-    const a = document.createElement("a");
-    a.download = `${name.replace(/\s+/g, "_")}_standee.png`;
-    a.href = canvas.toDataURL("image/png");
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setProofMsg("Standee downloaded — print A5/4×6 and place on tables.");
+    const fileName = sanitizeFileName(name, "_standee.png");
+    const dataUrl = canvas.toDataURL("image/png");
+    const blob = dataURLToBlob(dataUrl);
+    shareOrDownload(blob, fileName, name, setProofMsg);
   };
 
   const guestCopied = (): void => {
@@ -789,7 +787,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   const shownImages = useMemo(() => visibleImages.slice(0, visibleCount), [visibleImages, visibleCount]);
 
   return (
-    <div className="space-y-8 pb-[calc(8rem_+_env(safe-area-inset-bottom))] md:pb-0">
+    <div className="space-y-8 pb-16 pb-safe md:pb-0">
       {/* Hidden high-res QR pixel source for the printable standee */}
       <React.Suspense fallback={null}>
         <StandeeQr value={guestUrl} />
@@ -806,8 +804,8 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         </div>
 
         {/* Desktop actions */}
-        <div className="hidden md:flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={backbtn} className="min-h-[44px] flex items-center gap-1.5">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-nowrap pb-2 md:pb-0" role="toolbar" aria-label="Event actions">
+          <Button variant="ghost" size="sm" onClick={backbtn} className="min-h-[44px] shrink-0 whitespace-nowrap flex items-center gap-1.5">
             <ArrowLeft className="h-4 w-4" />
             Back to Events
           </Button>
@@ -819,7 +817,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
                 state: { eventName: name, ownerId },
               })
             }
-            className="min-h-[44px] flex items-center gap-1.5"
+            className="min-h-[44px] shrink-0 whitespace-nowrap flex items-center gap-1.5"
           >
             <BarChart3 className="h-4 w-4" />
             Guest Analytics
@@ -831,20 +829,20 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
               const el = document.getElementById("fy-paywall-card");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
-            className="min-h-[44px] flex items-center gap-1.5"
+            className="min-h-[44px] shrink-0 whitespace-nowrap flex items-center gap-1.5"
           >
             <Coins className="h-4 w-4 text-amber-500" />
             Monetization
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[44px] flex items-center gap-1.5">
+          <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="min-h-[44px] shrink-0 whitespace-nowrap flex items-center gap-1.5">
             <QrIcon className="h-4 w-4" />
             Guest QR Code
           </Button>
-          <Button variant="outline" size="sm" onClick={downloadStandee} title="Download printable table standee (PNG)" className="min-h-[44px] flex items-center gap-1.5">
+          <Button variant="outline" size="sm" onClick={downloadStandee} title="Download printable table standee (PNG)" className="min-h-[44px] shrink-0 whitespace-nowrap flex items-center gap-1.5">
             <Download className="h-4 w-4" />
             Table standee
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(true)} className="min-h-[44px] text-destructive hover:bg-destructive/10 border-destructive/30">
+          <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(true)} className="min-h-[44px] shrink-0 whitespace-nowrap text-destructive hover:bg-destructive/10 border-destructive/30 flex items-center">
             <Trash2 className="h-4 w-4 mr-1.5" />
             Delete Event
           </Button>
@@ -1516,7 +1514,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
       </div>
 
       {/* Mobile Sticky Action Bar — 4rem = BottomNav height (44px + py + border) + safe-area; InEvent is only mounted inside Dashboard at /dashboard, so BottomNav is always present */}
-      <div className="fixed bottom-[calc(4rem_+_env(safe-area-inset-bottom))] inset-x-0 z-40 md:hidden bg-background border-t border-border p-3 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap pb-safe">
+      <div className="fixed bottom-[calc(4rem_+_env(safe-area-inset-bottom))] inset-x-0 z-40 md:hidden bg-background border-t border-border p-3 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap pb-safe" role="toolbar" aria-label="Mobile quick actions">
         <Button variant="ghost" size="default" onClick={backbtn} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
           <ArrowLeft className="h-4 w-4" />
           Back
