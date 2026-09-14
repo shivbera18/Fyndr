@@ -112,6 +112,7 @@
 }
 
 @layer utilities {
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
   .bg-dot-grid {
     background-image: radial-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px);
     background-size: 24px 24px;
