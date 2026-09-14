@@ -184,13 +184,16 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           formData.append("user_id", USER_ID);
         }
 
+        const baseUploaded = uploadedCount;
+        const currentBatchSize = currentBatch.length;
+
         const res = await axios.post(`${API_URL}/photo`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
           signal: abortController.signal,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               const batchLoadedFraction = progressEvent.loaded / progressEvent.total;
-              const overallFraction = (uploadedCount + batchLoadedFraction * currentBatch.length) / totalFilesCount;
+              const overallFraction = (baseUploaded + batchLoadedFraction * currentBatchSize) / totalFilesCount;
               setProgress(Math.min(99, Math.round(overallFraction * 100)));
             }
           },
@@ -229,7 +232,11 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         setTimeout(() => d_ref(), 800);
       }
     } catch (err: unknown) {
-      if ((typeof axios.isCancel === "function" && axios.isCancel(err)) || (err instanceof Error && err.name === "CanceledError")) {
+      if (
+        abortController.signal.aborted ||
+        (typeof axios.isCancel === "function" && axios.isCancel(err)) ||
+        (err instanceof Error && (err.name === "CanceledError" || err.message === "CanceledError"))
+      ) {
         setUploadStatus({
           kind: "error",
           text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
