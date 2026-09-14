@@ -1515,7 +1515,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         )}
       </div>
 
-      {/* Mobile Sticky Action Bar */}
+      {/* Mobile Sticky Action Bar — 4rem = BottomNav height (44px + py + border) + safe-area; InEvent is only mounted inside Dashboard at /dashboard, so BottomNav is always present */}
       <div className="fixed bottom-[calc(4rem_+_env(safe-area-inset-bottom))] inset-x-0 z-40 md:hidden bg-background border-t border-border p-3 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap pb-safe">
         <Button variant="ghost" size="default" onClick={backbtn} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
           <ArrowLeft className="h-4 w-4" />
