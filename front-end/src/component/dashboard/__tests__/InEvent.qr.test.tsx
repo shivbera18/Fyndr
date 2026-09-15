@@ -58,12 +58,12 @@ describe("InEvent QR mobile visibility", () => {
     expect(toolbar.textContent).toContain("Guest QR Code");
   });
 
-  it("sticky bar docks flush above BottomNav tracking its safe-area height, solid bg, scrollable", () => {
+  it("sticky bar docks flush above BottomNav with zero gap, solid bg, scrollable", () => {
     renderInEvent();
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
     expect(stickyToolbar).toBeInTheDocument();
     expect(stickyToolbar).toHaveClass("fixed");
-    expect(stickyToolbar.className).toContain("bottom-[calc(4rem_+_max(0.375rem,env(safe-area-inset-bottom)))]");
+    expect(stickyToolbar.className).toContain("bottom-[calc(4.5rem_+_env(safe-area-inset-bottom))]");
     expect(stickyToolbar).toHaveClass("z-40");
     expect(stickyToolbar).toHaveClass("md:hidden");
     expect(stickyToolbar).toHaveClass("bg-background");
@@ -73,9 +73,10 @@ describe("InEvent QR mobile visibility", () => {
     expect(stickyToolbar).toHaveClass("overflow-x-auto");
     expect(stickyToolbar).toHaveClass("scrollbar-hide");
     expect(stickyToolbar).toHaveClass("flex-nowrap");
+    expect(stickyToolbar).toHaveClass("px-2");
   });
 
-  it("sticky bar keeps Analytics, QR Code, standee download, Back and Delete", () => {
+  it("sticky bar keeps Analytics, QR Code, standee download, Back and Delete with no indent", () => {
     renderInEvent();
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
     expect(stickyToolbar.textContent).toContain("Analytics");
@@ -84,6 +85,12 @@ describe("InEvent QR mobile visibility", () => {
     expect(screen.getByRole("button", { name: "Download table standee" })).toBeInTheDocument();
     const buttons = stickyToolbar.querySelectorAll("button");
     expect(buttons.length).toBe(5);
+    buttons.forEach((btn) => {
+      expect(btn).toHaveClass("min-h-[44px]");
+    });
+    const backBtn = screen.getByRole("button", { name: "Back" });
+    expect(backBtn).toHaveClass("px-3");
+    expect(backBtn).toHaveClass("min-w-[92px]");
   });
 
   it("wrapper has pb-16 pb-safe md:pb-0 to avoid content underlap", () => {
