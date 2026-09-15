@@ -11,9 +11,57 @@ import { cn } from "../../lib/utils";
 // consumes gigabytes of uncompressed RAM and crashes mobile/desktop browser tabs.
 export const MAX_PREVIEWS = 12;
 
-// ponytail: Batch size 15 is safe for reverse proxies (Nginx/Cloudflare 100MB body limits)
-// and well within backend Multer 100-file array limit, enabling resume on partial network failure.
+// ponytail: count-only batches of 15 DSLR photos (~172MB) die on 100MB proxy caps with
+// unretryable ERR_NETWORK. Cap every POST by BYTES so any album uploads on hotel WiFi.
 export const UPLOAD_BATCH_SIZE = 15;
+export const UPLOAD_BATCH_BYTE_BUDGET = 75 * 1024 * 1024;
+export const UPLOAD_MAX_ATTEMPTS = 4;
+export const UPLOAD_RETRY_DELAYS_MS = [0, 1500, 3000, 6000];
+export function buildByteBudgetedBatches(files: SelectedFile[]): SelectedFile[][] {
+  const batches: SelectedFile[][] = [];
+  let current: SelectedFile[] = [];
+  let currentBytes = 0;
+  for (const item of files) {
+    const size = item.file.size || 0;
+    if (current.length > 0 && (current.length >= UPLOAD_BATCH_SIZE || currentBytes + size > UPLOAD_BATCH_BYTE_BUDGET)) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(item);
+    currentBytes += size;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
+export function isRetryableUploadError(err: unknown): boolean {
+  // ponytail: canceled requests must never retry — abort means the user (or unmount) killed it.
+  if (err !== null && typeof err === "object" && "code" in err && err.code === "ERR_CANCELED") return false;
+  if (typeof axios.isCancel === "function") {
+    try {
+      if (axios.isCancel(err)) return false;
+    } catch {}
+  }
+  // ponytail: no local guard/schema — axios owns the error shape; narrow via its own type predicate when available.
+  if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
+    if (err.code === "ERR_NETWORK" || err.code === "ECONNABORTED" || err.code === "ETIMEDOUT" || err.response === undefined) return true;
+    const status = err.response.status;
+    return status === 408 || status === 429 || status >= 500;
+  }
+  // ponytail: response-less network drops may arrive as plain Errors in mocks/edge runtimes — retry by code/message.
+  if (err !== null && typeof err === "object" && "code" in err) {
+    const code = err.code;
+    if (code === "ERR_NETWORK" || code === "ECONNABORTED" || code === "ETIMEDOUT") return true;
+  }
+  if (err instanceof Error && err.message === "Network Error") return true;
+  // ponytail: 207 partial-failure is deterministic per batch (same files fail again) — fail fast, no retry.
+  return false;
+}
+
+export function uploadDelayMs(failedAttempt: number): number {
+  return UPLOAD_RETRY_DELAYS_MS[failedAttempt - 1] ?? UPLOAD_RETRY_DELAYS_MS[UPLOAD_RETRY_DELAYS_MS.length - 1] ?? 0;
+}
 
 export type SelectedFile = {
   file: File;
@@ -157,10 +205,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
     const allFiles = [...selectedFiles];
     const totalFilesCount = allFiles.length;
-    const batches: SelectedFile[][] = [];
-    for (let i = 0; i < allFiles.length; i += UPLOAD_BATCH_SIZE) {
-      batches.push(allFiles.slice(i, i + UPLOAD_BATCH_SIZE));
-    }
+    const batches = buildByteBudgetedBatches(allFiles);
     const totalBatches = batches.length;
     let uploadedCount = 0;
 
@@ -186,22 +231,67 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
         const baseUploaded = uploadedCount;
         const currentBatchSize = currentBatch.length;
+        let attempt = 0;
+        for (;;) {
+          attempt += 1;
+          try {
+            const res = await axios.post(`${API_URL}/photo`, formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+              signal: abortController.signal,
+              timeout: 0,
+              onUploadProgress: (progressEvent) => {
+                if (progressEvent.total) {
+                  const batchLoadedFraction = progressEvent.loaded / progressEvent.total;
+                  const overallFraction = (baseUploaded + batchLoadedFraction * currentBatchSize) / totalFilesCount;
+                  setProgress(Math.min(99, Math.round(overallFraction * 100)));
+                }
+              },
+            });
 
-        const res = await axios.post(`${API_URL}/photo`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-          signal: abortController.signal,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const batchLoadedFraction = progressEvent.loaded / progressEvent.total;
-              const overallFraction = (baseUploaded + batchLoadedFraction * currentBatchSize) / totalFilesCount;
-              setProgress(Math.min(99, Math.round(overallFraction * 100)));
+            if (res.status === 207) {
+              throw new Error("Some photos in this batch failed to process.");
             }
-          },
-        });
-
-        if (res.status === 207) {
-          throw new Error("Some photos in this batch failed to process.");
+            break;
+          } catch (attemptErr: unknown) {
+            if (
+              abortController.signal.aborted ||
+              (typeof axios.isCancel === "function" && axios.isCancel(attemptErr)) ||
+              (attemptErr instanceof Error && (attemptErr.name === "CanceledError" || attemptErr.message === "CanceledError"))
+            ) {
+              throw attemptErr;
+            }
+            if (!isRetryableUploadError(attemptErr) || attempt >= UPLOAD_MAX_ATTEMPTS) {
+              throw attemptErr;
+            }
+            setBatchInfo({ current: batchIdx + 1, total: totalBatches });
+            setUploadStatus({
+              kind: "error",
+              text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
+            });
+            // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
+            const waitMs = uploadDelayMs(attempt);
+            if (waitMs > 0) {
+              const signal = abortController.signal;
+              await new Promise<void>((resolve, reject) => {
+                if (signal.aborted) {
+                  reject(new Error("CanceledError"));
+                  return;
+                }
+                const onAbort = () => {
+                  window.clearTimeout(timer);
+                  reject(new Error("CanceledError"));
+                };
+                const timer = window.setTimeout(() => {
+                  signal.removeEventListener("abort", onAbort);
+                  resolve();
+                }, waitMs);
+                signal.addEventListener("abort", onAbort, { once: true });
+              });
+            }
+          }
         }
+        // ponytail: clear the transient retry banner so a recovered batch doesn't leave a stale red error up.
+        setUploadStatus(null);
         uploadedCount += currentBatch.length;
         setSelectedFiles((prev) => {
           const uploadedIds = new Set(currentBatch.map((b) => b.id));
@@ -227,10 +317,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!`,
       });
       setProgress(100);
-      setBatchInfo(null);
-      if (d_ref) {
-        setTimeout(() => d_ref(), 800);
-      }
+       setBatchInfo(null);
+       if (d_ref) {
+         setTimeout(() => d_ref(), 800);
+       }
     } catch (err: unknown) {
       if (
         abortController.signal.aborted ||
