@@ -49,38 +49,41 @@ describe("InEvent QR mobile visibility", () => {
     window.URL.revokeObjectURL = origRevokeObjectURL;
   });
 
-  it("header QR is visible on mobile via flex overflow-x-auto with toolbar role", () => {
+  it("header toolbar is desktop-only so mobile shows no in-flow Analytics/Monetization/QR duplicates", () => {
     renderInEvent();
     const toolbar = screen.getByRole("toolbar", { name: "Event actions" });
     expect(toolbar).toBeInTheDocument();
-    expect(toolbar).not.toHaveClass("hidden");
-    expect(toolbar).toHaveClass("flex");
-    expect(toolbar).toHaveClass("overflow-x-auto");
-    expect(toolbar).toHaveClass("scrollbar-hide");
-    expect(toolbar).toHaveClass("flex-nowrap");
+    expect(toolbar).toHaveClass("hidden");
+    expect(toolbar).toHaveClass("md:flex");
     expect(toolbar.textContent).toContain("Guest QR Code");
-    const buttons = toolbar.querySelectorAll("button");
-    expect(buttons.length).toBeGreaterThanOrEqual(6);
-    buttons.forEach((btn) => {
-      expect(btn).toHaveClass("whitespace-nowrap");
-      expect(btn).toHaveClass("shrink-0");
-      expect(btn).toHaveClass("min-h-[44px]");
-    });
   });
 
-  it("sticky bar is fixed bottom-[calc] z-40 md:hidden with overflow handling and toolbar role", () => {
+  it("sticky bar docks flush above BottomNav tracking its safe-area height, solid bg, scrollable", () => {
     renderInEvent();
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
     expect(stickyToolbar).toBeInTheDocument();
     expect(stickyToolbar).toHaveClass("fixed");
+    expect(stickyToolbar.className).toContain("bottom-[calc(4rem_+_max(0.375rem,env(safe-area-inset-bottom)))]");
     expect(stickyToolbar).toHaveClass("z-40");
     expect(stickyToolbar).toHaveClass("md:hidden");
     expect(stickyToolbar).toHaveClass("bg-background");
     expect(stickyToolbar.className).not.toContain("backdrop-blur");
+    expect(stickyToolbar).toHaveClass("flex");
+    expect(stickyToolbar).toHaveClass("gap-2");
     expect(stickyToolbar).toHaveClass("overflow-x-auto");
     expect(stickyToolbar).toHaveClass("scrollbar-hide");
     expect(stickyToolbar).toHaveClass("flex-nowrap");
-    expect(stickyToolbar).toHaveClass("pb-safe");
+  });
+
+  it("sticky bar keeps Analytics, QR Code, standee download, Back and Delete", () => {
+    renderInEvent();
+    const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
+    expect(stickyToolbar.textContent).toContain("Analytics");
+    expect(stickyToolbar.textContent).toContain("QR Code");
+    expect(stickyToolbar.textContent).toContain("Back");
+    expect(screen.getByRole("button", { name: "Download table standee" })).toBeInTheDocument();
+    const buttons = stickyToolbar.querySelectorAll("button");
+    expect(buttons.length).toBe(5);
   });
 
   it("wrapper has pb-16 pb-safe md:pb-0 to avoid content underlap", () => {
@@ -92,10 +95,12 @@ describe("InEvent QR mobile visibility", () => {
     expect(wrapper?.className).toContain("md:pb-0");
   });
 
-  it("QR triggers are accessible by role in both header and sticky", () => {
+  it("QR trigger lives only in the sticky bar on mobile (header hidden, sticky visible)", () => {
     renderInEvent();
     const qrButtons = screen.getAllByRole("button", { name: /QR Code/i });
-    expect(qrButtons.length).toBeGreaterThanOrEqual(2);
+    expect(qrButtons.length).toBeGreaterThanOrEqual(1);
+    const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
+    expect(stickyToolbar.textContent).toContain("QR Code");
   });
 });
 
