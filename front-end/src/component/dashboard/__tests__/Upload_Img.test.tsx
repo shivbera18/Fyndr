@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
-import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE } from "../Upload_Img";
+import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches } from "../Upload_Img";
 
 jest.mock("axios", () => {
   return {
@@ -17,6 +17,7 @@ jest.mock("axios", () => {
 });
 const mockedAxios = axios as unknown as { post: jest.Mock; isCancel: jest.Mock; isAxiosError: jest.Mock };
 describe("Upload_Img component memory safety and batching", () => {
+  jest.setTimeout(25000);
   let createdUrls: string[] = [];
   let revokedUrls: string[] = [];
 
@@ -46,6 +47,14 @@ describe("Upload_Img component memory safety and batching", () => {
   const createDummyFiles = (count: number): File[] => {
     return Array.from({ length: count }, (_, i) => {
       return new File([`content-${i}`], `photo-${i + 1}.jpg`, { type: "image/jpeg" });
+    });
+  };
+
+  const createSizedFiles = (sizes: number[]): File[] => {
+    return sizes.map((size, i) => {
+      const file = new File(["x"], `sized-${i + 1}.jpg`, { type: "image/jpeg" });
+      Object.defineProperty(file, "size", { value: size, configurable: true });
+      return file;
     });
   };
 
@@ -191,5 +200,62 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(uploadBtn);
 
     expect(await screen.findByText(/Some photos in this batch failed to process/i)).toBeInTheDocument();
+  });
+
+  test("splits DSLR-size photos by byte budget, not just count", () => {
+    const elevenMB = 11.5 * 1024 * 1024;
+    const files = createSizedFiles(Array.from({ length: 15 }, () => elevenMB));
+    const items = files.map((file, i) => ({ file, preview: "", id: `byte-${i}` }));
+    const batches = buildByteBudgetedBatches(items);
+    // 15 x 11.5MB = ~172MB must NOT ship as one POST under the 75MB budget
+    expect(batches.length).toBeGreaterThan(1);
+    batches.forEach((b) => {
+      expect(b.length).toBeLessThanOrEqual(UPLOAD_BATCH_SIZE);
+      const bytes = b.reduce((sum, it) => sum + it.file.size, 0);
+      expect(bytes).toBeLessThanOrEqual(UPLOAD_BATCH_BYTE_BUDGET);
+    });
+    const total = batches.flat().length;
+    expect(total).toBe(15);
+  });
+
+  test("retries a transient network blip within the same batch and then succeeds", async () => {
+    const blip = Object.assign(new Error("Network Error"), {
+      isAxiosError: true,
+      code: "ERR_NETWORK",
+    });
+    mockedAxios.post.mockRejectedValueOnce(blip).mockResolvedValueOnce({ status: 200, data: [] });
+    mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === blip);
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+
+    const files = createDummyFiles(5);
+    fireEvent.change(input, { target: { files } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Upload 5 photos/i }));
+
+    expect(await screen.findByText(/Successfully uploaded 5 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+  });
+
+  test("gives up after max attempts on a persistently failing batch", async () => {
+    const down = Object.assign(new Error("Network Error"), {
+      isAxiosError: true,
+      code: "ERR_NETWORK",
+    });
+    mockedAxios.post.mockRejectedValue(down);
+    mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === down);
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+
+    const files = createDummyFiles(5);
+    fireEvent.change(input, { target: { files } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Upload 5 photos/i }));
+
+    // First retry delay is 0ms but wall-clock sleeps still apply; allow real backoff to elapse.
+    expect(await screen.findByText(/Upload failed: Network Error/i, {}, { timeout: 15000 })).toBeInTheDocument();
+    expect(mockedAxios.post).toHaveBeenCalledTimes(UPLOAD_MAX_ATTEMPTS);
   });
 });
