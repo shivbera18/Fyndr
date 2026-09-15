@@ -41,6 +41,7 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         if (!canonical) return res.status(400).send({ error: `unknown folder_name. Valid: ${validFolders.join(', ')}` });
         const folder_name = canonical;
 
+        // ponytail: 6 parallel ML embeddings keep all 4 ARM cores fed without OOM; p95 stays bounded.
         const limit = pLimit(6);
 
         const results: any[] = await Promise.all(
