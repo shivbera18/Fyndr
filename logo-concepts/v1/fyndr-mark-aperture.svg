@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fyndr logo — aperture find mark">
+  <defs>
+    <linearGradient id="fy-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#272B36"/>
+      <stop offset="0.55" stop-color="#14161D"/>
+      <stop offset="1" stop-color="#090B0F"/>
+    </linearGradient>
+    <linearGradient id="fy-lime" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DFFFAC"/>
+      <stop offset="0.52" stop-color="#B9FF66"/>
+      <stop offset="1" stop-color="#8ADB32"/>
+    </linearGradient>
+    <radialGradient id="fy-glow" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#B9FF66" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#B9FF66" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#fy-bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#fy-glow)"/>
+  <rect x="18" y="18" width="476" height="476" rx="126" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="3"/>
+  <!-- six aperture blades with shutter swirl -->
+  <g stroke="url(#fy-lime)" stroke-width="32" stroke-linecap="round" fill="none">
+    <line x1="286" y1="212" x2="256" y2="128"/>
+    <line x1="300" y1="262" x2="367" y2="192"/>
+    <line x1="270" y1="300" x2="367" y2="320"/>
+    <line x1="226" y1="300" x2="256" y2="384"/>
+    <line x1="212" y1="250" x2="145" y2="320"/>
+    <line x1="242" y1="212" x2="145" y2="192"/>
+  </g>
+  <!-- dark hub -->
+  <circle cx="256" cy="256" r="52" fill="#0B0D12"/>
+  <circle cx="256" cy="256" r="52" fill="none" stroke="#B9FF66" stroke-opacity="0.35" stroke-width="3"/>
+  <!-- guest glyph: head + shoulders -->
+  <circle cx="256" cy="240" r="14" fill="url(#fy-lime)"/>
+  <path d="M228 282 Q256 260 284 282" fill="none" stroke="url(#fy-lime)" stroke-width="15" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1420 560" role="img" aria-label="Fyndr logo lockup">
+  <defs>
+    <linearGradient id="fy-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2E3340"/>
+      <stop offset="0.55" stop-color="#1B1E27"/>
+      <stop offset="1" stop-color="#101218"/>
+    </linearGradient>
+    <linearGradient id="fy-lime" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DFFFAC"/>
+      <stop offset="0.52" stop-color="#B9FF66"/>
+      <stop offset="1" stop-color="#8ADB32"/>
+    </linearGradient>
+    <radialGradient id="fy-glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#B9FF66" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#B9FF66" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="1420" height="560" rx="72" fill="#101218"/>
+  <g>
+    <rect x="40" y="40" width="480" height="480" rx="128" fill="url(#fy-bg)"/>
+    <rect x="40" y="40" width="480" height="480" rx="128" fill="url(#fy-glow)"/>
+    <rect x="42" y="42" width="476" height="476" rx="126" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="3"/>
+    <g fill="none" stroke="url(#fy-lime)" stroke-width="28" stroke-linecap="round">
+      <path d="M216 136 H166 Q136 136 136 166 V216"/>
+      <path d="M344 136 H394 Q424 136 424 166 V216"/>
+      <path d="M216 424 H166 Q136 424 136 394 V344"/>
+      <path d="M344 424 H394 Q424 424 424 394 V344"/>
+    </g>
+    <circle cx="236" cy="258" r="18" fill="#F2F5EA"/>
+    <circle cx="324" cy="258" r="18" fill="#F2F5EA"/>
+    <path d="M222 312 Q280 366 338 312" fill="none" stroke="url(#fy-lime)" stroke-width="24" stroke-linecap="round"/>
+  </g>
+  <text x="584" y="288" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-weight="800" font-size="168" letter-spacing="18" fill="#F4F5EF" dominant-baseline="central">FYNDR<tspan fill="#B9FF66">.</tspan></text>
+</svg>

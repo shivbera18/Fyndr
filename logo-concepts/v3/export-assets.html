@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #E9EBE2; padding: 40px; }
+  .shot { margin-bottom: 32px; }
+  .label { font-size: 13px; font-weight: 700; color: #5B5E6A; margin-bottom: 10px; letter-spacing: .06em; text-transform: uppercase; }
+  img { display: block; }
+  #x-mask { width: 512px; height: 512px; background: #101218; display: flex; align-items: center; justify-content: center; }
+  .navbar-mock { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 10px 16px; width: 330px; }
+  .navbar-mock.light { background: #fff; border: 1px solid #E4E6DA; }
+  .navbar-mock.dark { background: #14161D; }
+  .navbar-mock img { width: 32px; height: 32px; border-radius: 8px; }
+  .navbar-mock .word { font-weight: 800; font-size: 19px; letter-spacing: .14em; }
+  .navbar-mock.light .word { color: #14161D; }
+  .navbar-mock.dark .word { color: #F4F5EF; }
+  .navbar-mock .word i { font-style: normal; color: #65B816; }
+  .navbar-mock.dark .word i { color: #B9FF66; }
+</style>
+</head>
+<body>
+<div class="shot"><div class="label">PWA 192</div><div id="x-192"><img src="fyndr-fused.svg" width="192" height="192"></div></div>
+<div class="shot"><div class="label">PWA 512</div><div id="x-512"><img src="fyndr-fused.svg" width="512" height="512"></div></div>
+<div class="shot"><div class="label">Maskable 512 (safe zone)</div><div id="x-mask"><img src="fyndr-fused.svg" width="410" height="410"></div></div>
+<div class="shot"><div class="label">Favicon 48</div><div id="x-48"><img src="fyndr-fused.svg" width="48" height="48"></div></div>
+<div class="shot"><div class="label">Favicon 32</div><div id="x-32"><img src="fyndr-fused.svg" width="32" height="32"></div></div>
+<div class="shot"><div class="label">Favicon 16</div><div id="x-16"><img src="fyndr-fused.svg" width="16" height="16"></div></div>
+<div class="shot"><div class="label">Light tile 512 (dark-theme UI)</div><div id="x-light-512"><img src="fyndr-fused-light.svg" width="512" height="512"></div></div>
+<div class="shot"><div class="label">Header mocks (theme-correct marks)</div>
+  <div id="x-hlight"><div class="navbar-mock light"><img src="fyndr-fused.svg"><span class="word">FYNDR<i>.</i></span></div></div><br>
+  <div id="x-hdark"><div class="navbar-mock dark"><img src="fyndr-fused-light.svg"><span class="word">FYNDR<i>.</i></span></div></div>
+</div>
+</body>
+</html>
+<style>
+  #x-192,#x-512,#x-mask,#x-48,#x-32,#x-16,#x-light-512,#x-hlight,#x-hdark { display: inline-block; }
+</style>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #E9EBE2; padding: 40px; }
+  .card { background: #fff; border-radius: 24px; padding: 32px; box-shadow: 0 8px 30px rgba(20,22,29,.08); max-width: 1100px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .tile { border-radius: 18px; padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .tile.dark { background: #101218; }
+  .tile.light { background: #F4F5EF; border: 1px solid #E0E2D6; }
+  .tile span { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #9BA0AB; }
+  .tile.light span { color: #71747F; }
+  .navbar-mock { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #E4E6DA; border-radius: 12px; padding: 10px 16px; width: 330px; }
+  .navbar-mock img { width: 32px; height: 32px; border-radius: 8px; }
+  .navbar-mock .word { font-weight: 800; font-size: 19px; letter-spacing: .14em; color: #14161D; }
+  .navbar-mock .word i { font-style: normal; color: #65B816; }
+  .navbar-mock.darknav { background: #14161D; border-color: #14161D; }
+  .navbar-mock.darknav .word { color: #F4F5EF; }
+  .fav-row { display: flex; align-items: flex-end; gap: 18px; }
+</style>
+</head>
+<body>
+<div class="card" id="card-fused">
+  <div class="row">
+    <div class="tile dark"><img src="fyndr-fused.svg" width="280" height="280"><span>App icon / dark</span></div>
+    <div class="tile light"><img src="fyndr-fused-light.svg" width="280" height="280"><span>Light tile (dark theme UI)</span></div>
+    <div class="tile light" style="align-items:stretch">
+      <div class="navbar-mock"><img src="fyndr-fused.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="navbar-mock darknav"><img src="fyndr-fused.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="fav-row">
+        <img src="fyndr-fused.svg" width="64" height="64">
+        <img src="fyndr-fused.svg" width="48" height="48">
+        <img src="fyndr-fused.svg" width="32" height="32">
+        <img src="fyndr-fused.svg" width="16" height="16">
+      </div>
+      <span>Header light/dark · favicons</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

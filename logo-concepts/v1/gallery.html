@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Inter", "Segoe UI", Arial, sans-serif; background: #E9EBE2; padding: 40px; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; color: #14161D; margin-bottom: 6px; }
+  .sub { color: #5B5E6A; margin-bottom: 28px; font-size: 15px; }
+  .card { background: #fff; border-radius: 24px; padding: 32px; margin-bottom: 28px; box-shadow: 0 8px 30px rgba(20,22,29,.08); }
+  .card h2 { font-size: 20px; margin-bottom: 4px; color: #14161D; }
+  .card p { font-size: 13px; color: #71747F; margin-bottom: 20px; }
+  .row { display: flex; gap: 24px; align-items: stretch; flex-wrap: wrap; }
+  .tile { flex: 1 1 220px; border-radius: 18px; padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .tile.dark { background: #101218; }
+  .tile.light { background: #F4F5EF; border: 1px solid #E0E2D6; }
+  .tile span { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .tile.dark span { color: #9BA0AB; }
+  .tile.light span { color: #71747F; }
+  .tile img.big { width: 200px; height: 200px; }
+  .navbar-mock { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #E4E6DA; border-radius: 12px; padding: 10px 16px; width: 100%; }
+  .navbar-mock img { width: 32px; height: 32px; border-radius: 8px; }
+  .navbar-mock .word { font-weight: 800; font-size: 19px; letter-spacing: .14em; color: #14161D; }
+  .navbar-mock .word i { font-style: normal; color: #65B816; }
+  .navbar-mock.darknav { background: #14161D; border-color: #14161D; }
+  .navbar-mock.darknav .word { color: #F4F5EF; }
+  .lockup { display: flex; align-items: center; gap: 16px; }
+  .lockup img { width: 64px; height: 64px; }
+  .lockup .word { font-weight: 800; font-size: 44px; letter-spacing: .12em; color: #14161D; }
+  .lockup .word i { font-style: normal; color: #65B816; }
+  .lockup.darkword .word { color: #F4F5EF; }
+  .lockup.darkword { background: #14161D; border-radius: 16px; padding: 18px 26px; }
+  .fav-row { display: flex; align-items: flex-end; gap: 18px; }
+  .fav-row img { border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>Fyndr — logo concepts v1</h1>
+<div class="sub">Lime <b>#B9FF66</b> + ink <b>#14161D</b>. Inspect at large size, navbar 32px, and favicon sizes.</div>
+
+<div class="card" id="card-aperture">
+  <h2>A — Aperture Find</h2>
+  <p>Shutter blades swirling into a guest glyph. Says camera + “find yourself” in one mark.</p>
+  <div class="row">
+    <div class="tile dark"><img class="big" src="fyndr-mark-aperture.svg"><span>App icon / dark</span></div>
+    <div class="tile light"><img class="big" src="fyndr-mark-aperture.svg"><span>App icon / light</span></div>
+    <div class="tile light" style="align-items:stretch">
+      <div class="navbar-mock"><img src="fyndr-mark-aperture.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="navbar-mock darknav"><img src="fyndr-mark-aperture.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="lockup"><img src="fyndr-mark-aperture.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="fav-row">
+        <img src="fyndr-mark-aperture.svg" width="48" height="48">
+        <img src="fyndr-mark-aperture.svg" width="32" height="32">
+        <img src="fyndr-mark-aperture.svg" width="16" height="16">
+      </div>
+      <span>Header · lockup · favicon</span>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="card-viewfinder">
+  <h2>B — Viewfinder Smile</h2>
+  <p>Focus brackets locking onto a guest smile. Warmest, most emotional; unmistakably “found you”.</p>
+  <div class="row">
+    <div class="tile dark"><img class="big" src="fyndr-mark-viewfinder.svg"><span>App icon / dark</span></div>
+    <div class="tile light"><img class="big" src="fyndr-mark-viewfinder.svg"><span>App icon / light</span></div>
+    <div class="tile light" style="align-items:stretch">
+      <div class="navbar-mock"><img src="fyndr-mark-viewfinder.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="navbar-mock darknav"><img src="fyndr-mark-viewfinder.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="lockup"><img src="fyndr-mark-viewfinder.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="fav-row">
+        <img src="fyndr-mark-viewfinder.svg" width="48" height="48">
+        <img src="fyndr-mark-viewfinder.svg" width="32" height="32">
+        <img src="fyndr-mark-viewfinder.svg" width="16" height="16">
+      </div>
+      <span>Header · lockup · favicon</span>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="card-fshutter">
+  <h2>C — F Shutter Monogram</h2>
+  <p>Geometric F with lime crossbar + focus-point dot. Most minimal; bulletproof at 16px.</p>
+  <div class="row">
+    <div class="tile dark"><img class="big" src="fyndr-mark-fshutter.svg"><span>App icon / dark</span></div>
+    <div class="tile light"><img class="big" src="fyndr-mark-fshutter.svg"><span>App icon / light</span></div>
+    <div class="tile light" style="align-items:stretch">
+      <div class="navbar-mock"><img src="fyndr-mark-fshutter.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="navbar-mock darknav"><img src="fyndr-mark-fshutter.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="lockup"><img src="fyndr-mark-fshutter.svg"><span class="word">FYNDR<i>.</i></span></div>
+      <div class="fav-row">
+        <img src="fyndr-mark-fshutter.svg" width="48" height="48">
+        <img src="fyndr-mark-fshutter.svg" width="32" height="32">
+        <img src="fyndr-mark-fshutter.svg" width="16" height="16">
+      </div>
+      <span>Header · lockup · favicon</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

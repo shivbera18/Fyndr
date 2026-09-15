@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fyndr logo — aperture smile">
+  <defs>
+    <linearGradient id="fy-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#272B36"/>
+      <stop offset="0.55" stop-color="#14161D"/>
+      <stop offset="1" stop-color="#090B0F"/>
+    </linearGradient>
+    <linearGradient id="fy-lime" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DFFFAC"/>
+      <stop offset="0.52" stop-color="#B9FF66"/>
+      <stop offset="1" stop-color="#8ADB32"/>
+    </linearGradient>
+    <radialGradient id="fy-glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#B9FF66" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#B9FF66" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#fy-bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#fy-glow)"/>
+  <rect x="18" y="18" width="476" height="476" rx="126" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="3"/>
+  <!-- lens rim -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="url(#fy-lime)" stroke-width="15"/>
+  <g stroke="url(#fy-lime)" stroke-width="23" stroke-linecap="round" fill="none">
+    <line x1="367" y1="192" x2="284" y2="179"/>
+    <line x1="256" y1="128" x2="203" y2="193"/>
+    <line x1="145" y1="192" x2="175" y2="270"/>
+    <line x1="145" y1="320" x2="228" y2="333"/>
+    <line x1="256" y1="384" x2="309" y2="319"/>
+    <line x1="367" y1="320" x2="337" y2="242"/>
+  </g>
+  <!-- dark hub clears blade ends -->
+  <circle cx="256" cy="256" r="62" fill="#0B0D12"/>
+  <!-- B's smiley, scaled to hub -->
+  <circle cx="231" cy="243" r="13" fill="#F2F5EA"/>
+  <circle cx="281" cy="243" r="13" fill="#F2F5EA"/>
+  <path d="M222 280 Q256 314 290 280" fill="none" stroke="url(#fy-lime)" stroke-width="17" stroke-linecap="round"/>
+</svg>

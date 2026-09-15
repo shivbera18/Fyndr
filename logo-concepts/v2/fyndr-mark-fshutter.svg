@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fyndr logo — F shutter monogram">
+  <defs>
+    <linearGradient id="fy-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#272B36"/>
+      <stop offset="0.55" stop-color="#14161D"/>
+      <stop offset="1" stop-color="#090B0F"/>
+    </linearGradient>
+    <linearGradient id="fy-lime" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DFFFAC"/>
+      <stop offset="0.52" stop-color="#B9FF66"/>
+      <stop offset="1" stop-color="#8ADB32"/>
+    </linearGradient>
+    <linearGradient id="fy-bone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDE2D2"/>
+    </linearGradient>
+    <radialGradient id="fy-glow" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#B9FF66" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#B9FF66" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#fy-bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#fy-glow)"/>
+  <rect x="18" y="18" width="476" height="476" rx="126" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="3"/>
+  <!-- F monogram -->
+  <rect x="158" y="128" width="62" height="248" rx="31" fill="url(#fy-bone)"/>
+  <rect x="158" y="128" width="196" height="62" rx="31" fill="url(#fy-bone)"/>
+  <rect x="158" y="228" width="150" height="58" rx="29" fill="url(#fy-lime)"/>
+  <!-- focus-point dot -->
+  <circle cx="354" cy="342" r="38" fill="url(#fy-lime)"/>
+  <circle cx="354" cy="342" r="16" fill="#0B0D12"/>
+</svg>
