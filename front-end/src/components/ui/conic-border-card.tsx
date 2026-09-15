@@ -47,11 +47,11 @@ function ConicBorderCardInner({
         </div>
       )}
 
-      {/* Outer Border Container with Spinning Conic Gradient */}
+      {/* Outer Border Container with Static Conic Gradient on touch — ponytail: infinite spin on a 400%-scale layer saturates mobile GPU during scroll. */}
       <div className="relative flex-1 rounded-2xl p-[1.5px] overflow-hidden transition-all duration-300 group shadow-sm hover:shadow-md">
         <div
           className={cn(
-            "absolute inset-[-150%] animate-[spin_5s_linear_infinite] pointer-events-none [background-image:conic-gradient(from_0deg,transparent_0_320deg,rgba(16,185,129,0.9)_340deg,rgba(59,130,246,0.9)_360deg)] opacity-90 group-hover:opacity-100 transition-opacity",
+            "absolute inset-[-150%] motion-safe:animate-[spin_5s_linear_infinite] motion-reduce:animate-none pointer-events-none [background-image:conic-gradient(from_0deg,transparent_0_320deg,rgba(16,185,129,0.9)_340deg,rgba(59,130,246,0.9)_360deg)] opacity-90 group-hover:opacity-100 transition-opacity [@media(pointer:coarse)]:animate-none",
             gradientClassName
           )}
         />
@@ -59,7 +59,7 @@ function ConicBorderCardInner({
         {/* Inner Content Card */}
         <div
           className={cn(
-            "relative z-10 h-full w-full rounded-[calc(1rem-1.5px)] bg-white dark:bg-neutral-950 p-6 backdrop-blur-xl transition-colors",
+            "relative z-10 h-full w-full rounded-[calc(1rem-1.5px)] bg-white dark:bg-neutral-950 p-6 transition-colors",
             className
           )}
         >

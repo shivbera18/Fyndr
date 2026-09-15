@@ -51,7 +51,7 @@ export function PWAInstallBanner() {
     <>
       <aside
         aria-label="Install application"
-        className="fixed bottom-16 sm:bottom-4 inset-x-4 sm:inset-x-auto sm:right-4 z-40 max-w-sm sm:w-96 rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-5"
+        className="fixed bottom-16 sm:bottom-4 inset-x-4 sm:inset-x-auto sm:right-4 z-40 max-w-sm sm:w-96 rounded-2xl border border-border bg-card p-4 shadow-2xl transition-all duration-200 animate-in fade-in slide-in-from-bottom-5"
       >
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">

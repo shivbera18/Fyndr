@@ -1,4 +1,4 @@
-import React, { useId, type ReactNode } from "react";
+import React, { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Upload, ScanFace, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -54,13 +54,32 @@ const DEFAULT_HUB: BeamHub = {
 function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCES, hub = DEFAULT_HUB }: BeamLinesProps) {
   const id = useId().replace(/:/g, "-");
   const reduce = useReducedMotion();
+  const [inView, setInView] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // ponytail: infinite gradient loops run only while the hero visual is onscreen — offscreen rAF ticks steal scroll frames on phones.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => setInView(entries[0]?.isIntersecting ?? false),
+      { rootMargin: "200px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   // ponytail: infinite gradient loops pause for reduced-motion users (static beam).
   const loop = (delay: number) =>
-    reduce ? { duration: 0 } : { duration: 2.2, repeat: Infinity, repeatDelay: 3.8, ease: "easeInOut" as const, delay };
+    reduce || !inView
+      ? { duration: 0 }
+      : { duration: 2.2, repeat: Infinity, repeatDelay: 3.8, ease: "easeInOut" as const, delay };
   return (
     <div
+      ref={rootRef}
       className={cn(
-        "relative w-full overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-950/50 p-6 md:p-8 backdrop-blur-sm",
+        "relative w-full overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-950/50 p-6 md:p-8",
         className
       )}
     >
@@ -213,7 +232,7 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
           {showLabels && (
             <div className="mt-3 text-center">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 text-neutral-700 dark:text-neutral-300">
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping motion-reduce:animate-none" />
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping motion-reduce:animate-none [@media(pointer:coarse)]:animate-none" />
                 {hub.pill}
               </span>
             </div>
