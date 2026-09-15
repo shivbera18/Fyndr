@@ -1,4 +1,4 @@
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import Header from "../navbar/Header";
@@ -75,11 +75,21 @@ export default function Dashboard(): React.JSX.Element {
     setPin(random);
   };
 
+  // ponytail: revoke one-shot cover blob URL — repeated cover picks leak browser memory.
+  const coverPreviewRef = useRef("");
+  useEffect(() => {
+    return () => {
+      if (coverPreviewRef.current) URL.revokeObjectURL(coverPreviewRef.current);
+    };
+  }, []);
+
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (coverPreviewRef.current) URL.revokeObjectURL(coverPreviewRef.current);
+      coverPreviewRef.current = URL.createObjectURL(file);
       setCoverFile(file);
-      setCoverPreview(URL.createObjectURL(file));
+      setCoverPreview(coverPreviewRef.current);
     }
   };
 

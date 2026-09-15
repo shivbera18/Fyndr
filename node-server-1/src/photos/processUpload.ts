@@ -39,11 +39,12 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
   }
 
   // Per-event idempotency: check Photo first (fast path)
+  // ponytail: fs.promises frees the event loop while large uploads stream + delete; sync unlink blocks it.
+  const unlinkAsync = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   try {
     const existingPhoto = await Photo.findOne({ event_id, hash });
     if (existingPhoto) {
-      try { fs.unlinkSync(file.path); } catch(_){}
-      await markDone(event_id, hash).catch(()=>{});
+      await unlinkAsync(file.path);
       // Re-upload targets a move: keep grouping truthful
       if (existingPhoto.folder_name !== folder_name) {
         existingPhoto.folder_name = folder_name;
@@ -55,7 +56,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
 
   const q: any = await enqueue(event_id, hash, file.filename);
   if (q && q.status === 'done') {
-    try { fs.unlinkSync(file.path); } catch(_){}
+    await unlinkAsync(file.path);
     const existing = await Photo.findOne({ event_id, hash });
     return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: q.photo_hash };
   }
@@ -81,7 +82,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
     }
   } catch (e: any) {
     await markFailed(event_id, hash, e.message).catch(()=>{});
-    try { fs.unlinkSync(file.path); } catch(_){}
+    await unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }
 
@@ -100,7 +101,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
   } catch (e: any) {
     if (e.code === 11000) {
       // race: another worker saved same hash — clean orphan FAISS vector
-      try { fs.unlinkSync(file.path); } catch(_){}
+      await unlinkAsync(file.path);
       try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
       const dup = await Photo.findOne({ event_id, hash });
       await markDone(event_id, hash).catch(()=>{});
