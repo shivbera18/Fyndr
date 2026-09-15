@@ -1514,8 +1514,8 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         )}
       </div>
 
-      {/* Mobile Sticky Action Bar — bottom-16 (4rem) clears the BottomNav exactly: no visual gap, no overlap. InEvent mounts only inside Dashboard at /dashboard, so BottomNav is always present. */}
-      <div className="fixed bottom-16 inset-x-0 z-40 md:hidden bg-background border-t border-border p-3 flex gap-2" role="toolbar" aria-label="Mobile quick actions">
+      {/* Mobile Sticky Action Bar — offset tracks BottomNav's real height incl. safe-area: no gap, no overlap. InEvent mounts only inside Dashboard at /dashboard, so BottomNav is always present. */}
+      <div className="fixed bottom-[calc(4rem_+_max(0.375rem,env(safe-area-inset-bottom)))] inset-x-0 z-40 md:hidden bg-background border-t border-border p-3 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap" role="toolbar" aria-label="Mobile quick actions">
         <Button variant="ghost" size="default" onClick={backbtn} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -1536,6 +1536,9 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         <Button variant="secondary" size="default" onClick={() => setShowQrModal(true)} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5">
           <QrIcon className="h-4 w-4" />
           QR Code
+        </Button>
+        <Button variant="outline" size="default" onClick={downloadStandee} title="Download printable table standee (PNG)" aria-label="Download table standee" className="min-h-[44px] px-3 flex items-center justify-center">
+          <Download className="h-4 w-4" />
         </Button>
         <Button
           variant="outline"

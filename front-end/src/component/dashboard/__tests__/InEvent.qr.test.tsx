@@ -58,29 +58,32 @@ describe("InEvent QR mobile visibility", () => {
     expect(toolbar.textContent).toContain("Guest QR Code");
   });
 
-  it("sticky bar docks flush above BottomNav via bottom-16 with no gap and solid bg", () => {
+  it("sticky bar docks flush above BottomNav tracking its safe-area height, solid bg, scrollable", () => {
     renderInEvent();
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
     expect(stickyToolbar).toBeInTheDocument();
     expect(stickyToolbar).toHaveClass("fixed");
-    expect(stickyToolbar).toHaveClass("bottom-16");
-    expect(stickyToolbar.className).not.toContain("bottom-[calc");
+    expect(stickyToolbar.className).toContain("bottom-[calc(4rem_+_max(0.375rem,env(safe-area-inset-bottom)))]");
     expect(stickyToolbar).toHaveClass("z-40");
     expect(stickyToolbar).toHaveClass("md:hidden");
     expect(stickyToolbar).toHaveClass("bg-background");
     expect(stickyToolbar.className).not.toContain("backdrop-blur");
     expect(stickyToolbar).toHaveClass("flex");
     expect(stickyToolbar).toHaveClass("gap-2");
+    expect(stickyToolbar).toHaveClass("overflow-x-auto");
+    expect(stickyToolbar).toHaveClass("scrollbar-hide");
+    expect(stickyToolbar).toHaveClass("flex-nowrap");
   });
 
-  it("sticky bar keeps Analytics and QR Code primary actions plus Back and Delete", () => {
+  it("sticky bar keeps Analytics, QR Code, standee download, Back and Delete", () => {
     renderInEvent();
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
     expect(stickyToolbar.textContent).toContain("Analytics");
     expect(stickyToolbar.textContent).toContain("QR Code");
     expect(stickyToolbar.textContent).toContain("Back");
+    expect(screen.getByRole("button", { name: "Download table standee" })).toBeInTheDocument();
     const buttons = stickyToolbar.querySelectorAll("button");
-    expect(buttons.length).toBe(4);
+    expect(buttons.length).toBe(5);
   });
 
   it("wrapper has pb-16 pb-safe md:pb-0 to avoid content underlap", () => {
