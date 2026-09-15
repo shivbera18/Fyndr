@@ -72,9 +72,10 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
 
   let embeddings: any[] = [];
   try {
+    // ponytail: 120s covers 95th-percentile multi-face DSLR photos on 4-core ARM; 60s killed slow batches.
     const response: any = await axios.post(`${FLASK_URL}/get_embedding`, formData, {
       headers: { ...formData.getHeaders() },
-      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000
+      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 120000
     });
     if (response.data.error) throw new Error(response.data.error);
     if (Array.isArray(response.data.embeddings)) {
