@@ -63,7 +63,7 @@ describe("InEvent QR mobile visibility", () => {
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
     expect(stickyToolbar).toBeInTheDocument();
     expect(stickyToolbar).toHaveClass("fixed");
-    expect(stickyToolbar.className).toContain("bottom-[calc(4.5rem_+_env(safe-area-inset-bottom))]");
+    expect(stickyToolbar.className).toContain("bottom-[calc(3.25rem_+_env(safe-area-inset-bottom))]");
     expect(stickyToolbar).toHaveClass("z-40");
     expect(stickyToolbar).toHaveClass("md:hidden");
     expect(stickyToolbar).toHaveClass("bg-background");
