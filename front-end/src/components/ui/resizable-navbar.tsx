@@ -136,9 +136,10 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
 
 export const MobileNav = ({ children, className }: MobileNavProps) => {
   return (
+    // ponytail: solid bg, no backdrop-blur — blur on the sticky mobile nav repaints every scroll frame.
     <div
       className={cn(
-        "relative z-50 mx-auto flex w-full max-w-[calc(100vw-1rem)] flex-col items-center justify-between rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background/90 dark:bg-neutral-900/90 shadow-xs backdrop-blur-md lg:hidden",
+        "relative z-50 mx-auto flex w-full max-w-[calc(100vw-1rem)] flex-col items-center justify-between rounded-full px-4 py-2 border border-neutral-200/80 dark:border-neutral-800/80 bg-background dark:bg-neutral-900 shadow-xs lg:hidden",
         className
       )}
     >
@@ -197,7 +198,7 @@ export const MobileNavToggle = ({
       onClick={onClick}
       aria-label={isOpen ? "Close menu" : "Open menu"}
       aria-expanded={isOpen}
-      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border/70 bg-background/80 p-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-border/70 bg-background/90 px-2 py-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
     </button>

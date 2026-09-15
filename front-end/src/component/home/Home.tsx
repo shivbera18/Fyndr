@@ -493,15 +493,43 @@ function DemoCard() {
 
   useEffect(() => {
     if (!isAuto) return;
+    // ponytail: pause the demo carousel offscreen — perpetual re-renders steal scroll frames on phones.
+    if (typeof IntersectionObserver === "undefined") return;
+    let id: number | null = null;
     const order: DemoStep[] = ["upload", "selfie", "match"];
-    const id = window.setInterval(() => {
-      setStep((prev: DemoStep) => order[(order.indexOf(prev) + 1) % order.length]);
-    }, 3600);
-    return () => window.clearInterval(id);
+    const start = () => {
+      if (id !== null) return;
+      id = window.setInterval(() => {
+        setStep((prev: DemoStep) => order[(order.indexOf(prev) + 1) % order.length]);
+      }, 3600);
+    };
+    const stop = () => {
+      if (id !== null) {
+        window.clearInterval(id);
+        id = null;
+      }
+    };
+    const el = document.getElementById("fy-demo-card");
+    if (!el) {
+      start();
+      return () => stop();
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) start();
+        else stop();
+      },
+      { rootMargin: "200px" }
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      stop();
+    };
   }, [isAuto]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md">
+    <div id="fy-demo-card" className="overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl bg-white/80 dark:bg-neutral-900/80">
       <div className="flex items-center gap-1.5 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/70">
         <span className="size-2.5 rounded-full bg-red-400/80 inline-block" />
         <span className="size-2.5 rounded-full bg-yellow-400/80 inline-block" />
@@ -609,12 +637,13 @@ export default function Home(): React.JSX.Element {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-emerald-500/20 selection:text-emerald-500 relative">
       {/* Straight vertical boundary lines extending all the way to the top of the viewport */}
-      <div className="pointer-events-none fixed inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200 dark:border-neutral-800 z-30" />
+      {/* ponytail: absolute (not fixed) — fixed full-viewport layer forces full-tile repaint every scroll frame on mobile GPU. */}
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200 dark:border-neutral-800" />
 
       {/* Ambient background dot grid & green glow extending behind navbar and hero */}
       <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] h-[850px] overflow-hidden z-0">
         <div className="absolute inset-0 bg-dot-grid opacity-70 mask-radial-fade" />
-        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[750px] h-[450px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px]" />
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[750px] h-[450px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px] motion-reduce:hidden" />
       </div>
 
       <Header />
@@ -688,7 +717,7 @@ export default function Home(): React.JSX.Element {
         {/* 2. METRICS & IMPACT BAR                                      */}
         {/* ============================================================ */}
         <section className="border-b border-neutral-200 dark:border-neutral-800">
-          <div className="grid grid-cols-2 lg:grid-cols-4 bg-white/40 dark:bg-neutral-950/40 backdrop-blur-md [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:not(:last-child)]:border-r border-neutral-200 dark:border-neutral-800">
+          <div className="grid grid-cols-2 lg:grid-cols-4 bg-white/40 dark:bg-neutral-950/40 [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:nth-child(-n+3)]:border-r lg:[&>*]:border-neutral-200 lg:dark:[&>*]:border-neutral-800">
             {STATS.map((stat) => {
               const Icon = stat.icon;
               return (
@@ -1398,7 +1427,8 @@ export default function Home(): React.JSX.Element {
       </main>
 
       {/* MOBILE STICKY CTA BAR */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-md border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex gap-3 sm:hidden">
+      {/* ponytail: solid bg, no backdrop-blur — blur on a fixed bar repaints every scroll frame (same as BottomNav fix). */}
+      <div className="fixed bottom-0 inset-x-0 z-30 bg-background border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:hidden flex gap-3">
         <Button
           size="lg"
           onClick={() => navigate("/login")}
