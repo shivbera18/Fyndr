@@ -181,6 +181,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    // ponytail: dropping mid-upload corrupts batch snapshots + wipes retry banner — queue for after.
+    if (loading) return;
     if (e.dataTransfer.files) {
       addFiles(e.dataTransfer.files);
     }
@@ -250,6 +252,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
             if (res.status === 207) {
               throw new Error("Some photos in this batch failed to process.");
+            }
+            // ponytail: cancel won the race after post resolved — never report false success.
+            if (abortController.signal.aborted) {
+              throw new Error("CanceledError");
             }
             break;
           } catch (attemptErr: unknown) {
@@ -335,7 +341,11 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
         if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
           const responseData = err.response?.data;
-          if (responseData && typeof responseData === "object" && "message" in responseData) {
+          // ponytail: 422-all-failed ships an ARRAY of per-file errors — surface the first, not axios's generic status text.
+          if (Array.isArray(responseData)) {
+            const first = responseData.find((r) => r && typeof r === "object" && "error" in r);
+            if (first) message = String(first.error);
+          } else if (responseData && typeof responseData === "object" && "message" in responseData) {
             message = String(responseData.message);
           } else if (responseData && typeof responseData === "object" && "error" in responseData) {
             message = String(responseData.error);
@@ -366,11 +376,13 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       <CardContent className="space-y-4">
         <label
           htmlFor="album-file-input"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
+          onDragOver={loading ? undefined : handleDragOver}
+          onDragLeave={loading ? undefined : handleDragLeave}
           onDrop={handleDrop}
+          aria-disabled={loading}
           className={cn(
             "flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 min-h-[140px] cursor-pointer transition-colors text-center",
+            loading && "opacity-60 cursor-not-allowed",
             isDragging
               ? "border-primary bg-primary/5"
               : "border-border hover:border-primary/50 bg-muted/20 hover:bg-muted/40"
@@ -387,7 +399,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           />
           <ImagePlus className="h-8 w-8 text-muted-foreground/60 mb-2" />
           <strong className="text-sm font-medium text-foreground">
-            {isDragging ? "Drop photos here to queue" : "Click to select photos or drag & drop here"}
+            {loading ? "Uploading — please wait, drop is paused" : isDragging ? "Drop photos here to queue" : "Click to select photos or drag & drop here"}
           </strong>
           <span className="text-xs text-muted-foreground mt-1">
             Supports JPG, PNG, WEBP — Batched memory-safe uploads for large albums (GBs supported)

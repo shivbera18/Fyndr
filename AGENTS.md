@@ -61,6 +61,30 @@ npm --prefix node-server-1 run build            # backend tsc compilation
   - Approve PR: `gh pr review <PR-NUMBER> --approve -b "<REVIEW_BODY>"`
   - Request changes: `gh pr review <PR-NUMBER> --request-changes -b "<REVIEW_BODY>"`
   - *Note on self-reviews:* GitHub disallows approving one's own PR, so PR authors/self-reviews must use `--comment -b "..."` to formally submit a review that counts on the PR timeline.
+  - **Review body format (readable on web + mobile):** shell `-b` mangles real newlines — ALWAYS write the body to a temp file and use `--body-file`, NEVER inline `-b` with `\n` escapes:
+    ```bash
+    cat > /tmp/pr-review.md << 'EOF'
+    # PR #<N> Review: <short scope>
+
+    **Verdict: <Request changes | ✅ ZERO-DEFECT>** — <one-line summary>.
+
+    ## Findings
+
+    ### 1. <Title> `file:line` — <Severity>
+    Why it fails: <mechanism in 1-2 sentences>.
+    Failure mode: <what the user/server sees>.
+    Fix: <concrete change>.
+
+    (repeat per finding; omit section when zero defects)
+
+    ## Verification
+    - Tests: <suites + counts>
+    - Types: <tsc clean / errors>
+    - Build: <Vercel PASS / fail + reason>
+    EOF
+    gh pr review <N> --comment --body-file /tmp/pr-review.md
+    ```
+    Rules: real `#`/`##` headings with blank lines around them, backticked `file:line`, one finding per `###` numbered heading, severity inline in the heading, no walls of bold-only text, no literal `\n` sequences. Approve variant: same file with `**Verdict: ✅ Approve — <reason>**` and `--approve --body-file`.
 - **Granular Commits:** Make very small, granular, logical commits per change rather than large monolithic commits (e.g. typography/styles separate from components, separate from fixes, separate from docs). Every commit must have a clear descriptive message, pass checks, and use author `shivbera18 <164228363+shivbera18@users.noreply.github.com>`.
 - **History:** Squashed `init commit` — don't reintroduce `azeem` history.
 - **Deployment:** Push to `shivbera18/Fyndr` `main` — Oracle `ssh fyndr "cd ~/pic-share && git pull && pm2 restart all"`.
