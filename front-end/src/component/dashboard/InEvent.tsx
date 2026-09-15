@@ -1514,7 +1514,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         )}
       </div>
 
-      {/* Mobile Sticky Action Bar — fixed directly atop BottomNav (same z-40, later in DOM paints above): BottomNav = 1px border + 6px top pad + 44px item + max(6px, safe-area) pad ≈ 51px + safe-area, so bottom-[calc(3.25rem+env)] docks border-on-border with zero gap on every device. InEvent mounts only inside Dashboard at /dashboard, so BottomNav is always present. */}
+      {/* Mobile Sticky Action Bar — fixed directly atop BottomNav (same z-40, later in DOM paints above): BottomNav is about 51px plus safe-area, so a 3.25rem plus safe-area offset docks border-on-border with zero gap on every device. InEvent mounts only inside Dashboard at /dashboard, so BottomNav is always present. */}
       <div className="fixed bottom-[calc(3.25rem_+_env(safe-area-inset-bottom))] inset-x-0 z-40 md:hidden bg-background border-t border-border px-2 py-2 flex gap-2 overflow-x-auto scrollbar-hide flex-nowrap" role="toolbar" aria-label="Mobile quick actions">
         <Button variant="ghost" size="default" onClick={backbtn} className="flex-1 min-h-[44px] min-w-[92px] flex items-center justify-center gap-1.5 px-3">
           <ArrowLeft className="h-4 w-4 shrink-0" />
