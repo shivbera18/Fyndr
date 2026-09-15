@@ -717,7 +717,7 @@ export default function Home(): React.JSX.Element {
         {/* 2. METRICS & IMPACT BAR                                      */}
         {/* ============================================================ */}
         <section className="border-b border-neutral-200 dark:border-neutral-800">
-          <div className="grid grid-cols-2 lg:grid-cols-4 bg-white/40 dark:bg-neutral-950/40 [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(odd)]:border-r-0 lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:nth-child(-n+3)]:border-r lg:[&>*]:border-neutral-200 lg:dark:[&>*]:border-neutral-800">
+          <div className="grid grid-cols-2 lg:grid-cols-4 bg-white/40 dark:bg-neutral-950/40 [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:nth-child(-n+3)]:border-r lg:[&>*]:border-neutral-200 lg:dark:[&>*]:border-neutral-800">
             {STATS.map((stat) => {
               const Icon = stat.icon;
               return (
@@ -1428,7 +1428,7 @@ export default function Home(): React.JSX.Element {
 
       {/* MOBILE STICKY CTA BAR */}
       {/* ponytail: solid bg, no backdrop-blur — blur on a fixed bar repaints every scroll frame (same as BottomNav fix). */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-background border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:hidden">
+      <div className="fixed bottom-0 inset-x-0 z-30 bg-background border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:hidden flex gap-3">
         <Button
           size="lg"
           onClick={() => navigate("/login")}
