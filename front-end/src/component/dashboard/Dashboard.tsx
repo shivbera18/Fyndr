@@ -134,6 +134,8 @@ export default function Dashboard(): React.JSX.Element {
         // Reset form
         setEventName("");
         setPin("");
+        if (coverPreviewRef.current) URL.revokeObjectURL(coverPreviewRef.current);
+        coverPreviewRef.current = "";
         setCoverFile(null);
         setCoverPreview("");
         // Select the newly created event

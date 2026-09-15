@@ -118,6 +118,7 @@ router.post('/in-event', async (req: Request, resp: Response) => {
             .select("_id name folder_name isSelected createdAt")
             .sort({ createdAt: -1 })
             .lean();
+        resp.status(200).send(result || []);
     } catch (error: any) {
         resp.status(500).send({ result: "An error occurred while retrieving images", error: error.message });
     }
