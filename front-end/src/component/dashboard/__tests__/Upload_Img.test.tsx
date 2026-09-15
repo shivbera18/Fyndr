@@ -138,10 +138,12 @@ describe("Upload_Img component memory safety and batching", () => {
   });
 
   test("handles partial batch failure gracefully and preserves remaining files for retry", async () => {
-    const axiosError = {
+    // ponytail: realistic fatal shape — HTTP 422 with response (no retry), not a response-less network drop.
+    const axiosError = Object.assign(new Error("Request failed with status code 422"), {
       isAxiosError: true,
-      response: { data: { message: "Network connection dropped" } },
-    };
+      code: "ERR_BAD_REQUEST",
+      response: { status: 422, data: { message: "All files in batch failed validation" } },
+    });
     mockedAxios.post
       .mockResolvedValueOnce({ status: 200, data: [] })
       .mockRejectedValueOnce(axiosError);
@@ -223,8 +225,8 @@ describe("Upload_Img component memory safety and batching", () => {
       isAxiosError: true,
       code: "ERR_NETWORK",
     });
-    mockedAxios.post.mockRejectedValueOnce(blip).mockResolvedValueOnce({ status: 200, data: [] });
-    mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === blip);
+    mockedAxios.post.mockRejectedValueOnce(blip);
+    mockedAxios.post.mockResolvedValue({ status: 200, data: [] });
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
@@ -234,8 +236,10 @@ describe("Upload_Img component memory safety and batching", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Upload 5 photos/i }));
 
+    await waitFor(() => {
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    });
     expect(await screen.findByText(/Successfully uploaded 5 photos/i)).toBeInTheDocument();
-    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
   });
 
   test("gives up after max attempts on a persistently failing batch", async () => {

@@ -16,7 +16,6 @@ export const MAX_PREVIEWS = 12;
 export const UPLOAD_BATCH_SIZE = 15;
 export const UPLOAD_BATCH_BYTE_BUDGET = 75 * 1024 * 1024;
 export const UPLOAD_MAX_ATTEMPTS = 4;
-export const UPLOAD_RETRY_BASE_DELAY_MS = 1500;
 export const UPLOAD_RETRY_DELAYS_MS = [0, 1500, 3000, 6000];
 export function buildByteBudgetedBatches(files: SelectedFile[]): SelectedFile[][] {
   const batches: SelectedFile[][] = [];
@@ -37,19 +36,31 @@ export function buildByteBudgetedBatches(files: SelectedFile[]): SelectedFile[][
 }
 
 export function isRetryableUploadError(err: unknown): boolean {
-  // ponytail: no local guard/schema — axios owns the error shape; narrow via its own type predicate.
+  // ponytail: canceled requests must never retry — abort means the user (or unmount) killed it.
+  if (err !== null && typeof err === "object" && "code" in err && err.code === "ERR_CANCELED") return false;
+  if (typeof axios.isCancel === "function") {
+    try {
+      if (axios.isCancel(err)) return false;
+    } catch {}
+  }
+  // ponytail: no local guard/schema — axios owns the error shape; narrow via its own type predicate when available.
   if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
-    if (err.code === "ERR_NETWORK" || err.code === "ECONNABORTED" || err.code === "ETIMEDOUT") return true;
-    if (err.response === undefined) return true;
+    if (err.code === "ERR_NETWORK" || err.code === "ECONNABORTED" || err.code === "ETIMEDOUT" || err.response === undefined) return true;
     const status = err.response.status;
     return status === 408 || status === 429 || status >= 500;
   }
+  // ponytail: response-less network drops may arrive as plain Errors in mocks/edge runtimes — retry by code/message.
+  if (err !== null && typeof err === "object" && "code" in err) {
+    const code = err.code;
+    if (code === "ERR_NETWORK" || code === "ECONNABORTED" || code === "ETIMEDOUT") return true;
+  }
+  if (err instanceof Error && err.message === "Network Error") return true;
   // ponytail: 207 partial-failure is deterministic per batch (same files fail again) — fail fast, no retry.
   return false;
 }
 
-export function uploadDelayMs(attempt: number): number {
-  return UPLOAD_RETRY_DELAYS_MS[attempt - 1] ?? UPLOAD_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+export function uploadDelayMs(failedAttempt: number): number {
+  return UPLOAD_RETRY_DELAYS_MS[failedAttempt - 1] ?? UPLOAD_RETRY_DELAYS_MS[UPLOAD_RETRY_DELAYS_MS.length - 1] ?? 0;
 }
 
 export type SelectedFile = {
@@ -257,16 +268,30 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
               kind: "error",
               text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
             });
+            // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
             const waitMs = uploadDelayMs(attempt);
-            await new Promise<void>((resolve, reject) => {
-              const timer = window.setTimeout(resolve, waitMs);
-              abortController.signal.addEventListener("abort", () => {
-                window.clearTimeout(timer);
-                reject(new Error("CanceledError"));
-              }, { once: true });
-            });
+            if (waitMs > 0) {
+              const signal = abortController.signal;
+              await new Promise<void>((resolve, reject) => {
+                if (signal.aborted) {
+                  reject(new Error("CanceledError"));
+                  return;
+                }
+                const onAbort = () => {
+                  window.clearTimeout(timer);
+                  reject(new Error("CanceledError"));
+                };
+                const timer = window.setTimeout(() => {
+                  signal.removeEventListener("abort", onAbort);
+                  resolve();
+                }, waitMs);
+                signal.addEventListener("abort", onAbort, { once: true });
+              });
+            }
           }
         }
+        // ponytail: clear the transient retry banner so a recovered batch doesn't leave a stale red error up.
+        setUploadStatus(null);
         uploadedCount += currentBatch.length;
         setSelectedFiles((prev) => {
           const uploadedIds = new Set(currentBatch.map((b) => b.id));
