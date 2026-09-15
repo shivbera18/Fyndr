@@ -24,6 +24,8 @@ export interface UploadContext {
 // watcher feeds the identical pipeline (same hashes, same dedupe, same FAISS flow).
 export async function processUploadedFile(file: UploadFile, ctx: UploadContext): Promise<unknown> {
   const { event_id, upload_by, folder_name } = ctx;
+  // ponytail: fs.promises frees the event loop while large uploads stream + delete; sync unlink blocks it.
+  const unlinkAsync = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   let hash = '';
   try {
     // non-blocking streaming hash (avoid fs.readFileSync blocking event loop)
@@ -35,12 +37,12 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       s.on('end', () => resolve(h.digest('hex')));
     });
   } catch (e: any) {
+    // ponytail: hash-stream failure must not orphan the 50MB multer file on disk.
+    await unlinkAsync(file.path);
     return { file: file.originalname, error: 'hash failed: ' + e.message, status: 'failed' };
   }
 
   // Per-event idempotency: check Photo first (fast path)
-  // ponytail: fs.promises frees the event loop while large uploads stream + delete; sync unlink blocks it.
-  const unlinkAsync = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   try {
     const existingPhoto = await Photo.findOne({ event_id, hash });
     if (existingPhoto) {
@@ -107,9 +109,10 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       await markDone(event_id, hash).catch(()=>{});
       return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
     }
-    // on generic save failure, also try to clean orphan FAISS
+    // on generic save failure, clean orphan FAISS vector AND the multer file
     try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
     await markFailed(event_id, hash, e.message).catch(()=>{});
+    await unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }
 }

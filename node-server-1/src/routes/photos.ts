@@ -81,10 +81,8 @@ const deleteImageHandler = async (req: Request, res: Response) => {
 
         const fileName = result.name || name;
         if (fileName) {
-            const imagePath = path.join(UPLOAD_DIR, fileName);
-            if (fs.existsSync(imagePath)) {
-                try { fs.unlinkSync(imagePath); } catch (err) { logger.warn('[delete-image] unlink error', err); }
-            }
+            // ponytail: async unlink frees the event loop; no existsSync TOCTOU (unlink ENOENT is swallowed).
+            fs.promises.unlink(path.join(UPLOAD_DIR, fileName)).catch((err) => logger.warn('[delete-image] unlink error', err));
             deleteObject(fileName).catch(() => {});
         }
         return res.json({ success: true, message: "Image deleted successfully" });

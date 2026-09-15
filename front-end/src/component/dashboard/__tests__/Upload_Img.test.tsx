@@ -50,6 +50,12 @@ describe("Upload_Img component memory safety and batching", () => {
     });
   };
 
+  test("renders upload dropzone with memory-safe description", () => {
+    render(<Upload_Img event_id="evt_test_1" />);
+    expect(screen.getByText("Upload event photos")).toBeInTheDocument();
+    expect(screen.getByText(/Batched memory-safe uploads for large albums/i)).toBeInTheDocument();
+  });
+
   const createSizedFiles = (sizes: number[]): File[] => {
     return sizes.map((size, i) => {
       const file = new File(["x"], `sized-${i + 1}.jpg`, { type: "image/jpeg" });
@@ -57,11 +63,43 @@ describe("Upload_Img component memory safety and batching", () => {
       return file;
     });
   };
+  test("surfaces the first per-file error when the server returns a 422 array", async () => {
+    const arrayError = [{ file: "a.jpg", error: "ML inference timed out", status: "failed" }];
+    mockedAxios.post.mockRejectedValueOnce(
+      Object.assign(new Error("Request failed with status code 422"), {
+        isAxiosError: true,
+        code: "ERR_BAD_REQUEST",
+        response: { status: 422, data: arrayError },
+      })
+    );
 
-  test("renders upload dropzone with memory-safe description", () => {
-    render(<Upload_Img event_id="evt_test_1" />);
-    expect(screen.getByText("Upload event photos")).toBeInTheDocument();
-    expect(screen.getByText(/Batched memory-safe uploads for large albums/i)).toBeInTheDocument();
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(3) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 3 photos/i }));
+
+    expect(await screen.findByText(/Upload failed: ML inference timed out/i)).toBeInTheDocument();
+  });
+
+  test("ignores file drops while an upload is in flight", async () => {
+    let resolvePost: (value: unknown) => void = () => {};
+    mockedAxios.post.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve;
+        })
+    );
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(5) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 5 photos/i }));
+
+    await screen.findByRole("button", { name: /Cancel upload/i });
+    const label = container.querySelector("label[for='album-file-input']") as HTMLElement;
+    expect(label.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByText(/drop is paused/i)).toBeInTheDocument();
+    resolvePost({ status: 200, data: [] });
   });
 
   test("clamps active object URL previews to MAX_PREVIEWS when many files are selected", () => {
