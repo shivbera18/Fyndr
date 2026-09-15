@@ -94,7 +94,7 @@ router.post("/display_event", async (req: Request, resp: Response) => {
     try {
         const { userId } = req.body || {};
         if (userId) {
-            const events = await Event.find({ created_id: userId }).sort({ createdAt: -1 });
+            const events = await Event.find({ created_id: userId }).sort({ createdAt: -1 }).lean();
             resp.status(200).send(events || []);
         } else {
             resp.status(400).send({ message: "User ID is required" });
@@ -116,7 +116,8 @@ router.post('/in-event', async (req: Request, resp: Response) => {
         // PUT /events/:id ownership check depends on created_id staying photographer-known.
         const result = await Photo.find({ event_id: _id })
             .select("_id name folder_name isSelected createdAt")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         resp.status(200).send(result || []);
     } catch (error: any) {
         resp.status(500).send({ result: "An error occurred while retrieving images", error: error.message });
@@ -488,8 +489,9 @@ router.post('/selection', async (req: Request, res: Response) => {
         // Guest-visible projection only — never embeddings, hashes, or owner ids
         const photos = await Photo.find({ event_id: _id })
             .select('_id name folder_name isSelected selectionNote createdAt')
-            .sort({ createdAt: -1 });
-        const selectedCount = photos.filter((p) => p.isSelected).length;
+            .sort({ createdAt: -1 })
+            .lean();
+        const selectedCount = photos.filter((q) => q.isSelected).length;
         return res.status(200).send({
             event: {
                 _id: event._id,
@@ -556,7 +558,7 @@ router.post('/events/:id/lightroom-export', async (req: Request, res: Response) 
         if (typeof caller !== "string" || caller !== event.created_id) {
             return res.status(403).json({ message: "Only the event owner can export the selection." });
         }
-        const selected = await Photo.find({ event_id: id, isSelected: true }).select('name').sort({ createdAt: -1 });
+        const selected = await Photo.find({ event_id: id, isSelected: true }).select('name').sort({ createdAt: -1 }).lean();
         res.setHeader('Content-Type', 'text/plain');
         return res.status(200).send(selected.map((p) => p.name).join(','));
     } catch {
@@ -579,7 +581,7 @@ router.post('/events/:id/selected-download', async (req: Request, res: Response)
         if (typeof caller !== "string" || caller !== event.created_id) {
             return res.status(403).json({ message: "Only the event owner can download the selection." });
         }
-        const selected = await Photo.find({ event_id: id, isSelected: true }).select('name').sort({ createdAt: -1 }).limit(501);
+        const selected = await Photo.find({ event_id: id, isSelected: true }).select('name').sort({ createdAt: -1 }).limit(501).lean();
         if (selected.length > 500) {
             return res.status(400).json({ message: "Too many picks for one archive — narrow the selection." });
         }
@@ -632,7 +634,7 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
             });
         }
 
-        const photos = await Photo.find({ event_id: _id }).select('name _id');
+        const photos = await Photo.find({ event_id: _id }).select('name _id').lean();
         await Photo.deleteMany({ event_id: _id });
         // cleanup jobs + faiss
         try { await Job.deleteMany({ event_id: _id }); } catch(_){}
