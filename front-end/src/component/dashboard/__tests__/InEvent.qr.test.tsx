@@ -58,7 +58,6 @@ describe("InEvent QR mobile visibility", () => {
     expect(toolbar.textContent).toContain("Guest QR Code");
   });
 
-<<<<<<< Updated upstream
   it("sticky bar docks flush above BottomNav with zero gap, solid bg, scrollable", () => {
     renderInEvent();
     const stickyToolbar = screen.getByRole("toolbar", { name: "Mobile quick actions" });
@@ -95,26 +94,6 @@ describe("InEvent QR mobile visibility", () => {
   });
 
   it("wrapper has pb-16 pb-safe md:pb-0 to avoid content underlap", () => {
-=======
-  it("sticky bar is fixed above bottom nav and md:hidden with overflow handling", () => {
-    const { container } = renderInEvent();
-    const sticky = container.querySelector(".fixed.bottom-\\[calc\\(4rem\\_+\\_env\\(safe-area-inset-bottom\\)\\)\\]");
-    // Fallback to class string search if escaped selector fails in jsdom
-    const stickyEl = sticky || Array.from(container.querySelectorAll("div")).find((el) => el.className.includes("bottom-[calc"));
-    expect(stickyEl).not.toBeNull();
-    expect(stickyEl).toHaveClass("fixed");
-    expect(stickyEl).toHaveClass("z-40");
-    expect(stickyEl).toHaveClass("md:hidden");
-    expect(stickyEl).toHaveClass("bg-background");
-    expect(stickyEl?.className).not.toContain("backdrop-blur");
-    expect(stickyEl).toHaveClass("overflow-x-auto");
-    expect(stickyEl).toHaveClass("scrollbar-hide");
-    expect(stickyEl).toHaveClass("flex-nowrap");
-    expect(stickyEl).toHaveClass("pb-safe");
-  });
-
-  it("wrapper has safe-area bottom padding and md:pb-0 to avoid content underlap", () => {
->>>>>>> Stashed changes
     const { container } = renderInEvent();
     const wrapper = container.querySelector(".space-y-8");
     expect(wrapper).not.toBeNull();
