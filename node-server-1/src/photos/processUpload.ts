@@ -38,7 +38,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
     });
   } catch (e: any) {
     // ponytail: hash-stream failure must not orphan the 50MB multer file on disk.
-    await unlinkAsync(file.path);
+    void unlinkAsync(file.path);
     return { file: file.originalname, error: 'hash failed: ' + e.message, status: 'failed' };
   }
 
@@ -46,7 +46,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
   try {
     const existingPhoto = await Photo.findOne({ event_id, hash });
     if (existingPhoto) {
-      await unlinkAsync(file.path);
+      void unlinkAsync(file.path);
       // Re-upload targets a move: keep grouping truthful
       if (existingPhoto.folder_name !== folder_name) {
         existingPhoto.folder_name = folder_name;
@@ -58,7 +58,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
 
   const q: any = await enqueue(event_id, hash, file.filename);
   if (q && q.status === 'done') {
-    await unlinkAsync(file.path);
+    void unlinkAsync(file.path);
     const existing = await Photo.findOne({ event_id, hash });
     return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: q.photo_hash };
   }
@@ -85,7 +85,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
     }
   } catch (e: any) {
     await markFailed(event_id, hash, e.message).catch(()=>{});
-    await unlinkAsync(file.path);
+    void unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }
 
@@ -104,7 +104,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
   } catch (e: any) {
     if (e.code === 11000) {
       // race: another worker saved same hash — clean orphan FAISS vector
-      await unlinkAsync(file.path);
+      void unlinkAsync(file.path);
       try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
       const dup = await Photo.findOne({ event_id, hash });
       await markDone(event_id, hash).catch(()=>{});
@@ -113,7 +113,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
     // on generic save failure, clean orphan FAISS vector AND the multer file
     try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
     await markFailed(event_id, hash, e.message).catch(()=>{});
-    await unlinkAsync(file.path);
+    void unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }
 }
