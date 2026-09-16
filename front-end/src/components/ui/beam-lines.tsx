@@ -71,8 +71,9 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
     return () => io.disconnect();
   }, []);
   // ponytail: infinite gradient loops pause for reduced-motion users (static beam).
+  const shouldAnimate = inView && !reduce;
   const loop = (delay: number) =>
-    reduce || !inView
+    !shouldAnimate
       ? { duration: 0 }
       : { duration: 2.2, repeat: Infinity, repeatDelay: 3.8, ease: "easeInOut" as const, delay };
   return (
@@ -214,11 +215,21 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
         <div className="relative flex flex-col items-center justify-center z-20 w-full md:w-56 shrink-0">
           <div className="relative size-32 md:size-36 flex items-center justify-center">
             {/* Spinning Conic Gradient Ring */}
-            <div className="absolute inset-0 rounded-full [background-image:conic-gradient(at_center,transparent,rgba(16,185,129,0.8)_30%,rgba(59,130,246,0.8)_60%,transparent_85%)] animate-[spin_5s_linear_infinite]" />
+            <div
+              className={cn(
+                "absolute inset-0 rounded-full [background-image:conic-gradient(at_center,transparent,rgba(16,185,129,0.8)_30%,rgba(59,130,246,0.8)_60%,transparent_85%)]",
+                shouldAnimate && "animate-[spin_5s_linear_infinite]"
+              )}
+            />
 
             {/* Glowing Center Hub */}
             <div className="absolute inset-1.5 rounded-full bg-white dark:bg-neutral-950 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 shadow-xl flex flex-col items-center justify-center p-3 text-center">
-              <div className="size-9 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-1 animate-pulse">
+              <div
+                className={cn(
+                  "size-9 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-1",
+                  shouldAnimate && "animate-pulse"
+                )}
+              >
                 {hub.icon}
               </div>
               <div className="text-xs font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
@@ -232,7 +243,12 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
           {showLabels && (
             <div className="mt-3 text-center">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 text-neutral-700 dark:text-neutral-300">
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping motion-reduce:animate-none [@media(pointer:coarse)]:animate-none" />
+                <span
+                  className={cn(
+                    "size-1.5 rounded-full bg-emerald-500 motion-reduce:animate-none [@media(pointer:coarse)]:animate-none",
+                    shouldAnimate && "animate-ping"
+                  )}
+                />
                 {hub.pill}
               </span>
             </div>
