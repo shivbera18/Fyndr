@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import { dataURLToBlob, sanitizeFileName, shareOrDownload } from "../../utils/download";
@@ -209,6 +209,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   const [pinFeedback, setPinFeedback] = useState<string>("");
   // ponytail: cap initial grid render — 5k-photo events rendered every card at once.
   const [visibleCount, setVisibleCount] = useState<number>(60);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const [, startFolderTransition] = useTransition();
 
@@ -785,6 +786,23 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     [images, activeFolder, showPickedOnly]
   );
   const shownImages = useMemo(() => visibleImages.slice(0, visibleCount), [visibleImages, visibleCount]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || visibleImages.length <= visibleCount || !window.IntersectionObserver) return;
+    let active = true;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!active || !entry?.isIntersecting) return;
+      setVisibleCount((count) =>
+        count === visibleCount ? Math.min(count + 60, visibleImages.length) : count
+      );
+    }, { rootMargin: "200px" });
+    observer.observe(sentinel);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [visibleCount, visibleImages.length]);
 
   return (
     <div className="space-y-8 pb-16 pb-safe md:pb-0">
@@ -1500,10 +1518,10 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             ))}
           </div>
             {visibleImages.length > shownImages.length && (
-              <div className="flex justify-center pt-2">
+              <div ref={loadMoreRef} className="flex justify-center pt-2">
                 <Button
                   variant="outline"
-                  onClick={() => setVisibleCount((c) => c + 60)}
+                  onClick={() => setVisibleCount((c) => Math.min(c + 60, visibleImages.length))}
                   className="min-h-[44px]"
                 >
                   Show more ({visibleImages.length - shownImages.length} remaining)

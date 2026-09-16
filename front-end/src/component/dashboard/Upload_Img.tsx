@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -76,6 +76,59 @@ type Props = {
   folder_name?: string;
 };
 
+const PROGRESS_COMMIT_INTERVAL_MS = 250;
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
+  return `${(bytes / 1073741824).toFixed(2)} GB`;
+};
+
+type PreviewTileProps = {
+  id: string;
+  previewUrl: string;
+  fileName: string;
+  size: number;
+  onRemove: (id: string) => void;
+  disabled: boolean;
+};
+
+const PreviewTile = React.memo(function PreviewTile({ id, previewUrl, fileName, size, onRemove, disabled }: PreviewTileProps) {
+  return (
+    <div
+      className="group relative aspect-square rounded-lg overflow-hidden border border-border bg-muted"
+      title={fileName}
+    >
+      {previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={fileName}
+          loading="lazy"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground p-1 text-center truncate">
+          {fileName}
+        </div>
+      )}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(id);
+        }}
+        title={`Remove ${fileName} (${formatFileSize(size)})`}
+        aria-label={`Remove ${fileName}`}
+        className="absolute top-1 right-1 h-7 w-7 rounded-full bg-black/70 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity disabled:pointer-events-none"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+});
+
 export default function Upload_Img({ event_id, d_ref, folder_name }: Props): React.JSX.Element {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,16 +140,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   const filesRef = useRef<SelectedFile[]>([]);
   filesRef.current = selectedFiles;
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastProgressCommitRef = useRef(0);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const USER_ID = (user._id || null) as string | null;
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-    return `${(bytes / 1073741824).toFixed(2)} GB`;
-  };
 
   const totalSize = useMemo(() => {
     return selectedFiles.reduce((sum, f) => sum + f.file.size, 0);
@@ -128,7 +175,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     }
   };
 
-  const removeFile = (id: string) => {
+  const removeFile = useCallback((id: string) => {
     setSelectedFiles((prev) => {
       const target = prev.find((f) => f.id === id);
       if (target && target.preview) {
@@ -142,9 +189,9 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         return item;
       });
     });
-  };
+  }, []);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     selectedFiles.forEach((f) => {
       if (f.preview) URL.revokeObjectURL(f.preview);
     });
@@ -152,7 +199,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     setUploadStatus(null);
     setProgress(0);
     setBatchInfo(null);
-  };
+  }, [selectedFiles]);
 
   useEffect(() => {
     return () => {
@@ -200,6 +247,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
     setLoading(true);
     setUploadStatus(null);
+    lastProgressCommitRef.current = 0;
     setProgress(0);
 
     const abortController = new AbortController();
@@ -245,7 +293,11 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 if (progressEvent.total) {
                   const batchLoadedFraction = progressEvent.loaded / progressEvent.total;
                   const overallFraction = (baseUploaded + batchLoadedFraction * currentBatchSize) / totalFilesCount;
-                  setProgress(Math.min(99, Math.round(overallFraction * 100)));
+                  const now = Date.now();
+                  if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
+                    lastProgressCommitRef.current = now;
+                    setProgress(Math.min(99, Math.round(overallFraction * 100)));
+                  }
                 }
               },
             });
@@ -315,6 +367,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           });
         });
         const overallPct = Math.round((uploadedCount / totalFilesCount) * 100);
+        lastProgressCommitRef.current = Date.now();
         setProgress(overallPct);
       }
 
@@ -426,37 +479,15 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
               {previewItems.map((item) => (
-                <div
+                <PreviewTile
                   key={item.id}
-                  className="group relative aspect-square rounded-lg overflow-hidden border border-border bg-muted"
-                  title={item.file.name}
-                >
-                  {item.preview ? (
-                    <img
-                      src={item.preview}
-                      alt={item.file.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground p-1 text-center truncate">
-                      {item.file.name}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(item.id);
-                    }}
-                    title={`Remove ${item.file.name} (${formatFileSize(item.file.size)})`}
-                    aria-label={`Remove ${item.file.name}`}
-                    className="absolute top-1 right-1 h-7 w-7 rounded-full bg-black/70 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity disabled:pointer-events-none"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
+                  id={item.id}
+                  previewUrl={item.preview}
+                  fileName={item.file.name}
+                  size={item.file.size}
+                  onRemove={removeFile}
+                  disabled={loading}
+                />
               ))}
 
               {remainingCount > 0 && (

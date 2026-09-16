@@ -42,6 +42,7 @@ describe("Upload_Img component memory safety and batching", () => {
 
   afterEach(() => {
     localStorage.clear();
+    jest.restoreAllMocks();
   });
 
   const createDummyFiles = (count: number): File[] => {
@@ -149,6 +150,34 @@ describe("Upload_Img component memory safety and batching", () => {
 
     expect(screen.queryByText(/photos queued/i)).not.toBeInTheDocument();
     expect(revokedUrls.length).toBe(10);
+  });
+
+  test("throttles progress commits during an in-flight batch", async () => {
+    let now = 1000;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+    let resolvePost: (value: unknown) => void = () => {};
+    mockedAxios.post.mockImplementationOnce(
+      (_url: string, _formData: FormData, config: { onUploadProgress?: (event: { loaded: number; total?: number }) => void }) =>
+        new Promise((resolve) => {
+          resolvePost = resolve;
+          [25, 50, 75].forEach((loaded, index) => {
+            now = 1000 + index * 100;
+            config.onUploadProgress?.({ loaded, total: 100 });
+          });
+        })
+    );
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Uploading \(25%\)/i })).toBeInTheDocument();
+    });
+
+    resolvePost({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
 
   test("uploads in safe batches of UPLOAD_BATCH_SIZE (15) and notifies refresh", async () => {
