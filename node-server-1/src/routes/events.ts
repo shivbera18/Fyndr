@@ -12,6 +12,7 @@ import Lead from "../models/Lead";
 import { Job } from "../queue/mongoQueue";
 import logger from "../utils/logger";
 import { deleteObject } from "../utils/r2";
+import { syncDeleteEventFromDrive } from "../utils/driveStore";
 import { eventProfileUpload } from "../middleware/upload";
 
 const router = Router();
@@ -634,12 +635,12 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
             });
         }
 
-        const photos = await Photo.find({ event_id: _id }).select('name _id').lean();
+        const photos = await Photo.find({ event_id: _id }).select('name _id driveFileId upload_by').lean();
         await Photo.deleteMany({ event_id: _id });
         // cleanup jobs + faiss
         try { await Job.deleteMany({ event_id: _id }); } catch(_){}
         try { await Lead.deleteMany({ event_id: _id }); } catch(_){}
-        try { await axios.post(`${FLASK_URL}/faiss_delete_event`, { event_id: _id }, { timeout: 5000 }); } catch(e: any){ logger.info('[faiss] delete_event failed', e.message); }
+        try { await axios.post(`${FLASK_URL}/faiss_delete_event`, { event_id: _id }, { timeout: 5000 }); } catch(e: any){ logger.info('[faiss] delete_event failed (non-fatal)', e?.message || e); }
 
         photos.forEach((photo) => {
             const photoPath = path.join(UPLOAD_DIR, photo.name);
@@ -647,8 +648,10 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
                 if (err) logger.error(`Failed to delete file: ${photoPath}`, err);
                 else logger.info(`Deleted file: ${photoPath}`);
             });
-            deleteObject(photo.name).catch(() => {});
+            deleteObject(`${_id}/${photo.name}`).catch(() => {});
         });
+        // Direct-Drive sibling: file deletes + the event-named folder itself (best-effort).
+        void syncDeleteEventFromDrive(_id, event.event_name, event.created_id, photos.map((p) => ({ driveFileId: p.driveFileId, filename: p.name, uploadBy: p.upload_by }))).catch(() => {});
 
         return res.status(200).send(event);
     } catch (error: any) {

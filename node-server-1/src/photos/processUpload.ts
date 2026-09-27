@@ -7,6 +7,7 @@ import { FLASK_URL } from "../config";
 import Photo from "../models/Photo";
 import { enqueue, markDone, markFailed } from "../queue/mongoQueue";
 import { putObjectBytes } from "../utils/r2";
+import { syncUploadToDrive } from "../utils/driveStore";
 
 export interface UploadFile {
   path: string;
@@ -106,6 +107,8 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
     try {
       const bytes = await fs.promises.readFile(file.path);
       await putObjectBytes(`${event_id}/${file.filename}`, bytes);
+      // Human-readable Drive backup alongside the G3 pool mirror above.
+      await syncUploadToDrive(event_id, upload_by, file, bytes);
     } catch {}
   } catch (e: any) {
     if (e.code === 11000) {

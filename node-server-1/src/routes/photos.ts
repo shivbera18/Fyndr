@@ -11,6 +11,7 @@ import { Job } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
 import { deleteObject } from "../utils/r2";
+import { syncDeletePhotoFromDrive } from "../utils/driveStore";
 import { upload } from "../middleware/upload";
 import { processUploadedFile } from "../photos/processUpload";
 
@@ -84,7 +85,9 @@ const deleteImageHandler = async (req: Request, res: Response) => {
         if (fileName) {
             // ponytail: async unlink frees the event loop; no existsSync TOCTOU (unlink ENOENT is swallowed).
             fs.promises.unlink(path.join(UPLOAD_DIR, fileName)).catch((err) => logger.warn('[delete-image] unlink error', err));
-            deleteObject(fileName).catch(() => {});
+            deleteObject(`${result.event_id}/${fileName}`).catch(() => {});
+            // Direct-Drive sibling of the G3 pool delete above (best-effort, never blocks).
+            void syncDeletePhotoFromDrive(result.event_id, { driveFileId: result.driveFileId, filename: fileName, uploadBy: result.upload_by }).catch(() => {});
         }
         return res.json({ success: true, message: "Image deleted successfully" });
     } catch (error: any) {
