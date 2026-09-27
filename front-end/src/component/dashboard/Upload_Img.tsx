@@ -70,7 +70,8 @@ export function uploadDelayMs(failedAttempt: number): number {
 export const fileHasher = {
   sha256Hex: async (file: File): Promise<string | null> => {
     try {
-      const subtle = window.crypto?.subtle;
+      // ponytail: globalThis works in browsers + jsdom alike.
+      const subtle = globalThis.crypto?.subtle;
       if (!subtle) return null;
       const buf = await file.arrayBuffer();
       const digest = await subtle.digest("SHA-256", buf);
@@ -310,7 +311,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         // Direct browser-to-G3 per file; falls back to legacy multipart POST
         // when the store is unconfigured, hashing is unavailable, or a stage
         // call answers local. Same retry/cancel/progress scaffolding below.
-        const uploadOneDirect = async (item: SelectedFile, slot: number, attempt: number): Promise<boolean> => {
+        const uploadOneDirect = async (item: SelectedFile, slot: number): Promise<boolean> => {
           const hash = await fileHasher.sha256Hex(item.file);
           if (!hash) return false;
           let stage: {
@@ -325,7 +326,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 hash,
                 filename: item.file.name,
                 size: item.file.size,
-                contentType: item.file.type || "image/jpeg",
+                contentType: item.file.type,
                 folder_name,
                 upload_by: USER_ID ?? undefined,
               },
@@ -343,11 +344,11 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             }
             return false;
           }
+          // ponytail: backend only reports duplicate when bytes are present
+          // (local or G3), so done here is real — no blind trust.
           if (!stage || stage.duplicate) {
-            if (attempt === 1) {
-              batchFractions[batchIdx] = slot + 1;
-              commitAggregateProgress();
-            }
+            batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
+            commitAggregateProgress();
             return true;
           }
           if (stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
@@ -359,7 +360,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             timeout: 0,
             onUploadProgress: (progressEvent) => {
               if (progressEvent.total) {
-                batchFractions[batchIdx] = slot + progressEvent.loaded / progressEvent.total;
+                batchFractions[batchIdx] = Math.max(
+                  batchFractions[batchIdx],
+                  slot + progressEvent.loaded / progressEvent.total
+                );
                 commitAggregateProgress();
               }
             },
@@ -370,17 +374,22 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             { signal: abortController.signal, timeout: 0 }
           );
           if (!done.data || done.data.ok !== true) throw new Error("object-missing");
+          // ponytail: progress events never fire for tiny files/mocks — pin the slot done.
+          batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
+          commitAggregateProgress();
           return true;
         };
 
-        // ponytail: direct pass runs once per batch (stage dedupes by hash, so
-        // re-PUT retries add nothing); only the multer fallback below retries.
+        // ponytail: direct pass runs once per batch; retryable PUT/complete
+        // blips degrade to the multer fallback below (retried there), so one
+        // transient never fails the batch. Backend re-mints the same key on
+        // duplicate, so no orphan or double stub.
         const directDone: boolean[] = [];
         for (let slot = 0; slot < currentBatch.length; slot += 1) {
           const item = currentBatch[slot];
           if (!item) continue;
           try {
-            directDone.push(await uploadOneDirect(item, slot, 1));
+            directDone.push(await uploadOneDirect(item, slot));
           } catch (directErr: unknown) {
             if (
               abortController.signal.aborted ||
@@ -389,11 +398,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             ) {
               throw directErr;
             }
-            if (!isRetryableUploadError(directErr)) {
-              directDone.push(false);
-              continue;
-            }
-            throw directErr;
+            directDone.push(false);
           }
         }
         const needFallback = currentBatch.filter((_, i) => directDone[i] !== true);

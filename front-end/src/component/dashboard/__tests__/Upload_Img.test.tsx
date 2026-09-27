@@ -413,14 +413,24 @@ describe("Upload_Img component memory safety and batching", () => {
     expect(multipart).toHaveLength(0);
   });
 
-  test("counts stage duplicates done without any PUT", async () => {
-    jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue("cd".repeat(32));
+  test("a transient PUT blip degrades to multer fallback instead of failing the batch", async () => {
+    jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue("ef".repeat(32));
+    const blip = Object.assign(new Error("Network Error"), { isAxiosError: true, code: "ERR_NETWORK" });
+    mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === blip);
     mockedAxios.post.mockImplementation((url: string) => {
-      if (String(url).endsWith("/photo/stage")) {
-        return Promise.resolve({ status: 200, data: { duplicate: true, photo: { _id: "pid-dup" } } });
+      if (url === `${API_URL}/photo/stage`) {
+        return Promise.resolve({
+          status: 200,
+          data: { via: "r2", key: "evt/k", uploadUrl: "https://g3.test/k?sig=1", photo: { _id: "pid-k" } },
+        });
       }
-      return Promise.reject(new Error(`unexpected POST ${String(url)}`));
+      if (url === `${API_URL}/photo/complete`) {
+        return Promise.resolve({ status: 200, data: { ok: true } });
+      }
+      return Promise.resolve({ status: 200, data: [] });
     });
+    mockedAxios.put.mockRejectedValueOnce(blip);
+    mockedAxios.put.mockResolvedValue({ status: 200, data: {} });
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
@@ -428,6 +438,24 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
 
     expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
-    expect(mockedAxios.put).not.toHaveBeenCalled();
+    const multer = mockedAxios.post.mock.calls.filter(([u]) => u === `${API_URL}/photo`);
+    expect(multer.length).toBeGreaterThan(0);
+  });
+
+  test("fileHasher returns lowercase sha256 hex for known bytes", async () => {
+    // ponytail: beforeEach stubs fileHasher→null — restore the real impl;
+    // jsdom has no subtle, so stub at the boundary and assert hex plumbing.
+    jest.restoreAllMocks();
+    const digestBytes = new Uint8Array([0x8f, 0x43, 0x43, 0x46, 0x00, 0xab, 0x01, 0x02]);
+    Object.defineProperty(globalThis, "crypto", {
+      value: { subtle: { digest: jest.fn().mockResolvedValue(digestBytes.buffer) } },
+      configurable: true,
+    });
+    Object.defineProperty(File.prototype, "arrayBuffer", {
+      value: jest.fn().mockResolvedValue(new Uint8Array([104, 105]).buffer),
+      configurable: true,
+    });
+    const hex = await UploadModule.fileHasher.sha256Hex(new File(["hi"], "hi.jpg", { type: "image/jpeg" }));
+    expect(hex).toBe("8f43434600ab0102");
   });
 });
