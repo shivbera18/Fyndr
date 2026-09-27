@@ -53,6 +53,9 @@ function mimeFor(filename: string): string {
       return "image/jpeg";
   }
 }
+interface TokenData {
+  access_token?: unknown;
+}
 
 interface DriveFileId {
   id: string;
@@ -62,13 +65,17 @@ interface DriveFileList {
   files?: { id: string; name?: string }[];
 }
 
-interface TokenData {
-  access_token?: unknown;
-}
-
 async function tokenFor(ownerIds: (string | undefined)[]): Promise<string | null> {
-  for (const ownerId of ownerIds) {
-    if (!ownerId) continue;
+  const seen: Record<string, true> = {};
+  const candidates: (string | undefined)[] = [...ownerIds];
+  // Multi-user fallback: any linked photographer token can host the folder.
+  try {
+    const docs = await DriveConnection.find({}).select("userId").lean();
+    for (const d of docs) candidates.push(d.userId);
+  } catch {}
+  for (const ownerId of candidates) {
+    if (!ownerId || seen[ownerId]) continue;
+    seen[ownerId] = true;
     const doc = await DriveConnection.findOne({ userId: ownerId }).catch(() => null);
     if (!doc) continue;
     try {
