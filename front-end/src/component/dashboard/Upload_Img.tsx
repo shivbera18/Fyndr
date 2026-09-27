@@ -65,6 +65,24 @@ export function uploadDelayMs(failedAttempt: number): number {
   return UPLOAD_RETRY_DELAYS_MS[failedAttempt - 1] ?? UPLOAD_RETRY_DELAYS_MS[UPLOAD_RETRY_DELAYS_MS.length - 1] ?? 0;
 }
 
+// ponytail: subtle absent (insecure ctx) → null → multer fallback.
+// Namespace object so tests can stub hashing (jsdom lacks crypto.subtle).
+export const fileHasher = {
+  sha256Hex: async (file: File): Promise<string | null> => {
+    try {
+      const subtle = window.crypto?.subtle;
+      if (!subtle) return null;
+      const buf = await file.arrayBuffer();
+      const digest = await subtle.digest("SHA-256", buf);
+      return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    } catch {
+      return null;
+    }
+  },
+};
+
 export type SelectedFile = {
   file: File;
   preview: string;
@@ -288,29 +306,145 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         // concurrency and a sibling failure could paint a count for a batch that never ran.
 
         const currentBatch = batches[batchIdx];
-        const formData = new FormData();
-        currentBatch.forEach((item) => {
-          formData.append("name", item.file);
-        });
-        formData.append("event_id", event_id);
-        if (folder_name) formData.append("folder_name", folder_name);
-        if (USER_ID) {
-          formData.append("upload_by", USER_ID);
-          formData.append("user_id", USER_ID);
-        }
 
-        const currentBatchSize = currentBatch.length;
+        // Direct browser-to-G3 per file; falls back to legacy multipart POST
+        // when the store is unconfigured, hashing is unavailable, or a stage
+        // call answers local. Same retry/cancel/progress scaffolding below.
+        const uploadOneDirect = async (item: SelectedFile, slot: number, attempt: number): Promise<boolean> => {
+          const hash = await fileHasher.sha256Hex(item.file);
+          if (!hash) return false;
+          let stage: {
+            duplicate?: boolean; photo?: { _id?: string }; key?: string | null;
+            uploadUrl?: string | null; via?: string;
+          };
+          try {
+            const res = await axios.post(
+              `${API_URL}/photo/stage`,
+              {
+                event_id,
+                hash,
+                filename: item.file.name,
+                size: item.file.size,
+                contentType: item.file.type || "image/jpeg",
+                folder_name,
+                upload_by: USER_ID ?? undefined,
+              },
+              { signal: abortController.signal, timeout: 0 }
+            );
+            stage = res.data;
+          } catch (stageErr: unknown) {
+            // ponytail: abort during stage must cancel now, not degrade to fallback.
+            if (
+              abortController.signal.aborted ||
+              (typeof axios.isCancel === "function" && axios.isCancel(stageErr)) ||
+              (stageErr instanceof Error && (stageErr.name === "CanceledError" || stageErr.message === "CanceledError"))
+            ) {
+              throw stageErr;
+            }
+            return false;
+          }
+          if (!stage || stage.duplicate) {
+            if (attempt === 1) {
+              batchFractions[batchIdx] = slot + 1;
+              commitAggregateProgress();
+            }
+            return true;
+          }
+          if (stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
+          const photoId = stage.photo && typeof stage.photo._id === "string" ? stage.photo._id : null;
+          if (!photoId) return false;
+          await axios.put(stage.uploadUrl, item.file, {
+            headers: { "Content-Type": item.file.type || "image/jpeg" },
+            signal: abortController.signal,
+            timeout: 0,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                batchFractions[batchIdx] = slot + progressEvent.loaded / progressEvent.total;
+                commitAggregateProgress();
+              }
+            },
+          });
+          const done = await axios.post(
+            `${API_URL}/photo/complete`,
+            { photo_id: photoId, event_id },
+            { signal: abortController.signal, timeout: 0 }
+          );
+          if (!done.data || done.data.ok !== true) throw new Error("object-missing");
+          return true;
+        };
+
+        // ponytail: direct pass runs once per batch (stage dedupes by hash, so
+        // re-PUT retries add nothing); only the multer fallback below retries.
+        const directDone: boolean[] = [];
+        for (let slot = 0; slot < currentBatch.length; slot += 1) {
+          const item = currentBatch[slot];
+          if (!item) continue;
+          try {
+            directDone.push(await uploadOneDirect(item, slot, 1));
+          } catch (directErr: unknown) {
+            if (
+              abortController.signal.aborted ||
+              (typeof axios.isCancel === "function" && axios.isCancel(directErr)) ||
+              (directErr instanceof Error && (directErr.name === "CanceledError" || directErr.message === "CanceledError"))
+            ) {
+              throw directErr;
+            }
+            if (!isRetryableUploadError(directErr)) {
+              directDone.push(false);
+              continue;
+            }
+            throw directErr;
+          }
+        }
+        const needFallback = currentBatch.filter((_, i) => directDone[i] !== true);
+        if (needFallback.length === 0) {
+          if (abortController.signal.aborted) throw new Error("CanceledError");
+          if (batchFailed) throw firstError ?? new Error("CanceledError");
+          setUploadStatus(null);
+          uploadedCount += currentBatch.length;
+          batchFractions[batchIdx] = currentBatch.length;
+          completedBatches += 1;
+          setBatchInfo({ current: Math.min(completedBatches, totalBatches), total: totalBatches });
+          setSelectedFiles((prev) => {
+            const uploadedIds = new Set(currentBatch.map((b) => b.id));
+            prev.forEach((item) => {
+              if (uploadedIds.has(item.id) && item.preview) URL.revokeObjectURL(item.preview);
+            });
+            const remaining = prev.filter((item) => !uploadedIds.has(item.id));
+            return remaining.map((item, idx) => {
+              if (idx < MAX_PREVIEWS && !item.preview) return { ...item, preview: URL.createObjectURL(item.file) };
+              return item;
+            });
+          });
+          const overallPct = Math.round((batchFractions.reduce((sum, f) => sum + f, 0) / totalFilesCount) * 100);
+          lastProgressCommitRef.current = Date.now();
+          setProgress(overallPct);
+          return;
+        }
         let attempt = 0;
         for (;;) {
           attempt += 1;
           try {
+            const formData = new FormData();
+            needFallback.forEach((item) => {
+              formData.append("name", item.file);
+            });
+            formData.append("event_id", event_id);
+            if (folder_name) formData.append("folder_name", folder_name);
+            if (USER_ID) {
+              formData.append("upload_by", USER_ID);
+              formData.append("user_id", USER_ID);
+            }
+            const fallbackBase = currentBatch.length - needFallback.length;
+            const currentBatchSize = needFallback.length;
             const res = await axios.post(`${API_URL}/photo`, formData, {
               headers: { "Content-Type": "multipart/form-data" },
               signal: abortController.signal,
               timeout: 0,
               onUploadProgress: (progressEvent) => {
                 if (progressEvent.total) {
-                  batchFractions[batchIdx] = (progressEvent.loaded / progressEvent.total) * currentBatchSize;
+                  batchFractions[batchIdx] =
+                    fallbackBase + (progressEvent.loaded / progressEvent.total) * currentBatchSize;
                   commitAggregateProgress();
                 }
               },

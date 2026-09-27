@@ -1,21 +1,24 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
+import { API_URL } from "../../../utils/api";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches } from "../Upload_Img";
-
+import * as UploadModule from "../Upload_Img";
 jest.mock("axios", () => {
   return {
     __esModule: true,
     default: {
       post: jest.fn(),
+      put: jest.fn(),
       isCancel: jest.fn(() => false),
       isAxiosError: jest.fn((err: unknown): boolean => Boolean(err && typeof err === "object" && "isAxiosError" in err)),
     },
     post: jest.fn(),
+    put: jest.fn(),
     isCancel: jest.fn(() => false),
     isAxiosError: jest.fn((err: unknown): boolean => Boolean(err && typeof err === "object" && "isAxiosError" in err)),
   };
 });
-const mockedAxios = axios as unknown as { post: jest.Mock; isCancel: jest.Mock; isAxiosError: jest.Mock };
+const mockedAxios = axios as unknown as { post: jest.Mock; put: jest.Mock; isCancel: jest.Mock; isAxiosError: jest.Mock };
 describe("Upload_Img component memory safety and batching", () => {
   jest.setTimeout(25000);
   let createdUrls: string[] = [];
@@ -25,7 +28,9 @@ describe("Upload_Img component memory safety and batching", () => {
     jest.clearAllMocks();
     createdUrls = [];
     revokedUrls = [];
-
+    // ponytail: jsdom lacks crypto.subtle — null hash forces the multer
+    // fallback branch; direct tests override per-file below.
+    jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue(null);
     window.URL.createObjectURL = jest.fn((file: File) => {
       const url = `blob:mock-preview-${file.name}-${Math.random()}`;
       createdUrls.push(url);
@@ -37,6 +42,14 @@ describe("Upload_Img component memory safety and batching", () => {
     });
     mockedAxios.isCancel.mockReturnValue(false);
     mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => Boolean(err && typeof err === "object" && "isAxiosError" in err));
+    mockedAxios.put.mockResolvedValue({ status: 200, data: {} });
+    // ponytail: jsdom has no crypto.subtle/File.arrayBuffer — stage answers
+    // local so existing tests exercise the unchanged multer fallback branch.
+    mockedAxios.post.mockImplementation((url: string) =>
+      String(url).endsWith("/photo/stage")
+        ? Promise.resolve({ status: 200, data: { via: "local", photo: null, key: null, uploadUrl: null } })
+        : Promise.resolve({ status: 200, data: [] })
+    );
     localStorage.setItem("user", JSON.stringify({ _id: "usr_photographer_123" }));
   });
 
@@ -66,12 +79,13 @@ describe("Upload_Img component memory safety and batching", () => {
   };
   test("surfaces the first per-file error when the server returns a 422 array", async () => {
     const arrayError = [{ file: "a.jpg", error: "ML inference timed out", status: "failed" }];
-    mockedAxios.post.mockRejectedValueOnce(
-      Object.assign(new Error("Request failed with status code 422"), {
-        isAxiosError: true,
-        code: "ERR_BAD_REQUEST",
-        response: { status: 422, data: arrayError },
-      })
+    const err422 = Object.assign(new Error("Request failed with status code 422"), {
+      isAxiosError: true,
+      code: "ERR_BAD_REQUEST",
+      response: { status: 422, data: arrayError },
+    });
+    mockedAxios.post.mockImplementationOnce((url: string) =>
+      url === `${API_URL}/photo` ? Promise.reject(err422) : Promise.resolve({ status: 200, data: [] })
     );
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
@@ -85,10 +99,12 @@ describe("Upload_Img component memory safety and batching", () => {
   test("ignores file drops while an upload is in flight", async () => {
     let resolvePost: (value: unknown) => void = () => {};
     mockedAxios.post.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolvePost = resolve;
-        })
+      (url: string) =>
+        url === `${API_URL}/photo`
+          ? new Promise((resolve) => {
+              resolvePost = resolve;
+            })
+          : Promise.resolve({ status: 200, data: [] })
     );
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
@@ -157,14 +173,16 @@ describe("Upload_Img component memory safety and batching", () => {
     jest.spyOn(Date, "now").mockImplementation(() => now);
     let resolvePost: (value: unknown) => void = () => {};
     mockedAxios.post.mockImplementationOnce(
-      (_url: string, _formData: FormData, config: { onUploadProgress?: (event: { loaded: number; total?: number }) => void }) =>
-        new Promise((resolve) => {
-          resolvePost = resolve;
-          [25, 50, 75].forEach((loaded, index) => {
-            now = 1000 + index * 100;
-            config.onUploadProgress?.({ loaded, total: 100 });
-          });
-        })
+      (url: string, _formData: FormData, config: { onUploadProgress?: (event: { loaded: number; total?: number }) => void }) =>
+        url === `${API_URL}/photo`
+          ? new Promise((resolve) => {
+              resolvePost = resolve;
+              [25, 50, 75].forEach((loaded, index) => {
+                now = 1000 + index * 100;
+                config.onUploadProgress?.({ loaded, total: 100 });
+              });
+            })
+          : Promise.resolve({ status: 200, data: [] })
     );
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
@@ -195,7 +213,8 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(uploadBtn);
 
     await waitFor(() => {
-      expect(mockedAxios.post).toHaveBeenCalledTimes(Math.ceil(35 / UPLOAD_BATCH_SIZE));
+      const multer = mockedAxios.post.mock.calls.filter(([u]) => u === `${API_URL}/photo`);
+      expect(multer.length).toBe(Math.ceil(35 / UPLOAD_BATCH_SIZE));
     });
 
     expect(await screen.findByText(/Successfully uploaded 35 photos/i)).toBeInTheDocument();
@@ -211,9 +230,16 @@ describe("Upload_Img component memory safety and batching", () => {
       code: "ERR_BAD_REQUEST",
       response: { status: 422, data: { message: "All files in batch failed validation" } },
     });
-    mockedAxios.post
-      .mockResolvedValueOnce({ status: 200, data: [] })
-      .mockRejectedValueOnce(axiosError);
+    // ponytail: sha256=null forces multer fallback; fail the LARGER batch so
+    // the surviving batch (10) uploads first regardless of pool order.
+    mockedAxios.post.mockImplementation((url: string, body?: unknown) => {
+      if (url === `${API_URL}/photo/stage`) {
+        return Promise.resolve({ status: 200, data: { via: "local", photo: null, key: null, uploadUrl: null } });
+      }
+      const files = body instanceof FormData ? body.getAll("name") : [];
+      if (files.length > 10) return Promise.reject(axiosError);
+      return Promise.resolve({ status: 200, data: [] });
+    });
     mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === axiosError);
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
@@ -225,18 +251,20 @@ describe("Upload_Img component memory safety and batching", () => {
     const uploadBtn = screen.getByRole("button", { name: /Upload 25 photos/i });
     fireEvent.click(uploadBtn);
 
-    expect(await screen.findByText(/Uploaded 15 of 25 photos\. Batch failed/i)).toBeInTheDocument();
-    // 10 remaining files stay queued for retry
-    expect(screen.getByText(/10 photos queued/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Uploaded 10 of 25 photos\. Batch failed/i)).toBeInTheDocument();
+    // 15 remaining files stay queued for retry
+    expect(screen.getByText(/15 photos queued/i)).toBeInTheDocument();
   });
   test("supports cancelling an upload in progress", async () => {
     // Delay the post request to keep upload in progress
     let resolvePost: (value: unknown) => void = () => {};
     mockedAxios.post.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolvePost = resolve;
-        })
+      (url: string) =>
+        url === `${API_URL}/photo`
+          ? new Promise((resolve) => {
+              resolvePost = resolve;
+            })
+          : Promise.resolve({ status: 200, data: [] })
     );
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
@@ -257,7 +285,11 @@ describe("Upload_Img component memory safety and batching", () => {
   });
 
   test("treats HTTP 207 Multi-Status as a batch failure", async () => {
-    mockedAxios.post.mockResolvedValueOnce({ status: 207, data: [{ error: "dedupe duplicate" }] });
+    mockedAxios.post.mockImplementationOnce((url: string) =>
+      url === `${API_URL}/photo`
+        ? Promise.resolve({ status: 207, data: [{ error: "dedupe duplicate" }] })
+        : Promise.resolve({ status: 200, data: [] })
+    );
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
@@ -292,8 +324,14 @@ describe("Upload_Img component memory safety and batching", () => {
       isAxiosError: true,
       code: "ERR_NETWORK",
     });
+    // ponytail: sha256=null forces multer fallback; blip hits the multer POST only.
+    mockedAxios.post.mockImplementation((url: string) => {
+      if (url === `${API_URL}/photo/stage`) {
+        return Promise.resolve({ status: 200, data: { via: "local", photo: null, key: null, uploadUrl: null } });
+      }
+      return Promise.resolve({ status: 200, data: [] });
+    });
     mockedAxios.post.mockRejectedValueOnce(blip);
-    mockedAxios.post.mockResolvedValue({ status: 200, data: [] });
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
@@ -304,7 +342,8 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upload 5 photos/i }));
 
     await waitFor(() => {
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      const multer = mockedAxios.post.mock.calls.filter(([u]) => u === `${API_URL}/photo`);
+      expect(multer.length).toBe(2);
     });
     expect(await screen.findByText(/Successfully uploaded 5 photos/i)).toBeInTheDocument();
   });
@@ -314,7 +353,14 @@ describe("Upload_Img component memory safety and batching", () => {
       isAxiosError: true,
       code: "ERR_NETWORK",
     });
-    mockedAxios.post.mockRejectedValue(down);
+    // ponytail: sha256=null forces multer fallback; stage answers local so
+    // every attempt below is the multer POST the count asserts on.
+    mockedAxios.post.mockImplementation((url: string) => {
+      if (url === `${API_URL}/photo/stage`) {
+        return Promise.resolve({ status: 200, data: { via: "local", photo: null, key: null, uploadUrl: null } });
+      }
+      return Promise.reject(down);
+    });
     mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === down);
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
@@ -327,6 +373,61 @@ describe("Upload_Img component memory safety and batching", () => {
 
     // First retry delay is 0ms but wall-clock sleeps still apply; allow real backoff to elapse.
     expect(await screen.findByText(/Upload failed: Network Error/i, {}, { timeout: 15000 })).toBeInTheDocument();
-    expect(mockedAxios.post).toHaveBeenCalledTimes(UPLOAD_MAX_ATTEMPTS);
+    const multer = mockedAxios.post.mock.calls.filter(([u]) => u === `${API_URL}/photo`);
+    expect(multer.length).toBe(UPLOAD_MAX_ATTEMPTS);
+  });
+
+  test("uploads straight to G3 when stage mints URLs (no multipart POST)", async () => {
+    jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue("ab".repeat(32));
+    const names = ["direct-a.jpg", "direct-b.jpg"];
+    mockedAxios.post.mockImplementation((url: string, body?: unknown) => {
+      if (url === `${API_URL}/photo/stage`) {
+        const filename =
+          body && typeof body === "object" && "filename" in body ? String(body.filename) : "f.jpg";
+        return Promise.resolve({
+          status: 200,
+          data: {
+            via: "r2",
+            key: `evt_test_1/pid-${filename}`,
+            uploadUrl: `https://g3.test/${filename}?sig=1`,
+            photo: { _id: `pid-${filename}` },
+          },
+        });
+      }
+      if (url === `${API_URL}/photo/complete`) {
+        return Promise.resolve({ status: 200, data: { ok: true } });
+      }
+      return Promise.reject(new Error(`unexpected POST ${String(url)}`));
+    });
+    mockedAxios.put.mockResolvedValue({ status: 200, data: {}, headers: { etag: '"abc"' } });
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    const files = names.map((n, i) => new File([`direct-${i}`], n, { type: "image/jpeg" }));
+    fireEvent.change(input, { target: { files } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.put).toHaveBeenCalledTimes(2);
+    const multipart = mockedAxios.post.mock.calls.filter(([u]) => String(u).endsWith("/photo"));
+    expect(multipart).toHaveLength(0);
+  });
+
+  test("counts stage duplicates done without any PUT", async () => {
+    jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue("cd".repeat(32));
+    mockedAxios.post.mockImplementation((url: string) => {
+      if (String(url).endsWith("/photo/stage")) {
+        return Promise.resolve({ status: 200, data: { duplicate: true, photo: { _id: "pid-dup" } } });
+      }
+      return Promise.reject(new Error(`unexpected POST ${String(url)}`));
+    });
+
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.put).not.toHaveBeenCalled();
   });
 });
