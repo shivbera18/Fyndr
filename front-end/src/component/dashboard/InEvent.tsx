@@ -1088,7 +1088,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             <ul className="divide-y divide-border rounded-lg border border-border">
               {picks.map((p) => (
                 <li key={p._id} className="flex items-center gap-2.5 p-2">
-                  <img src={p.thumb ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(p.thumb)}` : `${getApiBase()}/uploads/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
+                  <img src={p.thumb ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(p.thumb)}` : `${getApiBase()}/download/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-xs">{p.name}</p>
                     {p.selectionNote ? <p className="truncate text-xs text-muted-foreground">{p.selectionNote}</p> : null}
@@ -1454,13 +1454,14 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {visibleImages.map((photo, index) => {
+                // ponytail: /download/:filename falls back to G3 bytes when
+                // the local original was cleaned; static /uploads/* 404s then.
                 const thumbUrl = photo.thumb
                   ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(photo.thumb)}`
-                  : `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
-                const fullUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                  : `${getApiBase()}/download/${encodeURIComponent(photo.name)}`;
+                const fullUrl = `${getApiBase()}/download/${encodeURIComponent(photo.name)}`;
                 return (
                   <InEventPhotoCard
-                    key={photo._id || index}
                     photo={photo}
                     index={index}
                     photoUrl={thumbUrl}
