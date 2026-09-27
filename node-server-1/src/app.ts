@@ -13,6 +13,7 @@ import guestRouter from "./routes/guest";
 import leadsRouter from "./routes/leads";
 import opsRouter from "./routes/ops";
 import driveRouter from "./routes/drive";
+import adminRouter from "./routes/admin";
 import photosRouter from "./routes/photos";
 import studioRouter from "./routes/studio";
 import analyticsRouter from "./routes/analytics";
@@ -40,6 +41,7 @@ export function createApp(): express.Express {
   app.use(studioRouter);
   app.use(opsRouter);
   app.use(driveRouter);
+  app.use(adminRouter);
   app.use("/api/analytics", analyticsRouter);
   app.use(musicRouter);
   app.use(ftpRouter);
