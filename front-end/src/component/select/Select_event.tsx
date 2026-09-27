@@ -422,7 +422,7 @@ const SelectEvent = (): React.JSX.Element => {
                     key={photo._id}
                     photo={photo}
                     index={index}
-                    photoUrl={`${API_URL}/uploads/${encodeURIComponent(photo.name)}`}
+                    photoUrl={`${API_URL}/download/${encodeURIComponent(photo.name)}`}
                     locked={locked}
                     isPending={pendingIds.has(photo._id)}
                     onToggleSelect={toggleSelect}

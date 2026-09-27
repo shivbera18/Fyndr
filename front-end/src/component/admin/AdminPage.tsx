@@ -340,6 +340,22 @@ export default function AdminPage() {
           </Card>
         </div>
       )}
+      {tab === "queue" && (
+        <div className="flex flex-col gap-2">
+          <Button className="min-h-[44px] self-start" onClick={() => void retry()}>Retry all failed</Button>
+          <Card className="divide-y p-0">
+            {failed.map((j) => (
+              <div key={j._id} className="flex items-center gap-2 p-3 text-sm">
+                <span className="font-mono text-xs">{j.photo_hash ?? j.photo_name ?? j._id}</span>
+                <span className="text-muted-foreground">{j.lastError ?? ""}</span>
+                <Button size="sm" variant="secondary" className="ml-auto min-h-[44px]" onClick={() => void retry(j.event_id)}>
+                  Retry event
+                </Button>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

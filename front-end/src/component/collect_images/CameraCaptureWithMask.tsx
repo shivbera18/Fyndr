@@ -868,9 +868,9 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                     {matchedPhotos.map((photo, idx) => {
-                      const imgUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                      // ponytail: same G3 fallback as the dashboard grid.
+                      const imgUrl = `${getApiBase()}/download/${encodeURIComponent(photo.name)}`;
                       const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
-
                       return (
                         <div
                           key={photo.id || idx}
