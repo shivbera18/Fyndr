@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Header from "../navbar/Header";
+import CinematicHero from "../landing/CinematicHero";
+import "../../styles/fonts.css";
+import "../../styles/theme.css";
 import Footer from "../Footer";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -16,7 +18,6 @@ import {
   TabsTrigger,
   TabsContent,
 } from "../../components/ui/tabs";
-import { BeamLines } from "../../components/ui/beam-lines";
 import { CameraCloudFlow } from "./CameraCloudFlow";
 import { ConicBorderCard } from "../../components/ui/conic-border-card";
 import {
@@ -48,8 +49,6 @@ import { cn } from "../../lib/utils";
 /* ------------------------------------------------------------------ */
 /* Data Constants                                                     */
 /* ------------------------------------------------------------------ */
-
-const TICKS = ["No app download", "100% private", "High-res downloads"];
 
 const STUDIOS = [
   "Studio Lumière",
@@ -646,72 +645,10 @@ export default function Home(): React.JSX.Element {
         <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[750px] h-[450px] bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-[120px] motion-reduce:hidden" />
       </div>
 
-      <Header />
+      <CinematicHero />
 
       {/* Main Container framed with Section Boundaries */}
       <main className="flex-1 w-full max-w-[1240px] mx-auto pb-20 sm:pb-0 relative z-10">
-        {/* ============================================================ */}
-        {/* 1. HERO SECTION WITH ACETERNITY AMBIENT LIGHT & BEAMS        */}
-        {/* ============================================================ */}
-        <section className="relative py-12 sm:py-20 px-4 sm:px-6 lg:px-8 border-b border-neutral-200 dark:border-neutral-800">
-
-          <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
-            {/* Eyebrow Status Pill */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-neutral-100/80 dark:bg-neutral-900/80 px-4 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 backdrop-blur-md shadow-xs">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>The modern way to deliver event photos · Zero app needed</span>
-            </div>
-
-            {/* Main Headline */}
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-foreground font-sans leading-[1.08] max-w-3xl">
-              FIND YOURSELF IN EVERY CELEBRATION.
-            </h1>
-
-            {/* Sub-headline */}
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl font-normal leading-relaxed">
-              No more scrolling through 5,000 photos in messy folders.
-              Photographers upload once — guests scan a QR, take a selfie,
-              and get their photos in seconds.
-            </p>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2 w-full sm:w-auto">
-              <Button
-                size="lg"
-                onClick={() => navigate("/login")}
-                className="w-full sm:w-auto rounded-full px-8 py-3.5 font-semibold text-sm bg-neutral-950 text-white dark:bg-white dark:text-neutral-950 hover:bg-neutral-800 dark:hover:bg-neutral-100 shadow-sm min-h-[48px] flex items-center justify-center gap-2 transition-all active:scale-95"
-              >
-                Create free event
-                <ArrowRight className="size-4" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() =>
-                  document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="w-full sm:w-auto rounded-full px-8 py-3.5 font-medium text-sm border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 min-h-[48px] transition-all active:scale-95"
-              >
-                See how it works
-              </Button>
-            </div>
-
-            {/* Ticks */}
-            <div className="flex flex-wrap items-center justify-center gap-6 pt-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 font-mono">
-              {TICKS.map((t) => (
-                <span key={t} className="inline-flex items-center gap-2">
-                  <Check className="size-4 text-emerald-500" />
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-
-        {/* Hero Visual: journey beams merging into delivery */}
-        <div className="mt-14 w-full max-w-5xl mx-auto">
-          <BeamLines />
-        </div>
-        </section>
 
         {/* ============================================================ */}
         {/* 2. METRICS & IMPACT BAR                                      */}

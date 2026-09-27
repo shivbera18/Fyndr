@@ -1,0 +1,54 @@
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import CinematicHero from "../CinematicHero";
+
+const mockNavigate = jest.fn();
+jest.mock("react-router-dom", () => {
+  const actual = jest.requireActual("react-router-dom");
+  return { ...actual, useNavigate: () => mockNavigate };
+});
+
+describe("CinematicHero", () => {
+  const renderHero = () =>
+    render(
+      <MemoryRouter>
+        <CinematicHero />
+      </MemoryRouter>
+    );
+
+  test("renders Fyndr headline with emphasized words", () => {
+    renderHero();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/find yourself/i);
+    expect(screen.getByText(/every celebration/i)).toBeInTheDocument();
+  });
+
+  test("renders QR/selfie description, not foreign copy", () => {
+    renderHero();
+    expect(screen.getByText(/scan a QR/i)).toBeInTheDocument();
+    expect(screen.queryByText(/brilliant minds/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/silence/i)).not.toBeInTheDocument();
+  });
+
+  test("video background has fade-loop wiring", () => {
+    renderHero();
+    const video = screen.getByTestId("cinematic-hero-video") as HTMLVideoElement;
+    expect(video).toHaveAttribute(
+      "src",
+      expect.stringContaining("cloudfront.net")
+    );
+    expect(video.muted).toBe(true);
+  });
+
+  test("Begin Journey buttons navigate to login", () => {
+    renderHero();
+    const buttons = screen.getAllByRole("button", { name: /begin journey/i });
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(buttons[0]);
+    expect(mockNavigate).toHaveBeenCalledWith("/login");
+  });
+
+  test("nav links point at Fyndr sections", () => {
+    renderHero();
+    expect(screen.getByRole("link", { name: /how it works/i })).toHaveAttribute("href", "/#how-it-works");
+  });
+});
