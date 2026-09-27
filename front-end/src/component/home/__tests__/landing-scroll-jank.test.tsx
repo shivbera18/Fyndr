@@ -28,17 +28,20 @@ describe("landing scroll-jank contracts", () => {
     );
   }
 
-  test("no fixed full-viewport layer rides above scrolling content", () => {
+  test("no fixed full-viewport decoration rides above scrolling content", () => {
     renderHome();
-    // Boundary-line container keeps its max-width marker but is no longer
-    // promoted to a composited fixed layer.
-    const candidates = Array.from(document.querySelectorAll("div")).filter((el) =>
+    // Vertical boundary rails were removed (complete glass, no lining);
+    // the only fixed layer allowed is the video film behind content.
+    const films = Array.from(document.querySelectorAll('[data-testid="cinematic-film"]'));
+    expect(films.length).toBeGreaterThan(0);
+    films.forEach((el) => {
+      expect((el as HTMLElement).className ?? "").toMatch(/(^|\s)fixed(\s|$)/);
+      expect((el as HTMLElement).className ?? "").toMatch(/pointer-events-none/);
+    });
+    const rails = Array.from(document.querySelectorAll("div")).filter((el) =>
       ((el as HTMLElement).className ?? "").includes("border-x")
     );
-    expect(candidates.length).toBeGreaterThan(0);
-    candidates.forEach((el) => {
-      expect((el as HTMLElement).className ?? "").not.toMatch(/(^|\s)fixed(\s|$)/);
-    });
+    expect(rails.length).toBe(0);
   });
 
   test("fixed chrome (nav CTA) uses solid backgrounds, never backdrop-blur", () => {
