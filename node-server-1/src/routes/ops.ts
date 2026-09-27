@@ -4,6 +4,7 @@ import { promClient } from "../metrics";
 import { stats as queueStats, listFailed, retryFailed } from "../queue/mongoQueue";
 import { getPresignedPut } from "../utils/r2";
 import logger from "../utils/logger";
+import { IMAGE_MIMES } from "../middleware/upload";
 
 const router = Router();
 
@@ -70,8 +71,7 @@ router.post("/presign", async (req: Request, res: Response) => {
   if (key.includes("..") || key.startsWith("/") || key.length > 512)
     return res.status(400).send({ error: "invalid key" });
   const ct = contentType || "image/jpeg";
-  const allowedCT = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"];
-  if (!allowedCT.includes(ct)) return res.status(400).send({ error: "unsupported contentType" });
+  if (!IMAGE_MIMES.includes(ct)) return res.status(400).send({ error: "unsupported contentType" });
   try {
     const url = await getPresignedPut(key, ct);
     if (url) return res.send({ url, via: "r2", expiresIn: 3600 });

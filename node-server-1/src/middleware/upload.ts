@@ -2,7 +2,7 @@ import multer from "multer";
 import path from "path";
 import { EVENT_PROFILE_DIR, UPLOAD_DIR } from "../config";
 
-const IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"];
+export const IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"];
 
 function imageFilter(
   _req: Express.Request,

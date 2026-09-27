@@ -10,9 +10,9 @@ import Event from "../models/Event";
 import { Job, enqueue, markFailed } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
-import { deleteObject } from "../utils/r2";
+import { deleteObject, getObjectBytes, getPresignedPut, headObject } from "../utils/r2";
 import { syncDeletePhotoFromDrive } from "../utils/driveStore";
-import { upload } from "../middleware/upload";
+import { IMAGE_MIMES, upload } from "../middleware/upload";
 import { removeFaissVector } from "../photos/processUpload";
 
 const router = Router();
@@ -44,7 +44,10 @@ async function stagePhoto(
     return { file: file.originalname, error: "hash failed: " + errMsg(e), status: "failed" };
   }
 
-  // Per-event idempotency: check Photo first (fast path)
+  // Per-event idempotency: check Photo first (fast path). A queued stub
+  // without bytes anywhere (interrupted direct PUT) adopts this upload's
+  // temp instead of discarding the only bytes — else the stub is
+  // unrecoverable through either path.
   try {
     const existingPhoto = await Photo.findOne({ event_id, hash });
     if (existingPhoto) {
@@ -52,6 +55,13 @@ async function stagePhoto(
       if (existingPhoto.folder_name !== folder_name) {
         existingPhoto.folder_name = folder_name;
         await existingPhoto.save();
+      }
+      if (existingPhoto.status === "queued") {
+        const orphans = await stagedBytesPresent(event_id, existingPhoto.name).catch(() => false);
+        if (!orphans) {
+          await fs.promises.rename(file.path, path.join(UPLOAD_DIR, existingPhoto.name)).catch(() => {});
+          return existingPhoto;
+        }
       }
       await unlinkQuiet(file.path);
       return existingPhoto;
@@ -143,6 +153,145 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
     }
+});
+// Direct browser-to-G3: verify bytes, stage a queued stub, mint a PUT URL
+// (browser never picks keys). Server never sees file bytes; worker pulls
+// them from G3. R2 unconfigured → 200 via:"local" with ZERO db writes, so
+// the caller falls back to a clean multer upload (no orphan stub).
+const MAX_STAGE_BYTES = 50 * 1024 * 1024;
+type StageBody = {
+  event_id?: unknown; hash?: unknown; filename?: unknown; size?: unknown;
+  contentType?: unknown; upload_by?: unknown; folder_name?: unknown;
+};
+async function resolveStageFolder(eventId: string, wantRaw: unknown): Promise<{ folder?: string; error?: string }> {
+  const want = typeof wantRaw === "string" && wantRaw.trim() ? wantRaw.trim().slice(0, 60) : "General";
+  const eventExists = await Event.findById(eventId).select("_id folders");
+  if (!eventExists) return { error: "event not found" };
+  const valid: string[] = ["General"];
+  for (const f of eventExists.folders || []) valid.push(f.name);
+  const canonical = valid.find((n) => n.toLowerCase() === want.toLowerCase());
+  if (!canonical) return { error: `unknown folder_name. Valid: ${valid.join(", ")}` };
+  return { folder: canonical };
+}
+// True when the bytes for a staged photo exist anywhere the worker can
+// finish from: local temp (multer path) or the object store (direct path).
+async function stagedBytesPresent(eventId: string, name: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(path.join(UPLOAD_DIR, name));
+    return true;
+  } catch { /* fall through to object store */ }
+  return headObject(`${eventId}/${name}`);
+}
+router.post("/photo/stage", async (req: Request, res: Response) => {
+  try {
+    const b = (req.body || {}) as StageBody;
+    const { event_id, hash, filename, size, contentType, upload_by, folder_name: folderRaw } = b;
+    if (typeof event_id !== "string" || !mongoose.Types.ObjectId.isValid(event_id))
+      return res.status(400).send({ error: "invalid event_id" });
+    if (typeof hash !== "string" || !/^[0-9a-f]{64}$/i.test(hash))
+      return res.status(400).send({ error: "invalid hash (expect sha256 hex)" });
+    if (typeof filename !== "string" || !filename.trim())
+      return res.status(400).send({ error: "filename required" });
+    if (typeof size !== "number" || !(size > 0) || size > MAX_STAGE_BYTES)
+      return res.status(400).send({ error: "invalid size (max 50MB)" });
+    if (typeof contentType !== "string" || !IMAGE_MIMES.includes(contentType))
+      return res.status(400).send({ error: "unsupported contentType" });
+    if (upload_by !== undefined && typeof upload_by !== "string")
+      return res.status(400).send({ error: "upload_by must be a string" });
+    const rf = await resolveStageFolder(event_id, folderRaw);
+    if (rf.error === "event not found") return res.status(404).send({ error: rf.error });
+    if (rf.error || !rf.folder) return res.status(400).send({ error: rf.error });
+    const folder_name = rf.folder;
+    const hex = hash.toLowerCase();
+    // Duplicate with bytes → done, no upload. Queued stub without bytes
+    // (interrupted PUT) → re-mint the SAME key so the retry overwrites.
+    const dup = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
+    if (dup) {
+      if (dup.folder_name !== folder_name) {
+        dup.folder_name = folder_name;
+        await dup.save().catch(() => {});
+      }
+      if (dup.status === "done" || (await stagedBytesPresent(event_id, dup.name))) {
+        return res.status(200).send({ duplicate: true, photo: dup });
+      }
+      const url = await getPresignedPut(`${event_id}/${dup.name}`, contentType).catch(() => null);
+      if (!url) return res.status(200).send({ photo: dup, key: null, uploadUrl: null, via: "local" });
+      return res.status(200).send({ photo: dup, key: `${event_id}/${dup.name}`, uploadUrl: url, via: "r2", expiresIn: 3600 });
+    }
+    const photoId = new mongoose.Types.ObjectId();
+    const safe = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "photo";
+    const key = `${event_id}/${photoId}-${safe}`;
+    // Presign BEFORE any db write: R2-unconfigured must leave zero trace
+    // so the multer fallback uploads cleanly (no orphan stub to collide with).
+    let uploadUrl: string | null = null;
+    try {
+      uploadUrl = await getPresignedPut(key, contentType);
+    } catch {
+      uploadUrl = null;
+    }
+    if (!uploadUrl) return res.status(200).send({ photo: null, key: null, uploadUrl: null, via: "local" });
+    try {
+      const jobDoc = await enqueue(event_id, hex);
+      const statusVal = jobDoc && typeof jobDoc === "object" && "status" in jobDoc ? jobDoc.status : undefined;
+      if (statusVal === "done") {
+        const existing = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
+        if (existing && (existing.status === "done" || (await stagedBytesPresent(event_id, existing.name)))) {
+          return res.status(200).send({ duplicate: true, photo: existing });
+        }
+        if (existing) {
+          const retryUrl = await getPresignedPut(`${event_id}/${existing.name}`, contentType).catch(() => null);
+          if (!retryUrl) return res.status(200).send({ photo: existing, key: null, uploadUrl: null, via: "local" });
+          return res.status(200).send({ photo: existing, key: `${event_id}/${existing.name}`, uploadUrl: retryUrl, via: "r2", expiresIn: 3600 });
+        }
+        return res.status(200).send({ duplicate: true, photo: existing });
+      }
+    } catch (e: unknown) {
+      return res.status(422).send({ error: errMsg(e) });
+    }
+    let stub;
+    try {
+      stub = new Photo({ _id: photoId, name: `${photoId}-${safe}`, event_id, upload_by, folder_name, hash: hex, status: "queued" });
+      await stub.save();
+    } catch (e: unknown) {
+      if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
+        const d = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
+        if (d && (d.status === "done" || (await stagedBytesPresent(event_id, d.name)))) {
+          return res.status(200).send({ duplicate: true, photo: d });
+        }
+        if (d) {
+          const raceUrl = await getPresignedPut(`${event_id}/${d.name}`, contentType).catch(() => null);
+          if (!raceUrl) return res.status(200).send({ photo: d, key: null, uploadUrl: null, via: "local" });
+          return res.status(200).send({ photo: d, key: `${event_id}/${d.name}`, uploadUrl: raceUrl, via: "r2", expiresIn: 3600 });
+        }
+        return res.status(200).send({ duplicate: true, photo: d });
+      }
+      const msg = errMsg(e);
+      await markFailed(event_id, hex, msg).catch(() => {});
+      return res.status(422).send({ error: msg });
+    }
+    return res.status(200).send({ photo: stub, key, uploadUrl, via: "r2", expiresIn: 3600 });
+  } catch (e: unknown) {
+    logger.error("[photo] stage error", e instanceof Error ? e : new Error(String(e)));
+    return res.status(500).send({ error: "stage failed" });
+  }
+});
+// Browser confirms its PUT landed; worker needs no kick (the staged Job is already claimable).
+router.post("/photo/complete", async (req: Request, res: Response) => {
+  try {
+    const b = (req.body || {}) as { photo_id?: unknown; event_id?: unknown };
+    if (typeof b.photo_id !== "string" || !mongoose.Types.ObjectId.isValid(b.photo_id))
+      return res.status(400).send({ error: "invalid photo_id" });
+    if (typeof b.event_id !== "string" || !mongoose.Types.ObjectId.isValid(b.event_id))
+      return res.status(400).send({ error: "invalid event_id" });
+    const photo = await Photo.findOne({ _id: b.photo_id, event_id: b.event_id });
+    if (!photo) return res.status(404).send({ error: "photo not found" });
+    const present = await headObject(`${b.event_id}/${photo.name}`);
+    if (!present) return res.status(200).send({ ok: false, reason: "object-missing" });
+    return res.status(200).send({ ok: true });
+  } catch (e: unknown) {
+    logger.error("[photo] complete error", e instanceof Error ? e : new Error(String(e)));
+    return res.status(500).send({ error: "complete failed" });
+  }
 });
 
 
@@ -249,16 +398,38 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
         if (!safePath.startsWith(resolvedUploadDir)) {
             return res.status(403).json({ error: 'Access denied' });
         }
+        let localPresent = true;
         try {
           await fs.promises.stat(safePath);
         } catch {
-          return res.status(404).json({ error: 'File not found' });
+          localPresent = false;
         }
         // ROI counter — analytics must never break downloads, resolve owner first
+        let ownerEventId: string | null = null;
         try {
-            const owner = await Photo.findOne({ name: baseName }).select('event_id');
-            if (owner && owner.event_id) await Event.updateOne({ _id: owner.event_id }, { $inc: { downloadCount: 1 } });
+          const owner = await Photo.findOne({ name: baseName }).select("event_id");
+          if (owner && owner.event_id) {
+            ownerEventId = String(owner.event_id);
+            await Event.updateOne({ _id: owner.event_id }, { $inc: { downloadCount: 1 } });
+          }
         } catch {}
+        if (!localPresent) {
+          // Direct-uploaded originals never touch disk — stream from the store.
+          if (ownerEventId) {
+            const bytes = await getObjectBytes(`${ownerEventId}/${baseName}`);
+            if (bytes) {
+              let originalName = baseName;
+              const match = originalName.match(/^\d+-(.+)$/);
+              if (match && match[1]) originalName = match[1];
+              const clean = originalName.replace(/[\r\n"\x00-\x1f\\]/g, "_").slice(0, 255);
+              res.setHeader("Content-Type", "application/octet-stream");
+              res.setHeader("Content-Disposition", `attachment; filename="${clean}"`);
+              res.setHeader("Content-Length", String(bytes.length));
+              return res.send(bytes);
+            }
+          }
+          return res.status(404).json({ error: "File not found" });
+        }
         let originalName = baseName;
         const match = originalName.match(/^\d+-(.+)$/);
         if (match && match[1]) {
