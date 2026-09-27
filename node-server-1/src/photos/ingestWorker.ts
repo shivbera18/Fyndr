@@ -4,7 +4,7 @@ import FormData from "form-data";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import { claimNext, markDone, markFailed, Job } from "../queue/mongoQueue";
-import { getObjectBytes, putObjectBytes } from "../utils/r2";
+import { deleteObject, getObjectBytes, putObjectBytes } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import { httpClient } from "../utils/http";
 import logger from "../utils/logger";
@@ -108,7 +108,12 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
       if (remote) {
         buffer = remote;
       } else {
-        await markFailed(eventId, hash, "temp file missing: " + (e instanceof Error ? e.message : String(e))).catch(() => {});
+        await markFailed(
+          eventId,
+          hash,
+          "temp file missing and G3 object absent (" + eventId + "/" + photo.name + "): " +
+            (e instanceof Error ? e.message : String(e))
+        ).catch(() => {});
         await unlinkQuiet(tempPath);
         continue;
       }
@@ -155,6 +160,7 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
       if (!exhausted || exhausted.status === "failed") {
         await Photo.deleteOne({ event_id: item.eventId, hash: item.hash }).catch(() => {});
         await unlinkQuiet(path.join(UPLOAD_DIR, item.photo.name));
+        await deleteObject(`${item.eventId}/${item.photo.name}`).catch(() => {});
       }
       continue;
     }
@@ -212,6 +218,7 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
     if (!exhausted || exhausted.status === "failed") {
       await Photo.deleteOne({ _id: item.photo._id }).catch(() => {});
       await unlinkQuiet(tempPath);
+      await deleteObject(`${item.eventId}/${item.photo.name}`).catch(() => {});
       return;
     }
     return;
