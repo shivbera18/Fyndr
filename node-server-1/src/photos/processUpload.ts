@@ -6,6 +6,7 @@ import FormData from "form-data";
 import { FLASK_URL } from "../config";
 import Photo from "../models/Photo";
 import { enqueue, markDone, markFailed } from "../queue/mongoQueue";
+import { putObjectBytes } from "../utils/r2";
 
 export interface UploadFile {
   path: string;
@@ -99,8 +100,12 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       folder_name,
     });
     await photo.save();
-    await markDone(event_id, hash).catch(()=>{});
-    return photo;
+    // Mirror original bytes into object store (G3 → Drive). Async copy of the
+    // multer file before ML/queue steps can unlink it; never blocks ingest.
+    try {
+      const bytes = await fs.promises.readFile(file.path);
+      void putObjectBytes(`${event_id}/${file.filename}`, bytes).catch(() => {});
+    } catch {}
   } catch (e: any) {
     if (e.code === 11000) {
       // race: another worker saved same hash — clean orphan FAISS vector

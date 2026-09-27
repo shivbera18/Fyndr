@@ -39,6 +39,27 @@ export async function getPresignedPut(key: string, contentType = "image/jpeg"): 
   return getSignedUrl(s3, cmd, { expiresIn: 3600 });
 }
 
+// Camera/dashboard ingest mirror: push one uploaded file's bytes into the
+// object store (G3/Drive when R2_* points at it). Never throws — ingest must
+// survive a storage outage. Fire-and-forget from processUpload.
+export async function putObjectBytes(key: string, body: Buffer, contentType = "image/jpeg"): Promise<boolean> {
+  if (!s3 || !key || typeof key !== "string") return false;
+  try {
+    const { PutObjectCommand } = require("@aws-sdk/client-s3");
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET || "fyndr-photos",
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      })
+    );
+    return true;
+  } catch (err) {
+    console.warn("[r2] PutObject failed for key", key, (err as Error).message);
+    return false;
+  }
+}
 export async function deleteObject(key: string): Promise<void> {
   if (!s3 || !key || typeof key !== "string") return;
   try {
