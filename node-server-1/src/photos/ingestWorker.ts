@@ -4,7 +4,7 @@ import FormData from "form-data";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import { claimNext, markDone, markFailed, Job } from "../queue/mongoQueue";
-import { putObjectBytes } from "../utils/r2";
+import { getObjectBytes, putObjectBytes } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import { httpClient } from "../utils/http";
 import logger from "../utils/logger";
@@ -102,9 +102,16 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
     try {
       buffer = await fs.promises.readFile(tempPath);
     } catch (e: unknown) {
-      await markFailed(eventId, hash, "temp file missing: " + (e instanceof Error ? e.message : String(e))).catch(() => {});
-      await unlinkQuiet(tempPath);
-      continue;
+      // Direct browser-to-G3 stubs never touch local disk: pull bytes back
+      // from the store so they flow through the identical finish path.
+      const remote = await getObjectBytes(eventId + "/" + photo.name);
+      if (remote) {
+        buffer = remote;
+      } else {
+        await markFailed(eventId, hash, "temp file missing: " + (e instanceof Error ? e.message : String(e))).catch(() => {});
+        await unlinkQuiet(tempPath);
+        continue;
+      }
     }
     items.push({ photo, photoId: String(photo._id), eventId, hash, buffer });
   }
@@ -210,14 +217,24 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
     return;
   }
   // Best-effort mirrors: ingest survives storage outages, still markDone.
+  // Direct-uploaded originals already live in G3; skip the re-PUT whenever
+  // the local temp is absent (unlinkQuiet no-op) to save a full re-upload.
+  let localPresent = true;
   try {
-    const ok = await putObjectBytes(`${item.eventId}/${item.photo.name}`, item.buffer);
-    if (!ok) logger.warn("[ingest] G3 mirror skipped", { event_id: item.eventId, name: item.photo.name });
-  } catch (e: unknown) {
-    logger.warn("[ingest] G3 mirror failed", {
-      event_id: item.eventId,
-      error: e instanceof Error ? e.message : String(e),
-    });
+    await fs.promises.stat(tempPath);
+  } catch {
+    localPresent = false;
+  }
+  if (localPresent) {
+    try {
+      const ok = await putObjectBytes(`${item.eventId}/${item.photo.name}`, item.buffer);
+      if (!ok) logger.warn("[ingest] G3 mirror skipped", { event_id: item.eventId, name: item.photo.name });
+    } catch (e: unknown) {
+      logger.warn("[ingest] G3 mirror failed", {
+        event_id: item.eventId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   try {
     const owner = typeof item.photo.upload_by === "string" ? item.photo.upload_by : undefined;

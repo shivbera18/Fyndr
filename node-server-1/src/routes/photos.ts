@@ -10,7 +10,7 @@ import Event from "../models/Event";
 import { Job, enqueue, markFailed } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
-import { deleteObject } from "../utils/r2";
+import { deleteObject, getPresignedPut, headObject } from "../utils/r2";
 import { syncDeletePhotoFromDrive } from "../utils/driveStore";
 import { upload } from "../middleware/upload";
 import { removeFaissVector } from "../photos/processUpload";
@@ -143,6 +143,111 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
     }
+});
+// Direct browser-to-G3: stage a queued stub + mint a PUT URL (browser never
+// picks keys). Server never sees file bytes; worker pulls them from G3.
+// When R2 is unconfigured, returns via:"local" — caller falls back to multer.
+const STAGE_CT = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "image/tiff"];
+const MAX_STAGE_BYTES = 50 * 1024 * 1024;
+type StageBody = {
+  event_id?: unknown; hash?: unknown; filename?: unknown; size?: unknown;
+  contentType?: unknown; upload_by?: unknown; folder_name?: unknown;
+};
+async function resolveStageFolder(eventId: string, wantRaw: unknown): Promise<{ folder?: string; error?: string }> {
+  const want = typeof wantRaw === "string" && wantRaw.trim() ? wantRaw.trim().slice(0, 60) : "General";
+  const eventExists = await Event.findById(eventId).select("_id folders");
+  if (!eventExists) return { error: "event not found" };
+  const valid: string[] = ["General"];
+  for (const f of eventExists.folders || []) valid.push(f.name);
+  const canonical = valid.find((n) => n.toLowerCase() === want.toLowerCase());
+  if (!canonical) return { error: `unknown folder_name. Valid: ${valid.join(", ")}` };
+  return { folder: canonical };
+}
+router.post("/photo/stage", async (req: Request, res: Response) => {
+  try {
+    const b = (req.body || {}) as StageBody;
+    const { event_id, hash, filename, size, contentType, upload_by, folder_name: folderRaw } = b;
+    if (typeof event_id !== "string" || !mongoose.Types.ObjectId.isValid(event_id))
+      return res.status(400).send({ error: "invalid event_id" });
+    if (typeof hash !== "string" || !/^[0-9a-f]{64}$/i.test(hash))
+      return res.status(400).send({ error: "invalid hash (expect sha256 hex)" });
+    if (typeof filename !== "string" || !filename.trim())
+      return res.status(400).send({ error: "filename required" });
+    if (typeof size !== "number" || !(size > 0) || size > MAX_STAGE_BYTES)
+      return res.status(400).send({ error: "invalid size (max 50MB)" });
+    if (typeof contentType !== "string" || !STAGE_CT.includes(contentType))
+      return res.status(400).send({ error: "unsupported contentType" });
+    if (upload_by !== undefined && typeof upload_by !== "string")
+      return res.status(400).send({ error: "upload_by must be a string" });
+    const rf = await resolveStageFolder(event_id, folderRaw);
+    if (rf.error === "event not found") return res.status(404).send({ error: rf.error });
+    if (rf.error || !rf.folder) return res.status(400).send({ error: rf.error });
+    const folder_name = rf.folder;
+    const hex = hash.toLowerCase();
+    const dup = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
+    if (dup) {
+      if (dup.folder_name !== folder_name) {
+        dup.folder_name = folder_name;
+        await dup.save().catch(() => {});
+      }
+      return res.status(200).send({ duplicate: true, photo: dup });
+    }
+    try {
+      const jobDoc = await enqueue(event_id, hex);
+      const statusVal = jobDoc && typeof jobDoc === "object" && "status" in jobDoc ? jobDoc.status : undefined;
+      if (statusVal === "done") {
+        const existing = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
+        return res.status(200).send({ duplicate: true, photo: existing });
+      }
+    } catch (e: unknown) {
+      return res.status(422).send({ error: errMsg(e) });
+    }
+    const photoId = new mongoose.Types.ObjectId();
+    const safe = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "photo";
+    const key = `${event_id}/${photoId}-${safe}`;
+    let stub;
+    try {
+      stub = new Photo({ _id: photoId, name: `${photoId}-${safe}`, event_id, upload_by, folder_name, hash: hex, status: "queued" });
+      await stub.save();
+    } catch (e: unknown) {
+      if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
+        const d = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
+        return res.status(200).send({ duplicate: true, photo: d });
+      }
+      const msg = errMsg(e);
+      await markFailed(event_id, hex, msg).catch(() => {});
+      return res.status(422).send({ error: msg });
+    }
+    let uploadUrl: string | null = null;
+    try {
+      uploadUrl = await getPresignedPut(key, contentType);
+    } catch {
+      uploadUrl = null;
+    }
+    if (!uploadUrl) return res.status(200).send({ photo: stub, key: null, uploadUrl: null, via: "local" });
+    return res.status(200).send({ photo: stub, key, uploadUrl, via: "r2", expiresIn: 3600 });
+  } catch (e: unknown) {
+    logger.error("[photo] stage error", e instanceof Error ? e : new Error(String(e)));
+    return res.status(500).send({ error: "stage failed" });
+  }
+});
+// Browser confirms its PUT landed; worker needs no kick (the staged Job is already claimable).
+router.post("/photo/complete", async (req: Request, res: Response) => {
+  try {
+    const b = (req.body || {}) as { photo_id?: unknown; event_id?: unknown };
+    if (typeof b.photo_id !== "string" || !mongoose.Types.ObjectId.isValid(b.photo_id))
+      return res.status(400).send({ error: "invalid photo_id" });
+    if (typeof b.event_id !== "string" || !mongoose.Types.ObjectId.isValid(b.event_id))
+      return res.status(400).send({ error: "invalid event_id" });
+    const photo = await Photo.findOne({ _id: b.photo_id, event_id: b.event_id });
+    if (!photo) return res.status(404).send({ error: "photo not found" });
+    const present = await headObject(`${b.event_id}/${photo.name}`);
+    if (!present) return res.status(200).send({ ok: false, reason: "object-missing" });
+    return res.status(200).send({ ok: true });
+  } catch (e: unknown) {
+    logger.error("[photo] complete error", e instanceof Error ? e : new Error(String(e)));
+    return res.status(500).send({ error: "complete failed" });
+  }
 });
 
 

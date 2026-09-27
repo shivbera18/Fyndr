@@ -70,7 +70,7 @@ router.post("/presign", async (req: Request, res: Response) => {
   if (key.includes("..") || key.startsWith("/") || key.length > 512)
     return res.status(400).send({ error: "invalid key" });
   const ct = contentType || "image/jpeg";
-  const allowedCT = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"];
+  const allowedCT = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "image/tiff"];
   if (!allowedCT.includes(ct)) return res.status(400).send({ error: "unsupported contentType" });
   try {
     const url = await getPresignedPut(key, ct);

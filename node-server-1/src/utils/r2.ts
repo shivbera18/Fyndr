@@ -25,6 +25,27 @@ try {
   console.log("[r2] @aws-sdk not installed, using local fallback:", (e as Error).message);
 }
 
+// Public-endpoint signer for direct browser-to-G3 PUTs: same credentials,
+// browser-reachable origin. Null when R2_PUBLIC_ENDPOINT unset → multer fallback.
+let s3Public: S3Client | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const sdkPub: typeof S3SDK = require("@aws-sdk/client-s3");
+  if (process.env.R2_PUBLIC_ENDPOINT && process.env.R2_ACCESS_KEY && process.env.R2_SECRET_KEY) {
+    s3Public = new sdkPub.S3Client({
+      region: process.env.R2_REGION || "auto",
+      endpoint: process.env.R2_PUBLIC_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY,
+        secretAccessKey: process.env.R2_SECRET_KEY,
+      },
+      forcePathStyle: true,
+    });
+  }
+} catch (e) {
+  console.log("[r2] public endpoint client not configured, direct upload disabled:", (e as Error).message);
+}
+
 export async function getPresignedPut(key: string, contentType = "image/jpeg"): Promise<string | null> {
   if (!s3) return null;
   if (!key || typeof key !== "string" || key.includes("..") || key.length > 512) throw new Error("invalid key");
@@ -36,7 +57,41 @@ export async function getPresignedPut(key: string, contentType = "image/jpeg"): 
     ContentType: contentType,
     // P2: prevent abuse – limit to images, 10MB hint (actual enforcement at upload)
   });
-  return getSignedUrl(s3, cmd, { expiresIn: 3600 });
+  // ponytail: browser needs the public origin; same creds/region/bucket, one-line client pick.
+  return getSignedUrl(s3Public || s3, cmd, { expiresIn: 3600 });
+}
+
+// Direct-upload finish path: worker pulls bytes back from G3 for ML/Drive/thumbs.
+// Null when unconfigured or on any failure — caller keeps the existing markFailed path. Never throws.
+export async function getObjectBytes(key: string): Promise<Buffer | null> {
+  if (!s3 || !key || typeof key !== "string") return null;
+  try {
+    const { GetObjectCommand } = require("@aws-sdk/client-s3");
+    // ponytail: lazy require is untyped, so send() returns the SDK union — any keeps the Body read compiling.
+    const res: any = await s3.send(
+      new GetObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key })
+    );
+    if (!res || !res.Body || typeof res.Body.transformToByteArray !== "function") return null;
+    const bytes = await res.Body.transformToByteArray();
+    return Buffer.from(bytes);
+  } catch (err) {
+    console.warn("[r2] GetObject failed for key", key, (err as Error).message);
+    return null;
+  }
+}
+
+// Stage-complete probe: did the browser PUT land? True on 2xx, false on any throw.
+export async function headObject(key: string): Promise<boolean> {
+  if (!s3 || !key || typeof key !== "string") return false;
+  try {
+    const { HeadObjectCommand } = require("@aws-sdk/client-s3");
+    await s3.send(
+      new HeadObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key })
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Camera/dashboard ingest mirror: push one uploaded file's bytes into the
