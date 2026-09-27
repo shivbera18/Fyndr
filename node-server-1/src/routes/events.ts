@@ -125,6 +125,51 @@ router.post('/in-event', async (req: Request, resp: Response) => {
     }
 });
 
+// Paged gallery supersedes POST /in-event for the dashboard grid (kept for older clients).
+router.get("/events/:id/photos", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).send({ error: "invalid event id" });
+    try {
+        const eventExists = await Event.findById(id).select("_id folders");
+        if (!eventExists) return res.status(404).send({ error: "event not found" });
+        const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "60"), 10) || 60, 1), 200);
+        const wantFolder = typeof req.query.folder === "string" && req.query.folder.trim() ? req.query.folder.trim().slice(0, 60) : "All";
+        const filter: Record<string, unknown> = { event_id: id };
+        if (wantFolder !== "All") {
+            const validFolders: string[] = ["General"];
+            for (const f of eventExists.folders || []) validFolders.push(f.name);
+            const canonical = validFolders.find((n) => n.toLowerCase() === wantFolder.toLowerCase());
+            if (!canonical) return res.status(400).send({ error: `unknown folder. Valid: ${["All", ...validFolders].join(", ")}` });
+            filter.folder_name = canonical;
+        }
+        if (typeof req.query.cursor === "string" && req.query.cursor) {
+            const sep = req.query.cursor.lastIndexOf("_");
+            const createdAt = new Date(req.query.cursor.slice(0, sep));
+            const cursorId = req.query.cursor.slice(sep + 1);
+            if (Number.isNaN(createdAt.getTime()) || !mongoose.Types.ObjectId.isValid(cursorId)) {
+                return res.status(400).send({ error: "invalid cursor" });
+            }
+            filter.$or = [
+                { createdAt: { $lt: createdAt } },
+                { createdAt, _id: { $lt: new mongoose.Types.ObjectId(cursorId) } },
+            ];
+        }
+        const rows = await Photo.find(filter)
+            .select("_id name thumb folder_name isSelected createdAt")
+            .sort({ createdAt: -1, _id: -1 })
+            .limit(limit + 1)
+            .lean();
+        const hasMore = rows.length > limit;
+        const photos = hasMore ? rows.slice(0, limit) : rows;
+        const last = photos[photos.length - 1];
+        const nextCursor = hasMore && last ? `${new Date(last.createdAt as unknown as string).toISOString()}_${last._id}` : null;
+        res.status(200).send({ photos, nextCursor });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "unknown error";
+        res.status(500).send({ result: "An error occurred while retrieving images", error: message });
+    }
+});
+
 
 // P0: shared folder sanitize for POST /event + PUT /events/:id
 type FoldersResult = { ok: true; folders: { name: string }[] } | { ok: false; error: string };

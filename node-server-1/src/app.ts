@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import multer from "multer";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -24,7 +26,10 @@ export function createApp(): express.Express {
   app.use(cors({ origin: corsOrigins(), credentials: CORS_ORIGIN !== "*" }));
   app.use(metricsMiddleware);
 
+  const THUMBS_DIR = path.join(UPLOAD_DIR, "thumbs");
+  fs.mkdirSync(THUMBS_DIR, { recursive: true });
   app.use("/uploads", express.static(UPLOAD_DIR));
+  app.use("/uploads/thumbs", express.static(THUMBS_DIR, { maxAge: "365d", immutable: true }));
   app.use("/event_profile", express.static(EVENT_PROFILE_DIR));
 
   app.use(authRouter);

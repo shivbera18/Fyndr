@@ -4,6 +4,8 @@ module.exports = {
       name: 'fyndr-api',
       cwd: './node-server-1',
       script: 'dist/server.js',
+      instances: 2,
+      exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
         PORT: 5000,

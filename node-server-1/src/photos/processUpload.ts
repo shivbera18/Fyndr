@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import axios from "axios";
+import { httpClient as axios } from "../utils/http";
 import crypto from "crypto";
 import fs from "fs";
 import FormData from "form-data";
@@ -19,6 +19,11 @@ export interface UploadContext {
   event_id: string;
   upload_by?: string;
   folder_name: string;
+}
+
+// Fire-and-forget FAISS cleanup shared with the delete route (single Flask-URL owner).
+export function removeFaissVector(event_id: string, photo_id: string, timeout = 5000): Promise<unknown> {
+  return axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id }, { timeout });
 }
 
 // Shared single-file ingest: stream-hash -> Photo/queue dedupe -> ML embedding
@@ -101,15 +106,15 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       folder_name,
     });
     await photo.save();
-    // Mirror original bytes into object store (G3 → Drive). Awaited: the
-    // multer file is unlinked on every exit path, and the response returns
-    // as soon as save completes — an un-awaited void mirror dies with it.
+    await markDone(event_id, hash).catch(()=>{});
     try {
       const bytes = await fs.promises.readFile(file.path);
       await putObjectBytes(`${event_id}/${file.filename}`, bytes);
       // Human-readable Drive backup alongside the G3 pool mirror above.
       await syncUploadToDrive(event_id, upload_by, file, bytes);
     } catch {}
+    void unlinkAsync(file.path);
+    return photo;
   } catch (e: any) {
     if (e.code === 11000) {
       // race: another worker saved same hash — clean orphan FAISS vector

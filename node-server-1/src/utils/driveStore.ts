@@ -1,4 +1,4 @@
-import axios from "axios";
+import { httpClient as axios } from "./http";
 import FormData from "form-data";
 import pLimit from "p-limit";
 import Event from "../models/Event";

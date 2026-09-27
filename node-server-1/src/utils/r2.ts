@@ -52,7 +52,9 @@ export async function putObjectBytes(key: string, body: Buffer, contentType = "i
         Key: key,
         Body: body,
         ContentType: contentType,
-      })
+      }),
+      // ponytail: one stalled PUT must not pin a worker slot; ingest survives storage outage.
+      { abortSignal: AbortSignal.timeout(30000) }
     );
     return true;
   } catch (err) {

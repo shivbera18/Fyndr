@@ -13,6 +13,8 @@ const photoSchema = new mongoose.Schema(
     folder_name: { type: String, default: "General", trim: true, maxlength: 60, index: true },
     // Direct-Drive backup id (Fyndr Storage/<event>/<file>); G3 pool mirror is keyed separately
     driveFileId: { type: String },
+    // 640px JPEG mirror served from /uploads/thumbs; absent = legacy photo, gallery falls back to original
+    thumb: { type: String },
     // P0: client proofing selection (mutation route lands in PR3)
     isSelected: { type: Boolean, default: false },
     selectionNote: { type: String, default: "", maxlength: 500 },
@@ -23,6 +25,8 @@ const photoSchema = new mongoose.Schema(
 // Compound unique: same file hash in same event = one photo, cross-event allowed
 photoSchema.index({ event_id: 1, hash: 1 }, { unique: true, sparse: true });
 photoSchema.index({ event_id: 1, createdAt: -1 });
+photoSchema.index({ name: 1 });
+photoSchema.index({ event_id: 1, isSelected: 1 });
 
 export type PhotoDoc = InferSchemaType<typeof photoSchema>;
 export default mongoose.models.Photo || mongoose.model("Photo", photoSchema);

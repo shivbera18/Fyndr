@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import numpy as np
 from PIL import Image, ImageOps
 from flask_pymongo import PyMongo
@@ -231,8 +231,33 @@ def match_faces():
         return jsonify({'message': 'You are not Present In this event', 'matches': []}), 200
 
 
-
 #-----------------------------------------------------------------------------------------------------
+
+# Core per-image pipeline shared by /get_embedding and /get_embeddings.
+# Returns (embeddings, primary, face_count, error) where error is
+# (message, status) or None. No-face is not an error: ([], None, 0, None).
+def embed_image_bytes(image_bytes):
+    img = load_image_from_bytes(image_bytes)
+    if img is None:
+        return [], None, 0, ('Image could not be loaded', 400)
+    if HAS_INSIGHT:
+        try:
+            faces = app_insight.get(img)
+        except Exception as e:
+            return [], None, 0, (f'face detection failed: {e}', 500)
+        if len(faces) == 0:
+            return [], None, 0, None
+        # Sort faces largest to smallest
+        faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
+        embeddings = [f.embedding.tolist() for f in faces]
+        return embeddings, embeddings[0], len(embeddings), None
+    h = hashlib.md5(image_bytes).hexdigest()
+    random.seed(int(h[:8], 16))
+    primary_embedding = [random.uniform(-1, 1) for _ in range(512)]
+    norm = sum(x * x for x in primary_embedding) ** 0.5
+    primary_embedding = [x / norm for x in primary_embedding] if norm else primary_embedding
+    return [primary_embedding], primary_embedding, 1, None
+
 # API Endpoint to generate face embeddings
 @app.route('/get_embedding', methods=['POST'])
 def get_embedding():
@@ -253,28 +278,11 @@ def get_embedding():
     if photo_id_q and (len(photo_id_q) < 6 or len(photo_id_q) > 64):
         return jsonify({'error': 'invalid photo_id'}), 400
 
-    img = load_image_from_bytes(image_bytes)
-    if img is None:
-        return jsonify({'error': 'Image could not be loaded'}), 400
-
-    if HAS_INSIGHT:
-        try:
-            faces = app_insight.get(img)
-        except Exception as e:
-            return jsonify({'error': f'face detection failed: {e}'}), 500
-        if len(faces) == 0:
-            return jsonify({'embeddings': [], 'embedding': None, 'face_count': 0, 'message': 'No face detected in the image'}), 200
-        # Sort faces largest to smallest
-        faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
-        embeddings = [f.embedding.tolist() for f in faces]
-        primary_embedding = embeddings[0]
-    else:
-        h = hashlib.md5(image_bytes).hexdigest()
-        random.seed(int(h[:8], 16))
-        primary_embedding = [random.uniform(-1, 1) for _ in range(512)]
-        norm = sum(x * x for x in primary_embedding) ** 0.5
-        primary_embedding = [x / norm for x in primary_embedding] if norm else primary_embedding
-        embeddings = [primary_embedding]
+    embeddings, primary_embedding, face_count, error = embed_image_bytes(image_bytes)
+    if error:
+        return jsonify({'error': error[0]}), error[1]
+    if face_count == 0:
+        return jsonify({'embeddings': [], 'embedding': None, 'face_count': 0, 'message': 'No face detected in the image'}), 200
     # Optional FAISS index if caller provides event_id+photo_id (atomic, validated)
     if event_id_q and photo_id_q and embeddings:
         try:
@@ -282,7 +290,79 @@ def get_embedding():
         except Exception as e:
             logger.error(f"[faiss] add failed {e}", exc_info=True)
             return jsonify({'error': f'faiss add failed: {e}', 'embeddings': embeddings, 'embedding': primary_embedding}), 500
-    return jsonify({'embeddings': embeddings, 'embedding': primary_embedding, 'face_count': len(embeddings)})
+    return jsonify({'embeddings': embeddings, 'embedding': primary_embedding, 'face_count': face_count})
+
+# API Endpoint to generate face embeddings for a batch of images (ingest worker hot path)
+@app.route('/get_embeddings', methods=['POST'])
+def get_embeddings():
+    files = request.files.getlist('images')
+    if not files:
+        return jsonify({'error': 'No image files provided'}), 400
+    if len(files) > 100:
+        return jsonify({'error': 'too many files (max 100)'}), 400
+    event_id = request.form.get('event_id') or request.args.get('event_id')
+    if event_id and (len(event_id) < 6 or len(event_id) > 64):
+        return jsonify({'error': 'invalid event_id'}), 400
+    photo_ids = request.form.getlist('photo_ids')
+    if len(photo_ids) == 1 and photo_ids[0].strip().startswith('['):
+        try:
+            parsed = json.loads(photo_ids[0])
+            if isinstance(parsed, list):
+                photo_ids = [str(x) for x in parsed]
+        except Exception:
+            pass
+    if photo_ids and len(photo_ids) != len(files):
+        return jsonify({'error': 'photo_ids count must match images count'}), 400
+    if event_id and not photo_ids:
+        return jsonify({'error': 'both event_id and photo_ids required for indexing'}), 400
+    results = []
+    for i, file in enumerate(files):
+        photo_id = photo_ids[i] if photo_ids else None
+        try:
+            image_bytes = file.read()
+        except Exception as e:
+            results.append({'photo_id': photo_id, 'embeddings': [], 'embedding': None, 'face_count': 0, 'error': f'read failed: {e}'})
+            continue
+        if len(image_bytes) > 15 * 1024 * 1024:
+            results.append({'photo_id': photo_id, 'embeddings': [], 'embedding': None, 'face_count': 0, 'error': 'image too large (max 15MB)'})
+            continue
+        try:
+            embeddings, primary, face_count, error = embed_image_bytes(image_bytes)
+        except Exception as e:
+            results.append({'photo_id': photo_id, 'embeddings': [], 'embedding': None, 'face_count': 0, 'error': f'embedding failed: {e}'})
+            continue
+        if error:
+            results.append({'photo_id': photo_id, 'embeddings': [], 'embedding': None, 'face_count': 0, 'error': error[0]})
+            continue
+        if event_id and photo_id and embeddings:
+            try:
+                faiss_add(event_id, photo_id, embeddings)
+            except Exception as e:
+                logger.error(f"[faiss] add failed {e}", exc_info=True)
+                results.append({'photo_id': photo_id, 'embeddings': embeddings, 'embedding': primary, 'face_count': face_count, 'error': f'faiss add failed: {e}'})
+                continue
+        results.append({'photo_id': photo_id, 'embeddings': embeddings, 'embedding': primary, 'face_count': face_count})
+    return jsonify({'results': results}), 200
+
+# API Endpoint to generate a 640px-wide JPEG thumbnail for gallery rendering
+@app.route('/thumbnail', methods=['POST'])
+def thumbnail():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image file provided'}), 400
+    file = request.files['image']
+    image_bytes = file.read()
+    if not image_bytes:
+        return jsonify({'error': 'No image file provided'}), 400
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+        image = ImageOps.exif_transpose(image).convert('RGB')
+        image.thumbnail((640, 640), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        image.save(buf, format='JPEG', quality=70)
+        buf.seek(0)
+        return send_file(buf, mimetype='image/jpeg')
+    except Exception as e:
+        return jsonify({'error': f'thumbnail failed: {e}'}), 400
 
 @app.route('/faiss_stats', methods=['GET'])
 def faiss_stats_route():
