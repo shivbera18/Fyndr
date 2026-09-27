@@ -59,6 +59,40 @@ def _load_meta(meta_path):
         except Exception:
             return []
     return []
+_index_cache = {}  # event_id -> (mtime, index): avoids re-reading index from disk per query
+_index_cache_guard = threading.Lock()
+
+def _cached_read_index(event_id, idx_path):
+    try:
+        mtime = os.path.getmtime(idx_path)
+    except OSError:
+        return None
+    key = str(event_id)
+    with _index_cache_guard:
+        hit = _index_cache.get(key)
+        if hit is not None and hit[0] == mtime:
+            return hit[1]
+    index = faiss.read_index(idx_path)
+    with _index_cache_guard:
+        _index_cache[key] = (mtime, index)
+    return index
+
+def _invalidate_index_cache(event_id):
+    with _index_cache_guard:
+        _index_cache.pop(str(event_id), None)
+
+def _atomic_np_save(path, arr):
+    # open() handle: np.save(path_str) would append ".npy" to our ".tmp" name
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        np.save(f, arr)
+    os.replace(tmp, path)
+
+def _atomic_write_index(path, index):
+    tmp = path + ".tmp"
+    faiss.write_index(index, tmp)
+    os.replace(tmp, path)
+
 
 def add(event_id, photo_id, embedding):
     """Append 512-d embedding(s) for event. embedding: list/np array (512,) or (N,512), L2 normalized.
@@ -101,7 +135,7 @@ def add(event_id, photo_id, embedding):
                 arr = vecs
         else:
             arr = vecs
-        np.save(npy_path, arr)
+        _atomic_np_save(npy_path, arr)
         for _ in range(vecs.shape[0]):
             meta.append({"photo_id": photo_id, "id": len(meta)})
         _atomic_write(meta_path, json.dumps(meta))
@@ -109,22 +143,121 @@ def add(event_id, photo_id, embedding):
         if HAS_FAISS:
             try:
                 if os.path.exists(idx_path):
-                    index = faiss.read_index(idx_path)
+                    index = _cached_read_index(event_id, idx_path)
+                    if index is None:
+                        index = faiss.IndexFlatIP(512)
+                        if len(meta) > vecs.shape[0]:
+                            index.add(arr)
+                            _atomic_write_index(idx_path, index)
+                            _invalidate_index_cache(event_id)
+                            return True
                 else:
                     index = faiss.IndexFlatIP(512)
-                    if len(meta) > vecs.shape[0] and os.path.exists(npy_path):
+                    if len(meta) > vecs.shape[0]:
                         index.add(arr)
-                        faiss.write_index(index, idx_path)
+                        _atomic_write_index(idx_path, index)
+                        _invalidate_index_cache(event_id)
                         return True
                 index.add(vecs)
-                faiss.write_index(index, idx_path)
+                _atomic_write_index(idx_path, index)
+                _invalidate_index_cache(event_id)
             except Exception as e:
                 try:
                     index = faiss.IndexFlatIP(512)
                     index.add(arr)
-                    faiss.write_index(index, idx_path)
+                    _atomic_write_index(idx_path, index)
+                    _invalidate_index_cache(event_id)
                 except Exception as e2:
                     print(f"[faiss_store] add rebuild failed: {e2} (orig {e})")
+        return True
+
+def add_many(event_id, items):
+    """Append many (photo_id, embedding) pairs for one event with ONE disk cycle.
+    items: list of (photo_id, embedding) where embedding is (512,) or (N,512).
+    One npy load+vstack+save, one index read/add/write, one meta write, under the
+    per-event RLock. Returns True (no-op True when items is empty)."""
+    items = list(items or [])
+    if not items:
+        return True
+    with _get_lock(event_id):
+        _path(event_id, "index")
+        npy_path = _path(event_id, "npy")
+        meta_path = _path(event_id, "meta.json")
+        idx_path = _path(event_id, "index")
+        meta = _load_meta(meta_path)
+        # Keep add idempotent per photo: drop existing vectors for re-added photos
+        dupes = { _sanitize_photo_id(pid) for pid, _ in items
+                  if any(m.get("photo_id") == _sanitize_photo_id(pid) for m in meta) }
+        if dupes:
+            keep_meta, del_indices = [], []
+            for i, m in enumerate(meta):
+                if m.get("photo_id") in dupes:
+                    del_indices.append(i)
+                else:
+                    keep_meta.append(m)
+            for i, m in enumerate(keep_meta):
+                m["id"] = i
+            meta = keep_meta
+            if os.path.exists(npy_path) and del_indices:
+                try:
+                    arr = np.delete(np.load(npy_path), del_indices, axis=0)
+                    if len(meta) == 0:
+                        try: os.remove(npy_path)
+                        except OSError: pass
+                    else:
+                        _atomic_np_save(npy_path, arr)
+                except Exception as e:
+                    print(f"[faiss_store] add_many dedupe failed: {e}")
+                    return False
+        vecs_list, owners = [], []
+        for pid, emb in items:
+            photo_id = _sanitize_photo_id(pid)
+            vecs = np.array(emb, dtype=np.float32)
+            if vecs.ndim == 1:
+                if vecs.shape != (512,):
+                    raise ValueError(f"embedding must be 512-d, got {vecs.shape}")
+                vecs = vecs.reshape(1, -1)
+            elif vecs.ndim == 2:
+                if vecs.shape[0] == 0:
+                    continue
+                if vecs.shape[1] != 512:
+                    raise ValueError(f"embedding must be (N, 512), got {vecs.shape}")
+            else:
+                raise ValueError(f"invalid embedding shape {vecs.shape}")
+            norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+            norms[norms == 0] = 1.0
+            vecs_list.append(vecs / norms)
+            owners.extend([photo_id] * vecs.shape[0])
+        if not vecs_list:
+            return True
+        batch = np.vstack(vecs_list)
+        if os.path.exists(npy_path):
+            try:
+                arr = np.vstack([np.load(npy_path), batch])
+            except Exception:
+                arr = batch
+        else:
+            arr = batch
+        _atomic_np_save(npy_path, arr)
+        for photo_id in owners:
+            meta.append({"photo_id": photo_id, "id": len(meta)})
+        _atomic_write(meta_path, json.dumps(meta))
+        if HAS_FAISS:
+            try:
+                if os.path.exists(idx_path):
+                    index = _cached_read_index(event_id, idx_path)
+                    if index is None or index.ntotal + batch.shape[0] != len(meta):
+                        index = faiss.IndexFlatIP(512)
+                        index.add(arr)
+                    else:
+                        index.add(batch)
+                else:
+                    index = faiss.IndexFlatIP(512)
+                    index.add(arr)
+                _atomic_write_index(idx_path, index)
+                _invalidate_index_cache(event_id)
+            except Exception as e:
+                print(f"[faiss_store] add_many index write failed: {e}")
         return True
 
 def remove(event_id, photo_id):
@@ -155,9 +288,10 @@ def remove(event_id, photo_id):
                     except: pass
                     try: os.remove(idx_path)
                     except: pass
+                    _invalidate_index_cache(event_id)
                     _atomic_write(meta_path, json.dumps(meta))
                     return True
-                np.save(npy_path, arr)
+                _atomic_np_save(npy_path, arr)
             except Exception as e:
                 print(f"[faiss_store] npy delete failed: {e}")
                 _atomic_write(meta_path, json.dumps(meta))
@@ -168,18 +302,22 @@ def remove(event_id, photo_id):
                     if len(meta) == 0:
                         try: os.remove(idx_path)
                         except: pass
+                        _invalidate_index_cache(event_id)
                     else:
                         index = faiss.IndexFlatIP(512)
                         index.add(arr)
-                        faiss.write_index(index, idx_path)
+                        _atomic_write_index(idx_path, index)
+                        _invalidate_index_cache(event_id)
                 except Exception as e:
                     print(f"[faiss_store] rebuild failed: {e}")
                     try: os.remove(idx_path)
                     except: pass
+                    _invalidate_index_cache(event_id)
         else:
             if HAS_FAISS and os.path.exists(idx_path):
                 try: os.remove(idx_path)
                 except: pass
+                _invalidate_index_cache(event_id)
         _atomic_write(meta_path, json.dumps(meta))
         return True
 def delete_event(event_id):
@@ -191,8 +329,17 @@ def delete_event(event_id):
                 if os.path.exists(p):
                     os.remove(p)
             except: pass
+        _invalidate_index_cache(event_id)
         try:
             tmp = _path(event_id, "meta.json.tmp")
+            if os.path.exists(tmp): os.remove(tmp)
+        except: pass
+        try:
+            tmp = _path(event_id, "npy.tmp")
+            if os.path.exists(tmp): os.remove(tmp)
+        except: pass
+        try:
+            tmp = _path(event_id, "index.tmp")
             if os.path.exists(tmp): os.remove(tmp)
         except: pass
         return True
@@ -205,18 +352,27 @@ def search(event_id, query_emb, k=48, threshold=0.34):
         q = q / n
     seen_photos = {}
     if HAS_FAISS:
-        idx_path = _path(event_id, "index")
-        meta_path = _path(event_id, "meta.json")
-        if not os.path.exists(idx_path):
-            return []
-        index = faiss.read_index(idx_path)
-        meta = _load_meta(meta_path)
-        if not meta:
-            return []
-        # search top candidate vectors (up to 4x k to account for multi-face photos)
-        search_k = min(k * 4, index.ntotal)
-        D, I = index.search(q.reshape(1, -1), search_k)
-        for score, idx in zip(D[0], I[0]):
+        with _get_lock(event_id):
+            idx_path = _path(event_id, "index")
+            meta_path = _path(event_id, "meta.json")
+            if not os.path.exists(idx_path):
+                return []
+            try:
+                index = _cached_read_index(event_id, idx_path)
+            except Exception:
+                return []
+            if index is None:
+                return []
+            meta = _load_meta(meta_path)
+            if not meta:
+                return []
+            # search top candidate vectors (up to 4x k to account for multi-face photos)
+            search_k = min(k * 4, index.ntotal)
+            if search_k <= 0:
+                return []
+            D, I = index.search(q.reshape(1, -1), search_k)
+            pairs = [(float(s), int(i)) for s, i in zip(D[0], I[0])]
+        for score, idx in pairs:
             if idx == -1 or idx >= len(meta):
                 continue
             if score < threshold:

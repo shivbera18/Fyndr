@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import axios from "axios";
+import { httpClient as axios } from "../utils/http";
 import crypto from "crypto";
 import fs from "fs";
 import FormData from "form-data";
@@ -21,11 +21,21 @@ export interface UploadContext {
   folder_name: string;
 }
 
+// Fire-and-forget FAISS cleanup shared with the delete route (single Flask-URL owner).
+export function removeFaissVector(event_id: string, photo_id: string, timeout = 5000): Promise<unknown> {
+  return axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id }, { timeout });
+}
+
 // Shared single-file ingest: stream-hash -> Photo/queue dedupe -> ML embedding
-// -> Photo doc. Moved verbatim from POST /photo so the camera-to-cloud FTP
-// watcher feeds the identical pipeline (same hashes, same dedupe, same FAISS flow).
-export async function processUploadedFile(file: UploadFile, ctx: UploadContext): Promise<unknown> {
+// -> Photo doc. Sole caller is the camera-to-cloud FTP watcher, which passes
+// skipQueue (FTP failures surface via ftp.failed + live events, never /queue/*).
+export async function processUploadedFile(
+  file: UploadFile,
+  ctx: UploadContext,
+  opts?: { skipQueue?: boolean }
+): Promise<unknown> {
   const { event_id, upload_by, folder_name } = ctx;
+  const skipQueue = opts?.skipQueue === true;
   // ponytail: fs.promises frees the event loop while large uploads stream + delete; sync unlink blocks it.
   const unlinkAsync = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   let hash = '';
@@ -58,11 +68,15 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
     }
   } catch(_){}
 
-  const q: any = await enqueue(event_id, hash, file.filename);
-  if (q && q.status === 'done') {
-    void unlinkAsync(file.path);
-    const existing = await Photo.findOne({ event_id, hash });
-    return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: q.photo_hash };
+  if (!skipQueue) {
+    const q: unknown = await enqueue(event_id, hash, file.filename);
+    const qStatus = typeof q === "object" && q !== null && "status" in q ? String(q.status) : null;
+    if (qStatus === 'done') {
+      void unlinkAsync(file.path);
+      const existing = await Photo.findOne({ event_id, hash });
+      const photoHash = typeof q === "object" && q !== null && "photo_hash" in q ? String(q.photo_hash) : hash;
+      return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: photoHash };
+    }
   }
 
   // Pre-generate photoId so we can index FAISS in single ML call
@@ -86,7 +100,7 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       embeddings = [response.data.embedding];
     }
   } catch (e: any) {
-    await markFailed(event_id, hash, e.message).catch(()=>{});
+    if (!skipQueue) await markFailed(event_id, hash, e.message).catch(()=>{});
     void unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }
@@ -101,27 +115,27 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       folder_name,
     });
     await photo.save();
-    // Mirror original bytes into object store (G3 → Drive). Awaited: the
-    // multer file is unlinked on every exit path, and the response returns
-    // as soon as save completes — an un-awaited void mirror dies with it.
+    if (!skipQueue) await markDone(event_id, hash).catch(()=>{});
     try {
       const bytes = await fs.promises.readFile(file.path);
       await putObjectBytes(`${event_id}/${file.filename}`, bytes);
       // Human-readable Drive backup alongside the G3 pool mirror above.
       await syncUploadToDrive(event_id, upload_by, file, bytes);
     } catch {}
+    void unlinkAsync(file.path);
+    return photo;
   } catch (e: any) {
     if (e.code === 11000) {
       // race: another worker saved same hash — clean orphan FAISS vector
       void unlinkAsync(file.path);
       try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
       const dup = await Photo.findOne({ event_id, hash });
-      await markDone(event_id, hash).catch(()=>{});
+      if (!skipQueue) await markDone(event_id, hash).catch(()=>{});
       return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
     }
     // on generic save failure, clean orphan FAISS vector AND the multer file
     try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
-    await markFailed(event_id, hash, e.message).catch(()=>{});
+    if (!skipQueue) await markFailed(event_id, hash, e.message).catch(()=>{});
     void unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }

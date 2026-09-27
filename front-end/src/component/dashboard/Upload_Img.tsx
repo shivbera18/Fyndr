@@ -14,6 +14,8 @@ export const MAX_PREVIEWS = 12;
 // ponytail: count-only batches of 15 DSLR photos (~172MB) die on 100MB proxy caps with
 // unretryable ERR_NETWORK. Cap every POST by BYTES so any album uploads on hotel WiFi.
 export const UPLOAD_BATCH_SIZE = 15;
+// ponytail: 3 in-flight batch POSTs saturate the uplink without pinning every server slot; raise only with p95 evidence.
+export const UPLOAD_BATCH_CONCURRENCY = 3;
 export const UPLOAD_BATCH_BYTE_BUDGET = 75 * 1024 * 1024;
 export const UPLOAD_MAX_ATTEMPTS = 4;
 export const UPLOAD_RETRY_DELAYS_MS = [0, 1500, 3000, 6000];
@@ -260,14 +262,32 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     let uploadedCount = 0;
 
     try {
-      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      // ponytail: aggregate progress via fractions so concurrent batches share one ref-throttled bar.
+      const batchFractions: number[] = batches.map(() => 0);
+      let nextBatchIdx = 0;
+      let completedBatches = 0;
+      let batchFailed = false;
+      // First worker error wins: without this, a sibling's failure throws a
+      // generic CanceledError that hides the real per-batch error below.
+      let firstError: unknown = null;
+
+      const commitAggregateProgress = () => {
+        const loadedFiles = batchFractions.reduce((sum, f) => sum + f, 0);
+        const now = Date.now();
+        if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
+          lastProgressCommitRef.current = now;
+          setProgress(Math.min(99, Math.round((loadedFiles / totalFilesCount) * 100)));
+        }
+      };
+
+      const uploadBatch = async (batchIdx: number): Promise<void> => {
         if (abortController.signal.aborted) {
           throw new Error("CanceledError");
         }
+        // ponytail: no start-of-batch counter — batchIdx order races under
+        // concurrency and a sibling failure could paint a count for a batch that never ran.
 
         const currentBatch = batches[batchIdx];
-        setBatchInfo({ current: batchIdx + 1, total: totalBatches });
-
         const formData = new FormData();
         currentBatch.forEach((item) => {
           formData.append("name", item.file);
@@ -279,7 +299,6 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           formData.append("user_id", USER_ID);
         }
 
-        const baseUploaded = uploadedCount;
         const currentBatchSize = currentBatch.length;
         let attempt = 0;
         for (;;) {
@@ -291,13 +310,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
               timeout: 0,
               onUploadProgress: (progressEvent) => {
                 if (progressEvent.total) {
-                  const batchLoadedFraction = progressEvent.loaded / progressEvent.total;
-                  const overallFraction = (baseUploaded + batchLoadedFraction * currentBatchSize) / totalFilesCount;
-                  const now = Date.now();
-                  if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
-                    lastProgressCommitRef.current = now;
-                    setProgress(Math.min(99, Math.round(overallFraction * 100)));
-                  }
+                  batchFractions[batchIdx] = (progressEvent.loaded / progressEvent.total) * currentBatchSize;
+                  commitAggregateProgress();
                 }
               },
             });
@@ -321,7 +335,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             if (!isRetryableUploadError(attemptErr) || attempt >= UPLOAD_MAX_ATTEMPTS) {
               throw attemptErr;
             }
-            setBatchInfo({ current: batchIdx + 1, total: totalBatches });
+            setBatchInfo({ current: Math.min(completedBatches + 1, totalBatches), total: totalBatches });
             setUploadStatus({
               kind: "error",
               text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
@@ -348,9 +362,19 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             }
           }
         }
-        // ponytail: clear the transient retry banner so a recovered batch doesn't leave a stale red error up.
+        // ponytail: sibling failure must not masquerade as a user cancel —
+        // only an actual abort throws CanceledError; otherwise rethrow the real error.
+        if (abortController.signal.aborted) {
+          throw new Error("CanceledError");
+        }
+        if (batchFailed) {
+          throw firstError ?? new Error("CanceledError");
+        }
         setUploadStatus(null);
         uploadedCount += currentBatch.length;
+        batchFractions[batchIdx] = currentBatch.length;
+        completedBatches += 1;
+        setBatchInfo({ current: Math.min(completedBatches, totalBatches), total: totalBatches });
         setSelectedFiles((prev) => {
           const uploadedIds = new Set(currentBatch.map((b) => b.id));
           prev.forEach((item) => {
@@ -366,10 +390,29 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             return item;
           });
         });
-        const overallPct = Math.round((uploadedCount / totalFilesCount) * 100);
+        const overallPct = Math.round((batchFractions.reduce((sum, f) => sum + f, 0) / totalFilesCount) * 100);
         lastProgressCommitRef.current = Date.now();
         setProgress(overallPct);
-      }
+      };
+
+      // ponytail: 3-slot pool over the same per-batch body — serial awaits left the uplink idle behind one slow batch.
+      const worker = async (): Promise<void> => {
+        for (;;) {
+          if (batchFailed) return;
+          const batchIdx = nextBatchIdx;
+          if (batchIdx >= totalBatches) return;
+          nextBatchIdx += 1;
+          try {
+            await uploadBatch(batchIdx);
+          } catch (workerErr) {
+            if (firstError === null) firstError = workerErr;
+            batchFailed = true;
+            throw workerErr;
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: Math.min(UPLOAD_BATCH_CONCURRENCY, totalBatches) }, () => worker()));
 
       setUploadStatus({
         kind: "success",

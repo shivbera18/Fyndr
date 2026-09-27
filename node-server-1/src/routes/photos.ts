@@ -1,23 +1,106 @@
 import { Router, type Request, type Response } from "express";
 import mongoose from "mongoose";
-import axios from "axios";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import pLimit from "p-limit";
-import { FLASK_URL, UPLOAD_DIR } from "../config";
+import { UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import Event from "../models/Event";
-import { Job } from "../queue/mongoQueue";
+import { Job, enqueue, markFailed } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
 import { deleteObject } from "../utils/r2";
 import { syncDeletePhotoFromDrive } from "../utils/driveStore";
 import { upload } from "../middleware/upload";
-import { processUploadedFile } from "../photos/processUpload";
+import { removeFaissVector } from "../photos/processUpload";
 
 const router = Router();
 
 //---------------------------------------------------------------------------------------------------------
+
+// Stage-1 only: stream-hash -> Photo/queue dedupe -> queued stub. No ML, no G3,
+// no Drive, no unlink — the ingest worker owns temp files and heavy work.
+async function stagePhoto(
+  file: Express.Multer.File,
+  ctx: { event_id: string; upload_by?: string; folder_name: string }
+): Promise<unknown> {
+  const { event_id, upload_by, folder_name } = ctx;
+  // Route owns the multer temp on every non-stub path: dup paths create no
+  // Job (worker could never name the file), so only the staged stub's file
+  // transfers ownership to the ingest worker.
+  const unlinkQuiet = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
+  let hash = "";
+  try {
+    hash = await new Promise<string>((resolve, reject) => {
+      const h = crypto.createHash("sha256");
+      const s = fs.createReadStream(file.path);
+      s.on("error", reject);
+      s.on("data", (d: string | Buffer) => h.update(d));
+      s.on("end", () => resolve(h.digest("hex")));
+    });
+  } catch (e: unknown) {
+    await unlinkQuiet(file.path);
+    return { file: file.originalname, error: "hash failed: " + errMsg(e), status: "failed" };
+  }
+
+  // Per-event idempotency: check Photo first (fast path)
+  try {
+    const existingPhoto = await Photo.findOne({ event_id, hash });
+    if (existingPhoto) {
+      // Re-upload targets a move: keep grouping truthful
+      if (existingPhoto.folder_name !== folder_name) {
+        existingPhoto.folder_name = folder_name;
+        await existingPhoto.save();
+      }
+      await unlinkQuiet(file.path);
+      return existingPhoto;
+    }
+  } catch { /* fall through to queue */ }
+
+  let queued: { status: string; photo_hash: string } | null = null;
+  try {
+    const j = await enqueue(event_id, hash, file.filename);
+    if (j) queued = { status: String(j.status), photo_hash: String(j.photo_hash) };
+  } catch (e: unknown) {
+    await unlinkQuiet(file.path);
+    return { file: file.originalname, hash, error: errMsg(e), status: "failed" };
+  }
+  if (queued && queued.status === "done") {
+    const existing = await Photo.findOne({ event_id, hash }).catch(() => null);
+    await unlinkQuiet(file.path);
+    return existing || { file: file.originalname, hash, status: "duplicate", photo_id: queued.photo_hash };
+  }
+
+  const photoId = new mongoose.Types.ObjectId();
+  try {
+    const stub = new Photo({
+      _id: photoId,
+      name: file.filename,
+      event_id,
+      upload_by,
+      folder_name,
+      hash,
+      status: "queued",
+    });
+    await stub.save();
+    return stub;
+  } catch (e: unknown) {
+    if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
+      const dup = await Photo.findOne({ event_id, hash }).catch(() => null);
+      await unlinkQuiet(file.path);
+      return dup || { file: file.originalname, hash, status: "duplicate" };
+    }
+    const msg = errMsg(e);
+    await markFailed(event_id, hash, msg).catch(() => {});
+    await unlinkQuiet(file.path);
+    return { file: file.originalname, hash, error: msg, status: "failed" };
+  }
+}
+
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 router.post('/photo', upload.array('name', 100), async (req: Request, res: Response) => {
     const endTimer = uploadDuration.startTimer();
@@ -42,19 +125,19 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         if (!canonical) return res.status(400).send({ error: `unknown folder_name. Valid: ${validFolders.join(', ')}` });
         const folder_name = canonical;
 
-        // ponytail: 6 parallel ML embeddings keep all 4 ARM cores fed without OOM; p95 stays bounded.
+        // ponytail: stage-1 only — hash + queued stub acks in seconds; ingestWorker owns ML/storage.
         const limit = pLimit(6);
 
-        const results: any[] = await Promise.all(
-            files.map(file => limit((): Promise<any> => processUploadedFile(file, { event_id, upload_by, folder_name })))
+        const results: unknown[] = await Promise.all(
+            files.map(file => limit((): Promise<unknown> => stagePhoto(file, { event_id, upload_by, folder_name })))
         );
 
-        const failed = results.filter(r => r && r.error);
+        const failed = results.filter((r) => typeof r === "object" && r !== null && "error" in r);
         endTimer();
-        // 207 Multi-Status if partial failures, 200 if all ok
+        // 207 Multi-Status if partial failures, 422 if all failed, 202 queued stubs otherwise
         if (failed.length > 0 && failed.length < results.length) return res.status(207).send(results);
         if (failed.length === results.length) return res.status(422).send(results);
-        res.status(200).send(results);
+        res.status(202).send(results);
     } catch (error: any) {
         logger.error('[photo] upload error', error);
         endTimer();
@@ -78,7 +161,7 @@ const deleteImageHandler = async (req: Request, res: Response) => {
             if (result.hash) {
                 try { await Job.deleteOne({ event_id: result.event_id, photo_hash: result.hash }).catch(()=>{}); } catch(_){}
             }
-            try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id: result.event_id, photo_id: _id }, { timeout: 5000 }).catch(()=>{}); } catch(_){}
+            try { await removeFaissVector(result.event_id, String(_id), 5000).catch(()=>{}); } catch(_){}
         }
 
         const fileName = result.name || name;
@@ -166,8 +249,10 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
         if (!safePath.startsWith(resolvedUploadDir)) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        if (!fs.existsSync(safePath)) {
-            return res.status(404).json({ error: 'File not found' });
+        try {
+          await fs.promises.stat(safePath);
+        } catch {
+          return res.status(404).json({ error: 'File not found' });
         }
         // ROI counter — analytics must never break downloads, resolve owner first
         try {

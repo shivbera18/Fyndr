@@ -1,4 +1,5 @@
 import multer from "multer";
+import path from "path";
 import { EVENT_PROFILE_DIR, UPLOAD_DIR } from "../config";
 
 const IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"];
@@ -21,7 +22,8 @@ function diskUpload(dir: string) {
       cb(null, dir);
     },
     filename: (_req, file, cb) => {
-      cb(null, `${Date.now()}-${file.originalname}`); // Unique filename
+      const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
+      cb(null, `${Date.now()}-${safe}`); // Unique filename
     },
   });
   return multer({

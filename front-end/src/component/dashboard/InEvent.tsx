@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import { dataURLToBlob, sanitizeFileName, shareOrDownload } from "../../utils/download";
 import UploadImg from "./Upload_Img";
+import { useEventPhotos } from "./useEventPhotos";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -38,6 +39,7 @@ const StandeeQr = React.lazy(() => import("./qr-standee"));
 type Photo = {
   _id: string;
   name: string;
+  thumb?: string;
   createdAt?: string;
   folder_name?: string;
   isSelected?: boolean;
@@ -169,15 +171,15 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
 });
 
   const navigate = useNavigate();
-  const [images, setImages] = useState<Photo[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [activeFolder, setActiveFolder] = useState<string>("All");
+  const { photos: images, loading, hasMore, sentinelRef, refresh: fetchImages, loadMore, removePhoto } =
+    useEventPhotos(eventID, activeFolder);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<Preview | null>(null);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [folders, setFolders] = useState<{ name: string }[]>(initialFolders || []);
-  const [activeFolder, setActiveFolder] = useState<string>("All");
   const [newFolder, setNewFolder] = useState<string>("");
   const [folderError, setFolderError] = useState<string>("");
   const [showPickedOnly, setShowPickedOnly] = useState<boolean>(false);
@@ -207,9 +209,6 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   const [pinInput, setPinInput] = useState<string>(pin || "");
   const [savingPin, setSavingPin] = useState<boolean>(false);
   const [pinFeedback, setPinFeedback] = useState<string>("");
-  // ponytail: cap initial grid render — 5k-photo events rendered every card at once.
-  const [visibleCount, setVisibleCount] = useState<number>(60);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const [, startFolderTransition] = useTransition();
 
@@ -253,11 +252,11 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
           body: JSON.stringify({ _id: photoId, photo_id: photoId, event_id: eventID }),
         });
         if (res.ok) {
-          setImages((prev) => prev.filter((p) => p._id !== photoId));
+          removePhoto(photoId);
         }
       } catch {}
     },
-    [eventID]
+    [eventID, removePhoto]
   );
 
   const handlePreview = useCallback((preview: Preview) => {
@@ -315,9 +314,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     setSelectionLimit(initialLimit > 0 ? String(initialLimit) : "");
     setSelectionLocked(initialLocked || false);
   }, [eventID, initialFolders, initialLimit, initialLocked]);
-  useEffect(() => {
-    setVisibleCount(60);
-  }, [activeFolder, showPickedOnly, eventID]);
+  // Reset client filter state on context change (hook resets its own page on activeFolder/eventID).
 
   useEffect(() => {
     if (!ownerId) return;
@@ -385,38 +382,10 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
 
   const getApiBase = (): string => API_URL;
 
-
   const guestUrl = `${window.location.origin}/collect/${eventID}`;
+  // Gallery pages load via useEventPhotos (GET /events/:id/photos); fetchImages is its refresh.
 
-  const fetchImages = async (): Promise<void> => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${getApiBase()}/in-event`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _id: eventID, event_id: eventID }),
-      });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setImages(data);
-      } else if (data && Array.isArray(data.photos)) {
-        setImages(data.photos);
-      } else if (data && Array.isArray(data.result)) {
-        setImages(data.result);
-      } else {
-        setImages([]);
-      }
-    } catch {
-      setImages([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchImages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventID]);
 
   const handleDeleteEvent = async (): Promise<void> => {
     try {
@@ -779,30 +748,12 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     t.src = fallbackPlaceholder;
   }, []);
 
-  const inFolder = (p: Photo, folder: string): boolean =>
-    folder === "All" || (p.folder_name || "General") === folder;
+  // Server already pages+filters by activeFolder; only the Picked toggle filters client-side.
   const visibleImages = useMemo(
-    () => images.filter((p) => inFolder(p, activeFolder) && (!showPickedOnly || p.isSelected)),
-    [images, activeFolder, showPickedOnly]
+    () => (showPickedOnly ? images.filter((p) => p.isSelected) : images),
+    [images, showPickedOnly]
   );
-  const shownImages = useMemo(() => visibleImages.slice(0, visibleCount), [visibleImages, visibleCount]);
 
-  useEffect(() => {
-    const sentinel = loadMoreRef.current;
-    if (!sentinel || visibleImages.length <= visibleCount || !window.IntersectionObserver) return;
-    let active = true;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!active || !entry?.isIntersecting) return;
-      setVisibleCount((count) =>
-        count === visibleCount ? Math.min(count + 60, visibleImages.length) : count
-      );
-    }, { rootMargin: "200px" });
-    observer.observe(sentinel);
-    return () => {
-      active = false;
-      observer.disconnect();
-    };
-  }, [visibleCount, visibleImages.length]);
 
   return (
     <div className="space-y-8 pb-16 pb-safe md:pb-0">
@@ -1001,7 +952,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         <CardContent className="p-6 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {["All", ...folders.map((f) => f.name)].map((folderTab) => {
-              const count = images.filter((p) => inFolder(p, folderTab)).length;
+              // Paged endpoint filters per folder, so only the active tab count is known; others show no count.
               const isActive = activeFolder === folderTab;
               return (
                 <Button
@@ -1012,7 +963,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
                   aria-pressed={isActive}
                   className="min-h-[44px]"
                 >
-                  {folderTab} ({count})
+                  {folderTab}{isActive ? ` (${images.length}${hasMore ? "+" : ""})` : ""}
                 </Button>
               );
             })}
@@ -1137,7 +1088,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             <ul className="divide-y divide-border rounded-lg border border-border">
               {picks.map((p) => (
                 <li key={p._id} className="flex items-center gap-2.5 p-2">
-                  <img src={`${getApiBase()}/uploads/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
+                  <img src={p.thumb ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(p.thumb)}` : `${getApiBase()}/uploads/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-xs">{p.name}</p>
                     {p.selectionNote ? <p className="truncate text-xs text-muted-foreground">{p.selectionNote}</p> : null}
@@ -1469,7 +1420,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchImages}
+              onClick={() => void fetchImages()}
               className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs sm:text-sm"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -1478,7 +1429,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
           </div>
         </div>
 
-        {loading ? (
+        {loading && images.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm">Loading photos…</p>
@@ -1500,35 +1451,37 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             </CardContent>
           </Card>
         ) : (
-            <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {shownImages.map((photo, index) => (
-              <InEventPhotoCard
-                key={photo._id || index}
-                photo={photo}
-                index={index}
-                photoUrl={`${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`}
-                wmOn={wmOn}
-                watermarkText={watermarkText}
-                onPreview={handlePreview}
-                onDownload={handleDownload}
-                onDelete={handleDelete}
-                onImgError={handleImgError}
-              />
-            ))}
-          </div>
-            {visibleImages.length > shownImages.length && (
-              <div ref={loadMoreRef} className="flex justify-center pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setVisibleCount((c) => Math.min(c + 60, visibleImages.length))}
-                  className="min-h-[44px]"
-                >
-                  Show more ({visibleImages.length - shownImages.length} remaining)
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {visibleImages.map((photo, index) => {
+                const thumbUrl = photo.thumb
+                  ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(photo.thumb)}`
+                  : `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                const fullUrl = `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;
+                return (
+                  <InEventPhotoCard
+                    key={photo._id || index}
+                    photo={photo}
+                    index={index}
+                    photoUrl={thumbUrl}
+                    wmOn={wmOn}
+                    watermarkText={watermarkText}
+                    onPreview={(preview) => handlePreview({ ...preview, url: fullUrl })}
+                    onDownload={() => handleDownload(fullUrl, photo.name)}
+                    onDelete={handleDelete}
+                    onImgError={handleImgError}
+                  />
+                );
+              })}
+            </div>
+            {hasMore ? (
+              <div ref={sentinelRef} className="flex justify-center pt-2">
+                <Button variant="outline" onClick={() => loadMore()} className="min-h-[44px]">
+                  Show more
                 </Button>
               </div>
-            )}
-            </>
+            ) : null}
+          </>
         )}
       </div>
 

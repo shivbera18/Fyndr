@@ -20,6 +20,7 @@ const jobSchema = new mongoose.Schema(
 // Compound unique: same file in same event is idempotent, cross-event allowed
 jobSchema.index({ event_id: 1, photo_hash: 1 }, { unique: true });
 jobSchema.index({ status: 1, createdAt: 1 });
+jobSchema.index({ event_id: 1, status: 1 });
 
 export type JobDoc = InferSchemaType<typeof jobSchema>;
 export default mongoose.models.FyndrJob || mongoose.model("FyndrJob", jobSchema);
