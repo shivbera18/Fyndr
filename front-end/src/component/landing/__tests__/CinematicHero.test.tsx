@@ -38,6 +38,10 @@ describe("CinematicHero", () => {
       expect.stringContaining("cloudfront.net")
     );
     expect(video.muted).toBe(true);
+    expect(video.className).toMatch(/object-cover/);
+    const film = screen.getByTestId("cinematic-film");
+    expect(film.className).toMatch(/fixed/);
+    expect(film.className).not.toMatch(/-z-10/);
   });
 
   test("Begin Journey buttons navigate to login", () => {

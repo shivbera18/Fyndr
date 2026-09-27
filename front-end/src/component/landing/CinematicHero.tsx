@@ -76,13 +76,14 @@ export default function CinematicHero(): React.JSX.Element {
 
   return (
     <div
-      className="font-cinematic-body pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-white text-black"
+      className="font-cinematic-body pointer-events-none fixed inset-0 z-0 overflow-hidden bg-white text-black"
       style={{ opacity: "var(--film-dim, 1)" }}
       aria-hidden="true"
       data-testid="cinematic-film"
     >
       <video
         ref={videoRef}
+        className="absolute inset-0 h-full w-full object-cover opacity-0"
         src={VIDEO_URL}
         autoPlay
         muted
@@ -93,7 +94,6 @@ export default function CinematicHero(): React.JSX.Element {
         tabIndex={-1}
         data-testid="cinematic-hero-video"
       />
-      {/* Readability: white at the top for nav, fading out so the film shows through the middle */}
       <div className="absolute inset-0 bg-gradient-to-b from-white via-white/55 to-transparent" />
       {/* Bottom melt into the white page below */}
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-white" />

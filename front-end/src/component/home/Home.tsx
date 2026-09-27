@@ -628,18 +628,18 @@ export default function Home(): React.JSX.Element {
   }, [location.hash, location.pathname]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white/72 text-neutral-900 selection:bg-emerald-500/20" data-theme="light">
+    <div className="relative min-h-screen flex flex-col bg-white/72 text-neutral-900 selection:bg-emerald-500/20" data-theme="light">
       {/* Fixed wedding film behind everything; foreground sections float over it on glass */}
       <CinematicHero />
 
       {/* Straight vertical boundary lines extending all the way to the top of the viewport */}
       {/* ponytail: absolute (not fixed) — fixed full-viewport layer forces full-tile repaint every scroll frame on mobile. */}
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200/70 z-0" />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200/70 z-[1]" />
 
       <CinematicHeroForeground />
 
       {/* Main Container framed with Section Boundaries */}
-      <main className="flex-1 w-full max-w-[1240px] mx-auto pb-20 sm:pb-0 relative z-10 bg-transparent">
+      <main className="flex-1 w-full max-w-[1240px] mx-auto pb-20 sm:pb-0 relative z-[1] bg-transparent">
 
         {/* ============================================================ */}
         {/* 2. METRICS & IMPACT BAR                                      */}
