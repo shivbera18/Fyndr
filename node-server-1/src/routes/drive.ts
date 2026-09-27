@@ -39,19 +39,24 @@ interface UserInfo {
 router.get("/drive/connect", async (req: Request, res: Response) => {
   const user_id = req.query.user_id as string;
   if (!user_id) return res.status(400).send({ error: "user_id required" });
-  const user = await User.findById(user_id);
-  if (!user) return res.status(404).send({ error: "user not found" });
-  const state = jwt.sign({ userId: user_id, nonce: randomUUID() }, JWT_SECRET, { expiresIn: "10m" });
-  const params = new URLSearchParams({
-    client_id: GOOGLE_DRIVE_CLIENT_ID,
-    redirect_uri: GOOGLE_DRIVE_REDIRECT_URI,
-    response_type: "code",
-    scope: `openid email profile ${DRIVE_FILE_SCOPE}`,
-    access_type: "offline",
-    prompt: "consent",
-    state,
-  });
-  res.send({ authUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
+  try {
+    const user = await User.findById(user_id);
+    if (!user) return res.status(404).send({ error: "user not found" });
+    const state = jwt.sign({ userId: user_id, nonce: randomUUID() }, JWT_SECRET, { expiresIn: "10m" });
+    const params = new URLSearchParams({
+      client_id: GOOGLE_DRIVE_CLIENT_ID,
+      redirect_uri: GOOGLE_DRIVE_REDIRECT_URI,
+      response_type: "code",
+      scope: `openid email profile ${DRIVE_FILE_SCOPE}`,
+      access_type: "offline",
+      prompt: "consent",
+      state,
+    });
+    res.send({ authUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
+  } catch (e: unknown) {
+    logger.error("Drive connect failed", { error: e instanceof Error ? e.message : String(e) });
+    return res.status(400).send({ error: "invalid user_id" });
+  }
 });
 
 router.post("/drive/callback", async (req: Request, res: Response) => {
