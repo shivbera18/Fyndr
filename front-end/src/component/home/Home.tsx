@@ -305,9 +305,9 @@ function InteractiveFaceMatcher() {
 
   return (
     <div className="flex flex-col h-full justify-between space-y-4">
-      <div className="relative rounded-xl border border-white/60 bg-white/55 backdrop-blur-md p-4 overflow-hidden shadow-sm">
+      <div className="relative rounded-xl p-4 overflow-hidden">
         {/* Face detection target canvas */}
-        <div className="relative h-44 w-full rounded-lg bg-neutral-950/80 overflow-hidden flex items-center justify-center border border-neutral-800">
+        <div className="relative h-44 w-full rounded-lg bg-neutral-950/80 overflow-hidden flex items-center justify-center">
           <div className="absolute inset-0 bg-dot-grid opacity-30 pointer-events-none" />
 
           {/* Bounding box simulation */}
@@ -338,7 +338,7 @@ function InteractiveFaceMatcher() {
         </div>
 
         {/* User-friendly telemetry ticker */}
-        <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-neutral-500 border-t border-white/60 pt-2.5">
+        <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-neutral-500 border-t pt-2.5">
           <div className="flex items-center gap-1.5">
             <Sparkles className="size-3 text-emerald-500" />
             <span>Search speed: &lt; 1 second</span>
@@ -362,7 +362,7 @@ function InteractiveFaceMatcher() {
           size="sm"
           variant="outline"
           onClick={triggerMatch}
-          className="text-xs rounded-full min-h-[44px] px-4 border-white/60 bg-white/55"
+          className="text-xs rounded-full min-h-[44px] px-4 bg-white/10"
         >
           {matching ? "Scanning..." : "Simulate"}
         </Button>
@@ -404,7 +404,7 @@ function DemoPanel({ step }: { step: DemoStep }) {
           <Badge variant="secondary" className="text-xs font-mono">3,420 photos</Badge>
         </div>
         <div className="space-y-2">
-          <div className="h-2 w-full bg-white/50 rounded-full overflow-hidden border border-white/60">
+          <div className="h-2 w-full bg-white/15 rounded-full overflow-hidden">
             <div className="h-full bg-emerald-500 rounded-full w-[85%] animate-pulse" />
           </div>
           <div className="flex justify-between text-xs text-neutral-500 font-mono">
@@ -466,7 +466,7 @@ function DemoPanel({ step }: { step: DemoStep }) {
                 el.src = fb;
               }
             }}
-            className="aspect-square w-full rounded-lg border border-white/60 object-cover bg-white/40"
+            className="aspect-square w-full rounded-lg object-cover bg-white/10"
           />
         ))}
       </div>
@@ -523,7 +523,7 @@ function DemoCard() {
 
   return (
     <div id="fy-demo-card" className="overflow-hidden rounded-2xl glass-landing shadow-xl">
-      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/60 bg-white/45 backdrop-blur-md">
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/15">
         <span className="size-2.5 rounded-full bg-red-400/80 inline-block" />
         <span className="size-2.5 rounded-full bg-yellow-400/80 inline-block" />
         <span className="size-2.5 rounded-full bg-emerald-400/80 inline-block" />
@@ -531,7 +531,7 @@ function DemoCard() {
       </div>
 
       <div className="p-5 space-y-4">
-        <div className="grid grid-cols-3 gap-1 border-b border-white/60 pb-3">
+        <div className="grid grid-cols-3 gap-1 border-b pb-3">
           {STEPS.map((s) => (
             <button
               key={s.id}
@@ -544,7 +544,7 @@ function DemoCard() {
                 "px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors min-h-[44px] flex items-center justify-center text-center leading-tight",
                 step === s.id
                   ? "bg-neutral-900 text-white shadow-xs"
-                  : "text-neutral-500 hover:text-neutral-900 hover:bg-white/60"
+                  : "text-neutral-500 hover:text-neutral-900 hover:bg-white/10"
               )}
             >
               {s.label}
@@ -628,24 +628,21 @@ export default function Home(): React.JSX.Element {
   }, [location.hash, location.pathname]);
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-white/72 text-neutral-900 selection:bg-emerald-500/20" data-theme="light">
+    <div className="relative min-h-screen flex flex-col bg-transparent text-neutral-900 selection:bg-emerald-500/20" data-theme="light">
       {/* Fixed wedding film behind everything; foreground sections float over it on glass */}
       <CinematicHero />
 
-      {/* Straight vertical boundary lines extending all the way to the top of the viewport */}
-      {/* ponytail: absolute (not fixed) — fixed full-viewport layer forces full-tile repaint every scroll frame on mobile. */}
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[1240px] border-x border-neutral-200/70 z-[1]" />
 
       <CinematicHeroForeground />
 
       {/* Main Container framed with Section Boundaries */}
-      <main className="flex-1 w-full max-w-[1240px] mx-auto pb-20 sm:pb-0 relative z-[1] bg-transparent">
+      <main className="flex-1 w-full max-w-[1240px] mx-auto pb-24 sm:pb-16 relative z-[1] bg-transparent">
 
         {/* ============================================================ */}
         {/* 2. METRICS & IMPACT BAR                                      */}
         {/* ============================================================ */}
-        <section className="border-b border-white/50">
-          <div className="grid grid-cols-2 lg:grid-cols-4 glass-landing-soft [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:nth-child(-n+3)]:border-r lg:[&>*]:border-white/50 lg:rounded-2xl lg:overflow-hidden">
+        <section className="pt-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 glass-landing-soft overflow-hidden">
             {STATS.map((stat) => {
               const Icon = stat.icon;
               return (
@@ -654,7 +651,7 @@ export default function Home(): React.JSX.Element {
                     <span className="font-mono text-3xl sm:text-4xl font-bold tracking-tight text-neutral-900">
                       {stat.value}
                     </span>
-                    <span className="p-2 rounded-xl bg-white/70 border border-white/60 text-neutral-800">
+                    <span className="p-2 rounded-xl bg-white/10 border-white/15 text-neutral-800">
                       <Icon className="size-4 text-emerald-500" />
                     </span>
                   </div>
@@ -673,7 +670,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 3. SOCIAL PROOF STUDIO MARQUEE                               */}
         {/* ============================================================ */}
-        <section className="border-b border-white/50 py-6 glass-landing-soft overflow-hidden">
+        <section className="py-6 glass-landing-soft overflow-hidden">
           <div className="px-4 text-center">
             <span className="text-xs font-mono font-semibold uppercase tracking-widest text-neutral-500 mb-4 block">
               Trusted by leading wedding &amp; event studios
@@ -692,7 +689,7 @@ export default function Home(): React.JSX.Element {
         </section>
         {/* 4. SIGNATURE BENTO GRID SHOWCASE                             */}
         {/* ============================================================ */}
-        <section id="features" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-white/50">
+        <section id="features" className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <span className="font-mono text-xs uppercase tracking-widest text-emerald-600 font-semibold">
               Next-Gen Architecture
@@ -743,7 +740,7 @@ export default function Home(): React.JSX.Element {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/60 bg-white/55 backdrop-blur-md p-3 space-y-2 font-mono text-xs shadow-sm">
+                <div className="rounded-xl border  p-3 space-y-2 font-mono text-xs shadow-sm">
                   <div className="flex items-center justify-between text-neutral-500">
                     <span>Memory Retention</span>
                     <span className="text-emerald-600 font-bold">&lt; 60s TTL</span>
@@ -763,12 +760,12 @@ export default function Home(): React.JSX.Element {
               title="Live Studio Analytics & Leads"
               description="Capture verified attendee contacts directly through their gallery session and direct WhatsApp booking prompts."
             >
-              <div className="mt-4 pt-4 border-t border-white/60 grid grid-cols-2 gap-2 text-center font-mono">
-                <div className="p-2 rounded-lg bg-white/55 backdrop-blur-md border border-white/60">
+              <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-center font-mono">
+                <div className="p-2 rounded-lg ">
                   <div className="text-lg font-bold text-neutral-900">240+</div>
                   <div className="text-[10px] text-neutral-500">Guest Scans</div>
                 </div>
-                <div className="p-2 rounded-lg bg-white/55 backdrop-blur-md border border-white/60">
+                <div className="p-2 rounded-lg ">
                   <div className="text-lg font-bold text-emerald-600">18</div>
                   <div className="text-[10px] text-neutral-500">New Leads</div>
                 </div>
@@ -782,7 +779,7 @@ export default function Home(): React.JSX.Element {
               title="High-Volume Photo Upload"
               description="Upload thousands of photos at once. Fyndr processes the album in the background while preserving full original quality and metadata."
             >
-              <div className="mt-4 p-3.5 rounded-xl border border-white/60 bg-white/55 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs">
+              <div className="mt-4 p-3.5 rounded-xl border  flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs">
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-neutral-800 font-semibold">
@@ -807,7 +804,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 4B. CAMERA-TO-CLOUD (SHOOTERS MERGE INTO LIVE GALLERY)        */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">Camera-to-Cloud</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -825,7 +822,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 5. WHO IT SERVES (single row, terminal removed)              */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">Who it serves</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -866,7 +863,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 6. HOW IT WORKS WORKFLOW                                     */}
         {/* ============================================================ */}
-        <section id="how-it-works" className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section id="how-it-works" className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">How it works</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -906,7 +903,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 7. WHY SWITCH (TRADITIONAL VS FYNDR COMPARISON MATRIX)        */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">Why Switch</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -919,7 +916,7 @@ export default function Home(): React.JSX.Element {
 
           <div className="glass-landing rounded-2xl overflow-hidden max-w-4xl mx-auto">
             {/* Table Header */}
-            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/60 border-b border-white/60">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/15 ">
               <div className="p-5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="size-8 rounded-lg bg-red-500/10 text-destructive flex items-center justify-center">
@@ -956,11 +953,11 @@ export default function Home(): React.JSX.Element {
             </div>
 
             {/* Comparison Rows with Horizontal & Vertical Boundaries */}
-            <div className="divide-y divide-white/60 font-sans text-sm">
+            <div className="divide-y divide-white/15 font-sans text-sm">
               {COMPARISON_ROWS.map((row) => (
                 <div
                   key={row.feature}
-                  className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/60 hover:bg-white/40 transition-colors"
+                  className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/15 hover:bg-white/10 transition-colors"
                 >
                   <div className="p-4 sm:p-5 flex items-start gap-3">
                     <X className="size-4 text-red-500 shrink-0 mt-0.5" />
@@ -994,7 +991,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 8. USE CASES                                                 */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">Use cases</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -1012,10 +1009,10 @@ export default function Home(): React.JSX.Element {
                 className="glass-landing rounded-2xl p-6 space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <span className="size-10 rounded-xl bg-white/70 border border-white/60 inline-flex items-center justify-center">
+                  <span className="size-10 rounded-xl bg-white/10 border inline-flex items-center justify-center">
                     <u.icon className="size-5 text-emerald-600" />
                   </span>
-                  <Badge variant="outline" className="text-xs font-mono bg-white/60">{u.tag}</Badge>
+                  <Badge variant="outline" className="text-xs font-mono bg-white/10">{u.tag}</Badge>
                 </div>
                 <h3 className="font-cinematic-display text-lg font-normal text-neutral-900 text-balance">{u.title}</h3>
                 <p className="text-xs text-neutral-600 leading-relaxed text-pretty">{u.body}</p>
@@ -1027,7 +1024,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 9. TESTIMONIALS                                              */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">Testimonials</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -1054,7 +1051,7 @@ export default function Home(): React.JSX.Element {
                     “{t.quote}”
                   </blockquote>
                 </div>
-                <figcaption className="pt-3 border-t border-white/60">
+                <figcaption className="pt-3 border-t border-white/15">
                   <div className="font-semibold text-sm text-neutral-900">{t.author}</div>
                   <div className="text-xs text-neutral-500">{t.role}</div>
                 </figcaption>
@@ -1066,7 +1063,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 10. PRICING TIERS                                            */}
         {/* ============================================================ */}
-        <section id="pricing" className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section id="pricing" className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">Transparent Pricing</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -1113,7 +1110,7 @@ export default function Home(): React.JSX.Element {
                         </p>
                       </div>
 
-                      <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-white/60">
+                      <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-white/15">
                         {tier.features.map((feat) => (
                           <li key={feat} className="flex items-start gap-2">
                             <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
@@ -1166,7 +1163,7 @@ export default function Home(): React.JSX.Element {
                       </p>
                     </div>
 
-                    <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-white/60">
+                    <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-white/15">
                       {tier.features.map((feat) => (
                         <li key={feat} className="flex items-start gap-2">
                           <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
@@ -1180,7 +1177,7 @@ export default function Home(): React.JSX.Element {
                     size="lg"
                     variant="outline"
                     onClick={() => navigate("/login")}
-                    className="w-full rounded-full min-h-[44px] text-sm font-semibold border-white/60 bg-white/55 transition-all hover:bg-white/80 active:scale-95"
+                    className="w-full rounded-full min-h-[44px] text-sm font-semibold transition-all hover:bg-white/15 active:scale-95"
                   >
                     {tier.cta}
                   </Button>
@@ -1193,7 +1190,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 11. FAQ SECTION                                              */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-white/50">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
           <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
             <Badge variant="secondary">FAQ</Badge>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
@@ -1212,7 +1209,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 12. FINAL CTA CARD                                           */}
         {/* ============================================================ */}
-        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
+        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden glass-landing rounded-3xl p-8 sm:p-12">
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
               <div className="space-y-5">
@@ -1236,14 +1233,14 @@ export default function Home(): React.JSX.Element {
                     variant="outline"
                     size="lg"
                     onClick={() => navigate("/about")}
-                    className="min-h-[48px] rounded-full text-sm font-semibold border-white/60 bg-white/55 text-neutral-900 hover:bg-white/80"
+                    className="min-h-[48px] rounded-full text-sm font-semibold text-neutral-900 hover:bg-white/15"
                   >
                     About Fyndr
                   </Button>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 bg-white/55 backdrop-blur-md p-6 space-y-4">
+              <div className="rounded-2xl border  p-6 space-y-4">
                 <span className="font-bold text-sm text-neutral-900 block">Everything included:</span>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-neutral-700">
                   {[
