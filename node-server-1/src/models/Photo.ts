@@ -24,7 +24,7 @@ const photoSchema = new mongoose.Schema(
 
 // Compound unique: same file hash in same event = one photo, cross-event allowed
 photoSchema.index({ event_id: 1, hash: 1 }, { unique: true, sparse: true });
-photoSchema.index({ event_id: 1, createdAt: -1 });
+photoSchema.index({ event_id: 1, createdAt: -1, _id: -1 });
 photoSchema.index({ name: 1 });
 photoSchema.index({ event_id: 1, isSelected: 1 });
 

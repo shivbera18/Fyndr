@@ -753,8 +753,6 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
     () => (showPickedOnly ? images.filter((p) => p.isSelected) : images),
     [images, showPickedOnly]
   );
-  // Hook owns the +60 IntersectionObserver sentinel (rootMargin 200px); markup below keeps the same grid.
-  const shownImages = visibleImages;
 
 
   return (
@@ -1090,7 +1088,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             <ul className="divide-y divide-border rounded-lg border border-border">
               {picks.map((p) => (
                 <li key={p._id} className="flex items-center gap-2.5 p-2">
-                  <img src={`${getApiBase()}/uploads/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
+                  <img src={p.thumb ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(p.thumb)}` : `${getApiBase()}/uploads/${encodeURIComponent(p.name)}`} alt="" loading="lazy" onError={handleImgError} className="h-10 w-10 rounded-md object-cover" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-xs">{p.name}</p>
                     {p.selectionNote ? <p className="truncate text-xs text-muted-foreground">{p.selectionNote}</p> : null}
@@ -1455,7 +1453,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {shownImages.map((photo, index) => {
+              {visibleImages.map((photo, index) => {
                 const thumbUrl = photo.thumb
                   ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(photo.thumb)}`
                   : `${getApiBase()}/uploads/${encodeURIComponent(photo.name)}`;

@@ -26,6 +26,10 @@ async function stagePhoto(
   ctx: { event_id: string; upload_by?: string; folder_name: string }
 ): Promise<unknown> {
   const { event_id, upload_by, folder_name } = ctx;
+  // Route owns the multer temp on every non-stub path: dup paths create no
+  // Job (worker could never name the file), so only the staged stub's file
+  // transfers ownership to the ingest worker.
+  const unlinkQuiet = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   let hash = "";
   try {
     hash = await new Promise<string>((resolve, reject) => {
@@ -36,6 +40,7 @@ async function stagePhoto(
       s.on("end", () => resolve(h.digest("hex")));
     });
   } catch (e: unknown) {
+    await unlinkQuiet(file.path);
     return { file: file.originalname, error: "hash failed: " + errMsg(e), status: "failed" };
   }
 
@@ -48,6 +53,7 @@ async function stagePhoto(
         existingPhoto.folder_name = folder_name;
         await existingPhoto.save();
       }
+      await unlinkQuiet(file.path);
       return existingPhoto;
     }
   } catch { /* fall through to queue */ }
@@ -57,10 +63,12 @@ async function stagePhoto(
     const j = await enqueue(event_id, hash, file.filename);
     if (j) queued = { status: String(j.status), photo_hash: String(j.photo_hash) };
   } catch (e: unknown) {
+    await unlinkQuiet(file.path);
     return { file: file.originalname, hash, error: errMsg(e), status: "failed" };
   }
   if (queued && queued.status === "done") {
     const existing = await Photo.findOne({ event_id, hash }).catch(() => null);
+    await unlinkQuiet(file.path);
     return existing || { file: file.originalname, hash, status: "duplicate", photo_id: queued.photo_hash };
   }
 
@@ -80,10 +88,12 @@ async function stagePhoto(
   } catch (e: unknown) {
     if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
       const dup = await Photo.findOne({ event_id, hash }).catch(() => null);
+      await unlinkQuiet(file.path);
       return dup || { file: file.originalname, hash, status: "duplicate" };
     }
     const msg = errMsg(e);
     await markFailed(event_id, hash, msg).catch(() => {});
+    await unlinkQuiet(file.path);
     return { file: file.originalname, hash, error: msg, status: "failed" };
   }
 }

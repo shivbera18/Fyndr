@@ -16,7 +16,13 @@ export async function enqueue(event_id: string, photo_hash: string, photo_name?:
 
 export function claimNext() {
   return Job.findOneAndUpdate(
-    { status: "queued", attempts: { $lt: 3 } },
+    // Also reclaim crashed-worker leases: processing rows untouched for 10m
+    // are retried (attempts<3 still bounds total tries). Sole caller is the
+    // ingest worker.
+    {
+      $or: [{ status: "queued" }, { status: "processing", updatedAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) } }],
+      attempts: { $lt: 3 },
+    },
     { $set: { status: "processing" }, $inc: { attempts: 1 } },
     { sort: { createdAt: 1 }, new: true }
   );

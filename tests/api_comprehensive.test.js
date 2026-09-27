@@ -213,7 +213,7 @@ async function run() {
       maxBodyLength: Infinity,
       timeout: 60000,
     });
-    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.status, 202);
     assert(Array.isArray(res.data) && res.data.length > 0);
     const photoId = res.data[0]._id;
     assert(photoId, 'Expected saved photo _id');
@@ -231,17 +231,21 @@ async function run() {
       maxBodyLength: Infinity,
       timeout: 60000,
     });
-    assert.strictEqual(resDup.status, 200);
+    assert.strictEqual(resDup.status, 202);
 
-    // 4.3 In-event gallery list
+    // 4.3 In-event gallery list (worker drains async: poll until the stub flips done)
     console.log('  [photo] verifying in-event photo list...');
-    res = await axios.post(`${API}/in-event`, { _id: eventId });
-    assert.strictEqual(res.status, 200);
-    assert(Array.isArray(res.data) && res.data.length > 0);
+    const galleryDeadline = Date.now() + 90000;
+    for (;;) {
+      res = await axios.post(`${API}/in-event`, { _id: eventId });
+      assert.strictEqual(res.status, 200);
+      if (Array.isArray(res.data) && res.data.length > 0) break;
+      assert(Date.now() < galleryDeadline, 'Gallery never drained queued stub to done');
+      await new Promise((r) => setTimeout(r, 2000));
+    }
     assert(!('upload_by' in res.data[0]), 'Gallery must not leak owner id');
     assert(!('embedding' in res.data[0]), 'Gallery must not ship embeddings');
     const photoName1 = res.data[0].name;
-
     // 4.4 Client proofing: PIN select, limit 409, lock 403, Lightroom export
     console.log('  [proofing] setting selection limit...');
     res = await axios.put(`${API}/events/${eventId}`, { created_id: userId, selectionLimit: 2 });
@@ -279,7 +283,7 @@ async function run() {
       const res2 = await axios.post(`${API}/photo`, photoForm2, {
         headers: photoForm2.getHeaders(), maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000,
       });
-      assert.strictEqual(res2.status, 200);
+      assert.strictEqual(res2.status, 202);
       photoId2 = res2.data[0]._id;
       assert(photoId2 && photoId2 !== photoId, 'Expected a distinct second photo');
 

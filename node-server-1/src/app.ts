@@ -28,8 +28,8 @@ export function createApp(): express.Express {
 
   const THUMBS_DIR = path.join(UPLOAD_DIR, "thumbs");
   fs.mkdirSync(THUMBS_DIR, { recursive: true });
-  app.use("/uploads", express.static(UPLOAD_DIR));
   app.use("/uploads/thumbs", express.static(THUMBS_DIR, { maxAge: "365d", immutable: true }));
+  app.use("/uploads", express.static(UPLOAD_DIR));
   app.use("/event_profile", express.static(EVENT_PROFILE_DIR));
 
   app.use(authRouter);

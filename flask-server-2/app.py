@@ -11,7 +11,7 @@ import ast
 from flask_socketio import SocketIO
 import hashlib
 import random
-from faiss_store import add as faiss_add, search as faiss_search, stats as faiss_stats, remove as faiss_remove, delete_event as faiss_delete_event
+from faiss_store import add as faiss_add, add_many as faiss_add_many, search as faiss_search, stats as faiss_stats, remove as faiss_remove, delete_event as faiss_delete_event
 import logging
 from pathlib import Path
 
@@ -316,6 +316,7 @@ def get_embeddings():
     if event_id and not photo_ids:
         return jsonify({'error': 'both event_id and photo_ids required for indexing'}), 400
     results = []
+    faiss_items = []
     for i, file in enumerate(files):
         photo_id = photo_ids[i] if photo_ids else None
         try:
@@ -334,14 +335,23 @@ def get_embeddings():
         if error:
             results.append({'photo_id': photo_id, 'embeddings': [], 'embedding': None, 'face_count': 0, 'error': error[0]})
             continue
-        if event_id and photo_id and embeddings:
-            try:
-                faiss_add(event_id, photo_id, embeddings)
-            except Exception as e:
-                logger.error(f"[faiss] add failed {e}", exc_info=True)
-                results.append({'photo_id': photo_id, 'embeddings': embeddings, 'embedding': primary, 'face_count': face_count, 'error': f'faiss add failed: {e}'})
-                continue
         results.append({'photo_id': photo_id, 'embeddings': embeddings, 'embedding': primary, 'face_count': face_count})
+        if event_id and photo_id and embeddings:
+            for vec in embeddings:
+                faiss_items.append((photo_id, vec))
+    # ponytail: one disk cycle per batch; FAISS is best-effort - warn, don't fail usable embeddings.
+    if event_id and faiss_items:
+        try:
+            ok = faiss_add_many(event_id, faiss_items)
+            if ok is False:
+                for r in results:
+                    if r.get('embeddings'):
+                        r['faiss_warn'] = 'faiss add skipped: corrupt event index (re-upload to rebuild)'
+        except Exception as e:
+            logger.error(f"[faiss] add_many failed {e}", exc_info=True)
+            for r in results:
+                if r.get('embeddings'):
+                    r['faiss_warn'] = f'faiss add failed: {e}'
     return jsonify({'results': results}), 200
 
 # API Endpoint to generate a 640px-wide JPEG thumbnail for gallery rendering
@@ -351,6 +361,8 @@ def thumbnail():
         return jsonify({'error': 'No image file provided'}), 400
     file = request.files['image']
     image_bytes = file.read()
+    if len(image_bytes) > 15 * 1024 * 1024:
+        return jsonify({'error': 'image too large (max 15MB)'}), 400
     if not image_bytes:
         return jsonify({'error': 'No image file provided'}), 400
     try:

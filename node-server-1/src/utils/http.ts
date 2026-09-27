@@ -10,7 +10,9 @@ const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
 export const httpClient = axios.create({
   httpAgent,
   httpsAgent,
-  timeout: 0,
+  // Sane default so a stalled peer never pins a caller forever; hot paths
+  // (ML 120s, Drive ops) all pass explicit timeouts and are unaffected.
+  timeout: 30000,
 });
 
 export default httpClient;

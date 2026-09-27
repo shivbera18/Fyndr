@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import mongoose from "mongoose";
-import axios from "axios";
+import { httpClient as axios } from "../utils/http";
 import archiver from "archiver";
 import fs from "fs";
 import path from "path";
@@ -115,7 +115,7 @@ router.post('/in-event', async (req: Request, resp: Response) => {
     try {
         // Guest-visible gallery: project out owner-equivalent ids (upload_by) + embedding/hash ballast.
         // PUT /events/:id ownership check depends on created_id staying photographer-known.
-        const result = await Photo.find({ event_id: _id })
+        const result = await Photo.find({ event_id: _id, status: "done" })
             .select("_id name folder_name isSelected createdAt")
             .sort({ createdAt: -1 })
             .lean();
@@ -134,7 +134,7 @@ router.get("/events/:id/photos", async (req: Request, res: Response) => {
         if (!eventExists) return res.status(404).send({ error: "event not found" });
         const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "60"), 10) || 60, 1), 200);
         const wantFolder = typeof req.query.folder === "string" && req.query.folder.trim() ? req.query.folder.trim().slice(0, 60) : "All";
-        const filter: Record<string, unknown> = { event_id: id };
+        const filter: Record<string, unknown> = { event_id: id, status: "done" };
         if (wantFolder !== "All") {
             const validFolders: string[] = ["General"];
             for (const f of eventExists.folders || []) validFolders.push(f.name);

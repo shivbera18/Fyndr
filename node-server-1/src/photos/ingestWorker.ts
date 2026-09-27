@@ -3,7 +3,7 @@ import path from "path";
 import FormData from "form-data";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
-import { claimNext, markDone, markFailed } from "../queue/mongoQueue";
+import { claimNext, markDone, markFailed, Job } from "../queue/mongoQueue";
 import { putObjectBytes } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import { httpClient } from "../utils/http";
@@ -12,12 +12,17 @@ import logger from "../utils/logger";
 interface QueuedClaim {
   event_id: string;
   photo_hash: string;
+  // Optional: pre-skipQueue Job rows never set it (schema keeps it optional),
+  // so strict build needs `?` + a typeof guard at the unlink site.
+  photo_name?: string;
 }
 
 interface StubPhoto {
   _id: unknown;
   name: string;
   upload_by?: unknown;
+  status?: unknown;
+  embedding?: unknown;
 }
 
 interface WorkItem {
@@ -77,6 +82,19 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
     const photo = await Photo.findOne({ event_id: eventId, hash }).catch(() => null);
     if (!photo) {
       await markFailed(eventId, hash, "photo stub missing").catch(() => {});
+      // Terminal cleanup only when exhausted: retryable attempts own no file
+      // (no stub to name it), so drop the orphan temp via the Job's photo_name.
+      const j = await Job.findOne({ event_id: eventId, photo_hash: hash }).catch(() => null);
+      if (!j || j.status === "failed") {
+        const fname = typeof job.photo_name === "string" && job.photo_name ? job.photo_name : null;
+        if (fname) await unlinkQuiet(path.join(UPLOAD_DIR, path.basename(fname)));
+      }
+      continue;
+    }
+    // Already finished (re-claimed lease after a crash past save): close the
+    // Job without touching fs — the winning tick owns temp cleanup.
+    if (photo.status === "done" && photo.embedding) {
+      await markDone(eventId, hash).catch(() => {});
       continue;
     }
     const tempPath = path.join(UPLOAD_DIR, photo.name);
@@ -124,7 +142,13 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
     }
     if (!embeddings) {
       await markFailed(item.eventId, item.hash, failure || "embedding failed").catch(() => {});
-      await unlinkQuiet(path.join(UPLOAD_DIR, item.photo.name));
+      // Keep file+stub for retry; only an exhausted Job (failed/missing) gets
+      // terminal cleanup — the stub can never complete without an embedding.
+      const exhausted = await Job.findOne({ event_id: item.eventId, photo_hash: item.hash }).catch(() => null);
+      if (!exhausted || exhausted.status === "failed") {
+        await Photo.deleteOne({ event_id: item.eventId, hash: item.hash }).catch(() => {});
+        await unlinkQuiet(path.join(UPLOAD_DIR, item.photo.name));
+      }
       continue;
     }
     await finishItem(item, embeddings);
@@ -175,7 +199,14 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
     await Photo.updateOne({ _id: item.photo._id }, { embedding: JSON.stringify(embeddings), status: "done" });
   } catch (e: unknown) {
     await markFailed(item.eventId, item.hash, e instanceof Error ? e.message : String(e)).catch(() => {});
-    await unlinkQuiet(tempPath);
+    // Keep file+stub for retry; terminal cleanup only when the Job is
+    // exhausted (failed/missing) — a transient DB error must not eat the stub.
+    const exhausted = await Job.findOne({ event_id: item.eventId, photo_hash: item.hash }).catch(() => null);
+    if (!exhausted || exhausted.status === "failed") {
+      await Photo.deleteOne({ _id: item.photo._id }).catch(() => {});
+      await unlinkQuiet(tempPath);
+      return;
+    }
     return;
   }
   // Best-effort mirrors: ingest survives storage outages, still markDone.

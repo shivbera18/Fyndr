@@ -267,6 +267,9 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       let nextBatchIdx = 0;
       let completedBatches = 0;
       let batchFailed = false;
+      // First worker error wins: without this, a sibling's failure throws a
+      // generic CanceledError that hides the real per-batch error below.
+      let firstError: unknown = null;
 
       const commitAggregateProgress = () => {
         const loadedFiles = batchFractions.reduce((sum, f) => sum + f, 0);
@@ -281,8 +284,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         if (abortController.signal.aborted) {
           throw new Error("CanceledError");
         }
-        // ponytail: monotonic counter — batchIdx order races under concurrency, completed-count never goes backwards.
-        setBatchInfo({ current: Math.min(completedBatches + 1, totalBatches), total: totalBatches });
+        // ponytail: no start-of-batch counter — batchIdx order races under
+        // concurrency and a sibling failure could paint a count for a batch that never ran.
 
         const currentBatch = batches[batchIdx];
         const formData = new FormData();
@@ -359,9 +362,13 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             }
           }
         }
-        // ponytail: clear the transient retry banner so a recovered batch doesn't leave a stale red error up.
-        if (abortController.signal.aborted || batchFailed) {
+        // ponytail: sibling failure must not masquerade as a user cancel —
+        // only an actual abort throws CanceledError; otherwise rethrow the real error.
+        if (abortController.signal.aborted) {
           throw new Error("CanceledError");
+        }
+        if (batchFailed) {
+          throw firstError ?? new Error("CanceledError");
         }
         setUploadStatus(null);
         uploadedCount += currentBatch.length;
@@ -398,6 +405,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           try {
             await uploadBatch(batchIdx);
           } catch (workerErr) {
+            if (firstError === null) firstError = workerErr;
             batchFailed = true;
             throw workerErr;
           }

@@ -208,6 +208,7 @@ def add_many(event_id, items):
                         _atomic_np_save(npy_path, arr)
                 except Exception as e:
                     print(f"[faiss_store] add_many dedupe failed: {e}")
+                    return False
         vecs_list, owners = [], []
         for pid, emb in items:
             photo_id = _sanitize_photo_id(pid)
