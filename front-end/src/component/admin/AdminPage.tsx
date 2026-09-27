@@ -299,6 +299,18 @@ export default function AdminPage() {
               </Card>
             </>
           )}
+          <Card className="p-4">
+            <div className="mb-2 text-sm font-medium">Full G3 panel (same login, embedded)</div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Buckets, keys, file manager, and the Google consent callback all live here — no separate login needed.
+            </p>
+            <iframe
+              title="G3 panel"
+              src={`${API_URL}/admin/g3/panel/`}
+              className="h-[720px] w-full rounded-lg border border-border bg-background"
+              loading="lazy"
+            />
+          </Card>
         </div>
       )}
     </div>

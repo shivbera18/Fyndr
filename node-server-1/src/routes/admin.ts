@@ -228,5 +228,49 @@ router.put("/admin/g3/balancing", async (req: Request, res: Response) => {
     res.status(502).send({ error: "G3 unreachable" });
   }
 });
+// G3 panel proxy: SPA + API under /admin/g3/panel/* so the operator gets
+// the full panel (buckets, keys, OAuth callbacks) without exposing :8787.
+// Operator session injected server-side; browser cookies (OAuth state)
+// merge in. Redirects rewritten into the proxy namespace.
+const G3_PROXY_TIMEOUT = 30000;
+async function g3proxy(req: Request, res: Response, target: string, method: string): Promise<void> {
+  const h = await g3headers();
+  if (!h) {
+    res.status(503).send({ error: "G3 not configured (set G3_URL/G3_ADMIN_EMAIL/G3_ADMIN_PASSWORD)" });
+    return;
+  }
+  try {
+    const isApi = target.startsWith("/api/");
+    const r = await axios.request({
+      url: `${G3_URL}${target}`,
+      method,
+      headers: { ...h, ...(req.headers.cookie ? { Cookie: `${h.Cookie}; ${req.headers.cookie}` } : {}) },
+      params: req.query,
+      data: req.body,
+      timeout: G3_PROXY_TIMEOUT,
+      maxRedirects: 0,
+      validateStatus: () => true,
+      responseType: isApi ? "json" : "arraybuffer",
+    });
+    const loc = r.headers.location;
+    if (loc && r.status >= 300 && r.status < 400) {
+      const rewritten = String(loc).replace(/^https?:\/\/[^/]+/, "").replace(/^\/(?!admin\/g3\/panel)/, "/admin/g3/panel/");
+      res.setHeader("location", rewritten);
+    }
+    const sc = r.headers["set-cookie"];
+    if (sc) res.setHeader("set-cookie", sc);
+    const ct = r.headers["content-type"];
+    if (ct && !isApi) res.setHeader("content-type", String(ct));
+    res.status(r.status).send(r.data);
+  } catch (e: unknown) {
+    logger.error("Admin G3 panel proxy failed", { error: (e as Error).message, target });
+    if (!res.headersSent) res.status(502).send({ error: "G3 unreachable" });
+  }
+}
+router.use("/admin/g3/panel", async (req: Request, res: Response) => {
+  const sub = String((req.params as { "0"?: string })["0"] ?? req.url ?? "/");
+  const target = sub.startsWith("/") ? sub : `/${sub}`;
+  await g3proxy(req, res, target === "/" ? "/" : target, req.method);
+});
 
 export default router;
