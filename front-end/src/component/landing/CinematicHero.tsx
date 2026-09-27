@@ -19,7 +19,6 @@ const NAV_ITEMS = [
 // transitions, Fyndr copy (QR + selfie photo delivery). Keeps the global
 // Header/site chrome untouched — this replaces only the hero section.
 export default function CinematicHero(): React.JSX.Element {
-  const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
