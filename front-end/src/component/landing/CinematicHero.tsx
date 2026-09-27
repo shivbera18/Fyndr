@@ -65,22 +65,24 @@ export default function CinematicHero(): React.JSX.Element {
   }, []);
 
   return (
-    <div className="font-cinematic-body relative min-h-screen w-full overflow-hidden bg-white">
-      {/* Background video layer */}
+    <div className="font-cinematic-body relative min-h-screen w-full overflow-hidden bg-white text-black">
+      {/* Background video layer — full-bleed so the whole frame is visible */}
       <video
         ref={videoRef}
-        className="absolute inset-x-0 bottom-0 top-[300px] z-0 h-auto w-full object-cover opacity-0"
+        className="absolute inset-0 z-0 h-full w-full object-cover opacity-0"
         src={VIDEO_URL}
         autoPlay
         muted
+        loop={false}
         playsInline
         preload="auto"
         aria-hidden="true"
         data-testid="cinematic-hero-video"
       />
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-white via-transparent to-white" />
-
+      {/* Readability: white at the top for nav, fading out so the film shows through the middle */}
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-white via-white/55 to-transparent" />
+      {/* Bottom melt into the white page below */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-48 bg-gradient-to-b from-transparent to-white" />
       {/* Navigation bar */}
       <nav className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-8 py-6">
         <a href="/" aria-label="Fyndr home" className="font-cinematic-display text-3xl tracking-tight text-black">

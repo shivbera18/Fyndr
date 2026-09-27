@@ -43,15 +43,9 @@ function initialTheme(): Theme {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {
-    /* private mode — fall through to system */
+    /* private mode — fall through to light default */
   }
-  if (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)")?.matches
-  ) {
-    return "dark";
-  }
+  // ponytail: landing defaults to white; stored choice still wins.
   return "light";
 }
 type ThemeCtx = { theme: Theme; toggle: (e?: React.MouseEvent) => void };
