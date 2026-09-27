@@ -100,11 +100,12 @@ export async function processUploadedFile(file: UploadFile, ctx: UploadContext):
       folder_name,
     });
     await photo.save();
-    // Mirror original bytes into object store (G3 → Drive). Async copy of the
-    // multer file before ML/queue steps can unlink it; never blocks ingest.
+    // Mirror original bytes into object store (G3 → Drive). Awaited: the
+    // multer file is unlinked on every exit path, and the response returns
+    // as soon as save completes — an un-awaited void mirror dies with it.
     try {
       const bytes = await fs.promises.readFile(file.path);
-      void putObjectBytes(`${event_id}/${file.filename}`, bytes).catch(() => {});
+      await putObjectBytes(`${event_id}/${file.filename}`, bytes);
     } catch {}
   } catch (e: any) {
     if (e.code === 11000) {
