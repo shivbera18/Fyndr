@@ -28,7 +28,7 @@ function ConicBorderCardInner({
         )}
         <div
           className={cn(
-            "relative rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 transition-all p-6",
+            "relative rounded-2xl border border-neutral-200 bg-white transition-all p-6",
             className
           )}
         >
@@ -59,7 +59,7 @@ function ConicBorderCardInner({
         {/* Inner Content Card */}
         <div
           className={cn(
-            "relative z-10 h-full w-full rounded-[calc(1rem-1.5px)] bg-white dark:bg-neutral-950 p-6 transition-colors",
+            "relative z-10 h-full w-full rounded-[calc(1rem-1.5px)] glass-landing p-6 transition-colors",
             className
           )}
         >

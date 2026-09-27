@@ -44,6 +44,16 @@ export default function CinematicHero(): React.JSX.Element {
     };
     raf = requestAnimationFrame(tick);
 
+    // ponytail: film stays fixed behind the whole page; scrolling fades it
+    // toward a whisper so body copy stays readable over motion.
+    const onScroll = () => {
+      const y = window.scrollY;
+      const dim = Math.max(0.28, 1 - y / 900);
+      video.parentElement?.style.setProperty("--film-dim", String(dim));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
     const onEnded = () => {
       video.style.opacity = "0";
       window.setTimeout(() => {
@@ -60,16 +70,20 @@ export default function CinematicHero(): React.JSX.Element {
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
       video.removeEventListener("ended", onEnded);
     };
   }, []);
 
   return (
-    <div className="font-cinematic-body relative min-h-screen w-full overflow-hidden bg-white text-black">
-      {/* Background video layer — full-bleed so the whole frame is visible */}
+    <div
+      className="font-cinematic-body pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-white text-black"
+      style={{ opacity: "var(--film-dim, 1)" }}
+      aria-hidden="true"
+      data-testid="cinematic-film"
+    >
       <video
         ref={videoRef}
-        className="absolute inset-0 z-0 h-full w-full object-cover opacity-0"
         src={VIDEO_URL}
         autoPlay
         muted
@@ -77,13 +91,22 @@ export default function CinematicHero(): React.JSX.Element {
         playsInline
         preload="auto"
         aria-hidden="true"
+        tabIndex={-1}
         data-testid="cinematic-hero-video"
       />
       {/* Readability: white at the top for nav, fading out so the film shows through the middle */}
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-white via-white/55 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white via-white/55 to-transparent" />
       {/* Bottom melt into the white page below */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-48 bg-gradient-to-b from-transparent to-white" />
-      {/* Navigation bar */}
+      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-white" />
+    </div>
+  );
+}
+
+// Foreground landing chrome: nav + headline over the fixed film.
+export function CinematicHeroForeground(): React.JSX.Element {
+  const navigate = useNavigate();
+  return (
+    <div className="font-cinematic-body relative z-10 bg-transparent text-black">
       <nav className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-8 py-6">
         <a href="/" aria-label="Fyndr home" className="font-cinematic-display text-3xl tracking-tight text-black">
           Fyndr<sup className="text-sm">®</sup>

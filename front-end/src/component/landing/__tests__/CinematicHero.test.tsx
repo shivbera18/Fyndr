@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import CinematicHero from "../CinematicHero";
+import CinematicHero, { CinematicHeroForeground } from "../CinematicHero";
 
 const mockNavigate = jest.fn();
 jest.mock("react-router-dom", () => {
@@ -13,6 +13,7 @@ describe("CinematicHero", () => {
     render(
       <MemoryRouter>
         <CinematicHero />
+        <CinematicHeroForeground />
       </MemoryRouter>
     );
 

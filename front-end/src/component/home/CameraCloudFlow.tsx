@@ -102,10 +102,8 @@ function CameraCloudFlowInner() {
     if (leg !== -1) return;
     if (reduce) {
       setShots((n) => n + 1);
-      // ponytail: rotate the 4 local tiles — the old (t[0]+4)%12 seed math
-      // collapses mod-4 to duplicates (review: PerfReviewer).
       setTiles((t) => [t[t.length - 1], ...t.slice(0, 3)]);
-      setStatus("Shot delivered · 226 Transfer complete · live in the gallery.");
+      setStatus("Shot delivered · live in the gallery.");
       return;
     }
     setLeg(0);
@@ -115,23 +113,23 @@ function CameraCloudFlowInner() {
       window.setTimeout(() => {
         setLeg(1);
         setStatus("226 Transfer complete — ingest has the file…");
-      }, 550)
+      }, 450)
     );
     timers.current.push(
       window.setTimeout(() => {
         setLeg(2);
-        setStatus("Pipeline indexing faces…");
-      }, 1100)
+        setStatus("Indexing faces…");
+      }, 850)
     );
     timers.current.push(
       window.setTimeout(() => {
         setShots((n) => n + 1);
         setTiles((t) => [t[t.length - 1], ...t.slice(0, 3)]);
-        setStatus("Shot delivered · 226 Transfer complete · live in the gallery.");
+        setStatus("Shot delivered · live in the gallery.");
         setLeg(3);
-      }, 1650)
+      }, 1250)
     );
-    timers.current.push(window.setTimeout(() => setLeg(-1), 3250));
+    timers.current.push(window.setTimeout(() => setLeg(-1), 2400));
   };
 
   const stageRing = (level: number, cam?: number) =>
@@ -147,16 +145,13 @@ function CameraCloudFlowInner() {
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 24 }}
+      initial={reduce ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      className="relative w-full overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-950/50 p-6 md:p-8 backdrop-blur-sm"
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+      className="relative w-full overflow-hidden rounded-2xl glass-landing"
     >
-      <div className="absolute inset-0 bg-dot-grid opacity-60 pointer-events-none" />
-      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="relative z-10">
+      <div className="relative z-10 p-4 sm:p-5">
         {/* Stepper */}
         <ol className="flex items-center gap-1 sm:gap-2 mb-6" aria-label="Pipeline stages">
           {STEPS.map((label, i) => {
@@ -180,7 +175,7 @@ function CameraCloudFlowInner() {
                         ? "bg-emerald-500 border-emerald-500 text-neutral-950"
                         : active
                           ? "bg-emerald-500/15 border-emerald-500 text-emerald-500"
-                          : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-muted-foreground"
+                          : "bg-white border-neutral-200 text-muted-foreground"
                     )}
                   >
                     {done ? <Check className="size-3.5" /> : i + 1}
@@ -195,7 +190,7 @@ function CameraCloudFlowInner() {
                   </span>
                 </button>
                 {i < STEPS.length - 1 && (
-                  <span className="flex-1 h-px mx-1 sm:mx-2 bg-neutral-200 dark:bg-neutral-800 overflow-hidden rounded-full">
+                  <span className="flex-1 h-px mx-1 sm:mx-2 bg-neutral-200 overflow-hidden rounded-full">
                     <motion.span
                       className="block h-full w-full bg-emerald-500 origin-left"
                       initial={false}
@@ -226,7 +221,7 @@ function CameraCloudFlowInner() {
                 aria-pressed={selCam === i}
                 onClick={() => setSel({ level: 0, cam: i })}
                 className={cn(
-                  "group flex flex-1 md:flex-none items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 text-left min-h-[44px]",
+                  "group flex flex-1 md:flex-none items-center gap-3 p-3 rounded-xl border border-neutral-200 bg-white/90 text-left min-h-[44px]",
                   stageRing(0, i)
                 )}
               >
@@ -261,7 +256,7 @@ function CameraCloudFlowInner() {
                 <path
                   key={`base-${y}`}
                   d={inPath(y)}
-                  className="stroke-neutral-200 dark:stroke-neutral-800"
+                  className="stroke-neutral-200"
                   strokeWidth="2"
                   strokeDasharray="4 4"
                 />
@@ -295,7 +290,7 @@ function CameraCloudFlowInner() {
               aria-pressed={sel?.level === 1}
               onClick={() => setSel({ level: 1 })}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 text-left min-h-[44px]",
+                "flex items-center gap-3 p-3 rounded-xl border border-neutral-200 bg-white/90 text-left min-h-[44px]",
                 stageRing(1)
               )}
             >
@@ -317,7 +312,7 @@ function CameraCloudFlowInner() {
             preserveAspectRatio="none"
             aria-hidden="true"
           >
-            <path d={TRUNK} className="stroke-neutral-200 dark:stroke-neutral-800" strokeWidth="2" strokeDasharray="4 4" />
+            <path d={TRUNK} className="stroke-neutral-200" strokeWidth="2" strokeDasharray="4 4" />
             {!reduce && (
               <>
                 <Packet path={TRUNK} color="#10b981" dur="1.6s" />
@@ -340,7 +335,7 @@ function CameraCloudFlowInner() {
               aria-pressed={sel?.level === 2}
               onClick={() => setSel({ level: 2 })}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 text-left min-h-[44px]",
+                "flex items-center gap-3 p-3 rounded-xl border border-neutral-200 bg-white/90 text-left min-h-[44px]",
                 stageRing(2)
               )}
             >
@@ -362,7 +357,7 @@ function CameraCloudFlowInner() {
             preserveAspectRatio="none"
             aria-hidden="true"
           >
-            <path d={TRUNK} className="stroke-neutral-200 dark:stroke-neutral-800" strokeWidth="2" strokeDasharray="4 4" />
+            <path d={TRUNK} className="stroke-neutral-200" strokeWidth="2" strokeDasharray="4 4" />
             {!reduce && <Packet path={TRUNK} color="#10b981" dur="2.2s" begin="0.4s" />}
             {leg === 2 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
           </svg>
@@ -380,7 +375,7 @@ function CameraCloudFlowInner() {
               aria-pressed={sel?.level === 3}
               onClick={() => setSel({ level: 3 })}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 text-left min-h-[44px]",
+                "flex items-center gap-3 p-3 rounded-xl border border-neutral-200 bg-white/90 text-left min-h-[44px]",
                 stageRing(3)
               )}
             >
@@ -409,32 +404,32 @@ function CameraCloudFlowInner() {
                   width={160}
                   initial={false}
                   animate={{ scale: leg === 3 && i === 0 ? [1, 1.12, 1] : 1 }}
-                  className="aspect-square w-full rounded-md border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800"
+                  className="aspect-square w-full rounded-md border border-neutral-200 object-cover bg-neutral-100"
                 />
               ))}
             </div>
           </motion.div>
         </div>
 
-        {/* Console */}
-        <div className="mt-6 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 text-neutral-100 p-4 font-mono text-xs">
+        {/* Status strip */}
+        <div className="mt-4 rounded-xl border border-white/60 bg-white/55 backdrop-blur-md p-4 font-mono text-xs">
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={fire}
               disabled={leg !== -1}
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-4 py-2 font-semibold text-neutral-950 text-xs min-h-[44px] disabled:opacity-40 transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-full bg-neutral-950 px-4 py-2 font-semibold text-white hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
             >
               <Zap className="size-3.5" />
               {leg === -1 ? "Fire a test shot" : "Shot in flight…"}
             </button>
-            <span aria-live="polite" data-testid="flow-status" className="text-neutral-300">
+            <span aria-live="polite" data-testid="flow-status" className="text-neutral-600">
               {status}
             </span>
           </div>
-          <div className="mt-3 border-t border-neutral-800 pt-3">
-            <span className="text-emerald-400 font-semibold">{detail.title} — </span>
-            <span className="text-neutral-300" data-testid="flow-detail">
+          <div className="mt-3 border-t border-white/60 pt-3">
+            <span className="text-emerald-700 font-semibold">{detail.title} — </span>
+            <span className="text-neutral-600" data-testid="flow-detail">
               {detail.body}{" "}
               {sel?.level === 0 && selCam !== undefined && (
                 <>
