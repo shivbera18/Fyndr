@@ -305,7 +305,7 @@ function InteractiveFaceMatcher() {
 
   return (
     <div className="flex flex-col h-full justify-between space-y-4">
-      <div className="relative rounded-xl border border-neutral-200 bg-neutral-100/60 p-4 overflow-hidden">
+      <div className="relative rounded-xl border border-white/60 bg-white/55 backdrop-blur-md p-4 overflow-hidden shadow-sm">
         {/* Face detection target canvas */}
         <div className="relative h-44 w-full rounded-lg bg-neutral-950/80 overflow-hidden flex items-center justify-center border border-neutral-800">
           <div className="absolute inset-0 bg-dot-grid opacity-30 pointer-events-none" />
@@ -338,7 +338,7 @@ function InteractiveFaceMatcher() {
         </div>
 
         {/* User-friendly telemetry ticker */}
-        <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-neutral-600 border-t border-neutral-200 pt-2.5">
+        <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-neutral-500 border-t border-white/60 pt-2.5">
           <div className="flex items-center gap-1.5">
             <Sparkles className="size-3 text-emerald-500" />
             <span>Search speed: &lt; 1 second</span>
@@ -362,7 +362,7 @@ function InteractiveFaceMatcher() {
           size="sm"
           variant="outline"
           onClick={triggerMatch}
-          className="text-xs rounded-full min-h-[44px] px-4 border-neutral-300"
+          className="text-xs rounded-full min-h-[44px] px-4 border-white/60 bg-white/55"
         >
           {matching ? "Scanning..." : "Simulate"}
         </Button>
@@ -398,16 +398,16 @@ const DEMO_PHOTOS = [
 function DemoPanel({ step }: { step: DemoStep }) {
   if (step === "upload") {
     return (
-      <div className="space-y-3 p-4 bg-neutral-100/70 rounded-xl border border-neutral-200">
+      <div className="space-y-3 p-4 glass-landing-soft rounded-xl">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-sm text-foreground">Grand Wedding Reception</span>
+          <span className="font-semibold text-sm text-neutral-900">Grand Wedding Reception</span>
           <Badge variant="secondary" className="text-xs font-mono">3,420 photos</Badge>
         </div>
         <div className="space-y-2">
-          <div className="h-2 w-full bg-neutral-200 rounded-full overflow-hidden">
+          <div className="h-2 w-full bg-white/50 rounded-full overflow-hidden border border-white/60">
             <div className="h-full bg-emerald-500 rounded-full w-[85%] animate-pulse" />
           </div>
-          <div className="flex justify-between text-xs text-muted-foreground font-mono">
+          <div className="flex justify-between text-xs text-neutral-500 font-mono">
             <span>Uploading &amp; indexing photos…</span>
             <span>85% complete</span>
           </div>
@@ -418,19 +418,19 @@ function DemoPanel({ step }: { step: DemoStep }) {
 
   if (step === "selfie") {
     return (
-      <div className="space-y-3 p-4 bg-neutral-100/70 rounded-xl border border-neutral-200">
+      <div className="space-y-3 p-4 glass-landing-soft rounded-xl">
         <div className="flex items-center gap-3">
           <div className="size-10 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-bold">
             <Smile className="size-5" />
           </div>
           <div>
-            <span className="font-semibold text-sm text-foreground block">Quick guest selfie taken</span>
+            <span className="font-semibold text-sm text-neutral-900 block">Quick guest selfie taken</span>
             <span className="text-xs font-semibold text-emerald-600 inline-flex items-center gap-1 font-mono">
               <Check className="size-3.5" /> Matched in 1.2 seconds
             </span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
+        <p className="text-xs text-neutral-500 leading-relaxed">
           Selfie processed in RAM and deleted automatically after matching. 100% private.
         </p>
       </div>
@@ -438,14 +438,14 @@ function DemoPanel({ step }: { step: DemoStep }) {
   }
 
   return (
-    <div className="space-y-3 p-4 bg-white text-foreground rounded-xl border border-neutral-200 shadow-sm">
+    <div className="space-y-3 p-4 glass-landing-soft rounded-xl">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold tracking-wider text-emerald-600 uppercase font-mono">
           Your personal gallery
         </span>
         <Badge variant="brand" className="text-xs font-mono">14 matches</Badge>
       </div>
-      <p className="text-lg font-bold text-foreground">Found 14 photos of you</p>
+      <p className="font-cinematic-display text-lg font-normal text-neutral-900">Found 14 photos of you</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
         {DEMO_PHOTOS.map((p, i) => (
           <img
@@ -466,11 +466,11 @@ function DemoPanel({ step }: { step: DemoStep }) {
                 el.src = fb;
               }
             }}
-            className="aspect-square w-full rounded-lg border border-neutral-200 object-cover bg-muted"
+            className="aspect-square w-full rounded-lg border border-white/60 object-cover bg-white/40"
           />
         ))}
       </div>
-      <p className="text-[10px] text-muted-foreground font-mono pt-1">
+      <p className="text-[10px] text-neutral-500 font-mono pt-1">
         Sample photos:{" "}
         <a className="underline" href="https://commons.wikimedia.org/wiki/File:Wedding_couple_in_sunset.jpg" target="_blank" rel="noreferrer">Beercha (CC BY 2.0)</a>,{" "}
         <a className="underline" href="https://commons.wikimedia.org/wiki/File:Wedding_dance_of_Azerbaijanian_couple.jpg" target="_blank" rel="noreferrer">Orientalist1979 (CC BY-SA 3.0)</a>,{" "}
@@ -522,16 +522,16 @@ function DemoCard() {
   }, [isAuto]);
 
   return (
-    <div id="fy-demo-card" className="overflow-hidden rounded-2xl border border-neutral-200 shadow-xl bg-white/80">
-      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-neutral-200 bg-neutral-50/70">
+    <div id="fy-demo-card" className="overflow-hidden rounded-2xl glass-landing shadow-xl">
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/60 bg-white/45 backdrop-blur-md">
         <span className="size-2.5 rounded-full bg-red-400/80 inline-block" />
         <span className="size-2.5 rounded-full bg-yellow-400/80 inline-block" />
         <span className="size-2.5 rounded-full bg-emerald-400/80 inline-block" />
-        <span className="text-xs text-muted-foreground ml-2 font-mono">fyndr.live/event/demo</span>
+        <span className="text-xs text-neutral-500 ml-2 font-mono">fyndr.live/event/demo</span>
       </div>
 
       <div className="p-5 space-y-4">
-        <div className="grid grid-cols-3 gap-1 border-b border-neutral-200 pb-3">
+        <div className="grid grid-cols-3 gap-1 border-b border-white/60 pb-3">
           {STEPS.map((s) => (
             <button
               key={s.id}
@@ -544,7 +544,7 @@ function DemoCard() {
                 "px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors min-h-[44px] flex items-center justify-center text-center leading-tight",
                 step === s.id
                   ? "bg-neutral-900 text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-neutral-100"
+                  : "text-neutral-500 hover:text-neutral-900 hover:bg-white/60"
               )}
             >
               {s.label}
@@ -554,7 +554,7 @@ function DemoCard() {
 
         <DemoPanel step={step} />
 
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+        <div className="flex items-center justify-between text-xs text-neutral-500 pt-1">
           <span className="inline-flex items-center gap-1.5 font-mono">
             <Lock className="size-3.5 text-emerald-600" />
             RAM-only · 100% Private
@@ -584,12 +584,12 @@ function Faq() {
         <AccordionItem
           key={`faq-${i}`}
           value={`faq-${i}`}
-          className="rounded-2xl border border-neutral-200 bg-white/60 px-5 transition-colors data-[state=open]:bg-white"
+          className="glass-landing rounded-2xl px-5 transition-colors"
         >
-          <AccordionTrigger className="text-left font-semibold text-sm sm:text-base py-4 hover:no-underline hover:text-foreground">
+          <AccordionTrigger className="text-left font-semibold text-sm sm:text-base py-4 hover:no-underline hover:text-neutral-900">
             {item.q}
           </AccordionTrigger>
-          <AccordionContent className="text-sm text-muted-foreground leading-relaxed pb-4 pt-1">
+          <AccordionContent className="text-sm text-neutral-600 leading-relaxed pb-4 pt-1">
             {item.a}
           </AccordionContent>
         </AccordionItem>
@@ -1096,7 +1096,7 @@ export default function Home(): React.JSX.Element {
                         <h3 className="font-bold text-xl text-neutral-900">
                           {tier.name}
                         </h3>
-                        <p className="text-xs text-muted-foreground mt-1">{tier.description}</p>
+                        <p className="text-xs text-neutral-500 mt-1">{tier.description}</p>
                       </div>
 
                       <div className="space-y-1">
@@ -1104,7 +1104,7 @@ export default function Home(): React.JSX.Element {
                           <span className="font-mono text-4xl font-bold tracking-tight text-neutral-900">
                             {tier.price}
                           </span>
-                          <span className="text-xs text-muted-foreground font-mono">
+                          <span className="text-xs text-neutral-500 font-mono">
                             /mo ({tier.inrPrice})
                           </span>
                         </div>
@@ -1113,7 +1113,7 @@ export default function Home(): React.JSX.Element {
                         </p>
                       </div>
 
-                      <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-neutral-200">
+                      <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-white/60">
                         {tier.features.map((feat) => (
                           <li key={feat} className="flex items-start gap-2">
                             <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
@@ -1151,13 +1151,13 @@ export default function Home(): React.JSX.Element {
                       )}
                     </div>
 
-                    <p className="text-xs text-muted-foreground">{tier.description}</p>
+                    <p className="text-xs text-neutral-500">{tier.description}</p>
                     <div className="space-y-1">
                       <div className="flex items-baseline gap-1.5">
                         <span className="font-mono text-4xl font-bold tracking-tight text-neutral-900">
                           {tier.price}
                         </span>
-                        <span className="text-xs text-muted-foreground font-mono">
+                        <span className="text-xs text-neutral-500 font-mono">
                           /mo ({tier.inrPrice})
                         </span>
                       </div>
@@ -1166,7 +1166,7 @@ export default function Home(): React.JSX.Element {
                       </p>
                     </div>
 
-                    <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-neutral-200">
+                    <ul className="space-y-2.5 text-xs text-neutral-700 pt-2 border-t border-white/60">
                       {tier.features.map((feat) => (
                         <li key={feat} className="flex items-start gap-2">
                           <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
@@ -1180,7 +1180,7 @@ export default function Home(): React.JSX.Element {
                     size="lg"
                     variant="outline"
                     onClick={() => navigate("/login")}
-                    className="w-full rounded-full min-h-[44px] text-sm font-semibold border-neutral-200 transition-all active:scale-95"
+                    className="w-full rounded-full min-h-[44px] text-sm font-semibold border-white/60 bg-white/55 transition-all hover:bg-white/80 active:scale-95"
                   >
                     {tier.cta}
                   </Button>
