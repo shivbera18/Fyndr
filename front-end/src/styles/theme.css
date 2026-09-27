@@ -64,3 +64,15 @@
     animation-duration: 0.01ms;
   }
 }
+
+/* Landing keyboard floor: visible focus on every control over glass. */
+.glass-landing a:focus-visible, .glass-landing button:focus-visible,
+.glass-landing-soft a:focus-visible, .glass-landing-soft button:focus-visible,
+button:focus-visible, a:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 3px;
+  border-radius: 9999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-cinematic-rise, .animate-cinematic-rise-delay, .animate-cinematic-rise-delay-2 { animation-duration: 0.01ms; }
+}

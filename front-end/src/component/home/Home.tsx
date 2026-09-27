@@ -425,7 +425,7 @@ function DemoPanel({ step }: { step: DemoStep }) {
           </div>
           <div>
             <span className="font-semibold text-sm text-neutral-900 block">Quick guest selfie taken</span>
-            <span className="text-xs font-semibold text-emerald-600 inline-flex items-center gap-1 font-mono">
+            <span className="text-xs font-semibold text-emerald-600 inline-flex items-center gap-1">
               <Check className="size-3.5" /> Matched in 1.2 seconds
             </span>
           </div>
@@ -690,10 +690,8 @@ export default function Home(): React.JSX.Element {
         {/* 4. SIGNATURE BENTO GRID SHOWCASE                             */}
         {/* ============================================================ */}
         <section id="features" className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <span className="font-mono text-xs uppercase tracking-widest text-emerald-600 font-semibold">
-              Next-Gen Architecture
-            </span>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">01 — Next-Gen Architecture</span>
             <h2 className="font-cinematic-display text-3xl sm:text-4xl font-normal tracking-tight text-neutral-900 text-balance">
               Built for modern event photographers
             </h2>
@@ -760,7 +758,7 @@ export default function Home(): React.JSX.Element {
               title="Live Studio Analytics & Leads"
               description="Capture verified attendee contacts directly through their gallery session and direct WhatsApp booking prompts."
             >
-              <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-center font-mono">
+              <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-center">
                 <div className="p-2 rounded-lg ">
                   <div className="text-lg font-bold text-neutral-900">240+</div>
                   <div className="text-[10px] text-neutral-500">Guest Scans</div>
@@ -779,7 +777,7 @@ export default function Home(): React.JSX.Element {
               title="High-Volume Photo Upload"
               description="Upload thousands of photos at once. Fyndr processes the album in the background while preserving full original quality and metadata."
             >
-              <div className="mt-4 p-3.5 rounded-xl border  flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs">
+              <div className="mt-4 p-3.5 rounded-xl border  flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-neutral-800 font-semibold">
@@ -805,8 +803,8 @@ export default function Home(): React.JSX.Element {
         {/* 4B. CAMERA-TO-CLOUD (SHOOTERS MERGE INTO LIVE GALLERY)        */}
         {/* ============================================================ */}
         <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">Camera-to-Cloud</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">02 — Camera-to-Cloud</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Shoot. It lands in the gallery.
             </h2>
@@ -823,35 +821,26 @@ export default function Home(): React.JSX.Element {
         {/* 5. WHO IT SERVES (single row, terminal removed)              */}
         {/* ============================================================ */}
         <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">Who it serves</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">03 — Who it serves</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               One flow, three happy roles
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
             <div className="glass-landing rounded-2xl p-6 space-y-3">
-              <div className="size-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                <Camera className="size-6" />
-              </div>
               <h3 className="font-cinematic-display text-xl font-normal text-neutral-900">Photographers</h3>
               <p className="text-sm text-neutral-600 leading-relaxed text-pretty">
                 Upload once. No sorting, no renaming, no “email me that photo” — your brand rides along on every guest screen.
               </p>
             </div>
             <div className="glass-landing rounded-2xl p-6 space-y-3">
-              <div className="size-11 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                <Users className="size-6" />
-              </div>
               <h3 className="font-cinematic-display text-xl font-normal text-neutral-900">Guests</h3>
               <p className="text-sm text-neutral-600 leading-relaxed text-pretty">
                 Scan the table QR, snap a selfie, get full-resolution originals in seconds. No app, no account.
               </p>
             </div>
             <div className="glass-landing rounded-2xl p-6 space-y-3">
-              <div className="size-11 rounded-xl bg-violet-500/10 text-violet-600 flex items-center justify-center">
-                <Sparkles className="size-6" />
-              </div>
               <h3 className="font-cinematic-display text-xl font-normal text-neutral-900">Hosts &amp; planners</h3>
               <p className="text-sm text-neutral-600 leading-relaxed text-pretty">
                 Printable QR standees, live scan counts, and a modern touchpoint guests talk about.
@@ -864,8 +853,8 @@ export default function Home(): React.JSX.Element {
         {/* 6. HOW IT WORKS WORKFLOW                                     */}
         {/* ============================================================ */}
         <section id="how-it-works" className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 space-y-8">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">How it works</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">04 — How it works</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Effortless for photographers, magic for guests
             </h2>
@@ -904,8 +893,8 @@ export default function Home(): React.JSX.Element {
         {/* 7. WHY SWITCH (TRADITIONAL VS FYNDR COMPARISON MATRIX)        */}
         {/* ============================================================ */}
         <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">Why Switch</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">05 — Why Switch</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Stop sending folders guests never open
             </h2>
@@ -992,8 +981,8 @@ export default function Home(): React.JSX.Element {
         {/* 8. USE CASES                                                 */}
         {/* ============================================================ */}
         <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">Use cases</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">06 — Use cases</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Perfect for every event
             </h2>
@@ -1012,7 +1001,7 @@ export default function Home(): React.JSX.Element {
                   <span className="size-10 rounded-xl bg-white/10 border inline-flex items-center justify-center">
                     <u.icon className="size-5 text-emerald-600" />
                   </span>
-                  <Badge variant="outline" className="text-xs font-mono bg-white/10">{u.tag}</Badge>
+                  <Badge variant="outline" className="text-xs bg-white/10">{u.tag}</Badge>
                 </div>
                 <h3 className="font-cinematic-display text-lg font-normal text-neutral-900 text-balance">{u.title}</h3>
                 <p className="text-xs text-neutral-600 leading-relaxed text-pretty">{u.body}</p>
@@ -1025,8 +1014,8 @@ export default function Home(): React.JSX.Element {
         {/* 9. TESTIMONIALS                                              */}
         {/* ============================================================ */}
         <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">Testimonials</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">07 — Testimonials</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Photographers love Fyndr
             </h2>
@@ -1064,8 +1053,8 @@ export default function Home(): React.JSX.Element {
         {/* 10. PRICING TIERS                                            */}
         {/* ============================================================ */}
         <section id="pricing" className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">Transparent Pricing</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">08 — Transparent Pricing</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Simple, transparent pricing for every studio
             </h2>
@@ -1191,8 +1180,8 @@ export default function Home(): React.JSX.Element {
         {/* 11. FAQ SECTION                                              */}
         {/* ============================================================ */}
         <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
-          <div className="text-center space-y-3 max-w-2xl mx-auto glass-landing-soft rounded-2xl px-6 py-8">
-            <Badge variant="secondary">FAQ</Badge>
+          <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
+            <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">09 — FAQ</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">
               Frequently Asked Questions
             </h2>
