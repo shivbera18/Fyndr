@@ -13,6 +13,11 @@ export const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 export const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_fyndr_local";
 export const PORT = Number(process.env.PORT) || 5000;
 export const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/photo_sharing_db";
+export const GOOGLE_DRIVE_CLIENT_ID = process.env.GOOGLE_DRIVE_CLIENT_ID || "";
+export const GOOGLE_DRIVE_CLIENT_SECRET = process.env.GOOGLE_DRIVE_CLIENT_SECRET || "";
+export const GOOGLE_DRIVE_REDIRECT_URI =
+  process.env.GOOGLE_DRIVE_REDIRECT_URI || "https://fyndr-gamma.vercel.app/api/accounts/callback";
+export const DRIVE_TOKEN_KEY = process.env.DRIVE_TOKEN_KEY || "";
 
 // NOTE: compiled output lives in dist/, so step one level up to reach the
 // package dir (same folders index.js used via __dirname).

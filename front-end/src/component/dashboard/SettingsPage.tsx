@@ -4,12 +4,13 @@ import Header from "../navbar/Header";
 import Footer from "../Footer";
 import PhotographerDetail from "./Photographer_detail";
 import AccountDetailsCard from "./AccountDetailsCard";
-import { Sliders, User } from "lucide-react";
+import DriveStorageCard from "./DriveStorageCard";
+import { Sliders, User, HardDrive } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 export default function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") === "account" ? "account" : "studio";
+  const initialTab = searchParams.get("tab") === "account" ? "account" : searchParams.get("tab") === "storage" ? "storage" : "studio";
   const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function SettingsPage(): React.JSX.Element {
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
           <div className="flex justify-center">
-            <TabsList className="grid grid-cols-2 w-full max-w-md h-11 p-1 bg-muted/60 rounded-xl">
+            <TabsList className="grid grid-cols-3 w-full max-w-lg h-11 p-1 bg-muted/60 rounded-xl">
               <TabsTrigger
                 value="studio"
                 className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground shadow-xs"
@@ -60,6 +61,13 @@ export default function SettingsPage(): React.JSX.Element {
                 <User className="size-3.5" />
                 Account Details
               </TabsTrigger>
+              <TabsTrigger
+                value="storage"
+                className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm min-h-[44px]"
+              >
+                <HardDrive className="size-3.5" />
+                Storage
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -69,6 +77,10 @@ export default function SettingsPage(): React.JSX.Element {
 
           <TabsContent value="account" className="focus-visible:outline-none">
             <AccountDetailsCard />
+          </TabsContent>
+
+          <TabsContent value="storage" className="focus-visible:outline-none">
+            <DriveStorageCard />
           </TabsContent>
         </Tabs>
       </main>

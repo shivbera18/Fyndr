@@ -25,6 +25,7 @@ Thumbs.db
 .ssh/
 *.key
 *.pem
+client_secret_*.json
 front-end/public/models/
 front-end/public/person/
 front-end/build/

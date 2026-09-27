@@ -21,6 +21,7 @@ const CreateEventPage = lazy(() => import('./component/dashboard/CreateEventPage
 const AnalyticsPage = lazy(() => import('./component/dashboard/AnalyticsPage'));
 const SettingsPage = lazy(() => import('./component/dashboard/SettingsPage'));
 const AccountPage = lazy(() => import('./component/dashboard/AccountPage'));
+const DriveCallback = lazy(() => import('./component/drive/DriveCallback'));
 const GuestAnalyticsPage = lazy(() => import('./component/dashboard/GuestAnalyticsPage'));
 const CollectEvent = lazy(() => import('./component/collect_images/Collect_event'));
 const SelectEvent = lazy(() => import('./component/select/Select_event'));
@@ -136,6 +137,7 @@ function App() {
           <Route path='/events/:eventId/analytics' element={<GuestAnalyticsPage />} />
           <Route path='/event/:eventId/analytics' element={<GuestAnalyticsPage />} />
           <Route path='/login' element={<LoginRegister />} />
+          <Route path='/api/accounts/callback' element={<DriveCallback />} />
           <Route path='/about' element={<About />} />
         </Routes>
         </Suspense>
