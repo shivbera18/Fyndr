@@ -57,8 +57,12 @@ export async function getPresignedPut(key: string, contentType = "image/jpeg"): 
     ContentType: contentType,
     // P2: prevent abuse – limit to images, 10MB hint (actual enforcement at upload)
   });
-  // ponytail: browser needs the public origin; same creds/region/bucket, one-line client pick.
-  return getSignedUrl(s3Public || s3, cmd, { expiresIn: 3600 });
+  // ponytail: browser needs the public origin; never hand a 127.0.0.1 loopback URL to remote clients.
+  const endpoint = process.env.R2_ENDPOINT || "";
+  const isLoopback = endpoint.includes("127.0.0.1") || endpoint.includes("localhost") || endpoint.includes("::1");
+  const signer = s3Public || (isLoopback ? null : s3);
+  if (!signer) return null;
+  return getSignedUrl(signer, cmd, { expiresIn: 3600 });
 }
 
 // Direct-upload finish path: worker pulls bytes back from G3 for ML/Drive/thumbs.
