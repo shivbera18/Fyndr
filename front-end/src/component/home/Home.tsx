@@ -42,6 +42,9 @@ import {
   Smile,
   UserCheck,
   ScanFace,
+  Upload,
+  ArrowDownToLine,
+  Images,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -707,9 +710,39 @@ export default function Home(): React.JSX.Element {
             </div>
           </div>
 
-        {/* Hero Visual: journey beams merging into delivery */}
-        <div className="mt-14 w-full max-w-5xl mx-auto">
+        {/* Hero Visual: Desktop/PC interactive diagram */}
+        <div className="mt-14 w-full max-w-5xl mx-auto hidden md:block">
           <BeamLines />
+        </div>
+        {/* Mobile: Ultra-lightweight static 3-step value cards (zero Framer Motion, zero blur, zero animations) */}
+        <div className="mt-8 w-full max-w-md mx-auto md:hidden grid grid-cols-1 gap-2.5 text-left">
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+            <div className="size-9 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+              <Upload className="size-4" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-foreground">1. Photographer Upload</div>
+              <div className="text-[11px] text-muted-foreground">Uploads all event photos in 1 click</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+            <div className="size-9 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <ScanFace className="size-4" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-foreground">2. Guest Takes a Selfie</div>
+              <div className="text-[11px] text-muted-foreground">Scans table QR &amp; snaps in browser</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+            <div className="size-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <Sparkles className="size-4" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-foreground">3. Instant Personal Album</div>
+              <div className="text-[11px] text-muted-foreground">Only their photos appear in seconds</div>
+            </div>
+          </div>
         </div>
         </section>
 
@@ -891,8 +924,48 @@ export default function Home(): React.JSX.Element {
               Every shooter gets their own FTP login. Cameras auto-transfer JPEGs over a phone hotspot — photos appear live, no laptop in the middle.
             </p>
           </div>
-          <div className="max-w-5xl mx-auto">
+          {/* Desktop/PC: Full interactive multi-camera flow with animated packets */}
+          <div className="max-w-5xl mx-auto hidden md:block">
             <CameraCloudFlow />
+          </div>
+          {/* Mobile: Ultra-lightweight static 4-stage pipeline overview (zero animation, zero JS loop, instant scroll) */}
+          <div className="max-w-md mx-auto md:hidden grid grid-cols-1 gap-2.5 text-left">
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+              <div className="size-9 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                <Camera className="size-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Step 1: Shoot on Camera</div>
+                <div className="text-[11px] text-muted-foreground">Own chrooted FTP login, auto-transfers over hotspot</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+              <div className="size-9 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                <ArrowDownToLine className="size-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Step 2: FTP Ingest</div>
+                <div className="text-[11px] text-muted-foreground">Port 21 PASV — 226 Transfer complete straight to vault</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+              <div className="size-9 rounded-lg bg-violet-500/10 text-violet-500 flex items-center justify-center shrink-0">
+                <ScanFace className="size-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Step 3: AI Pipeline</div>
+                <div className="text-[11px] text-muted-foreground">Hash-deduped &amp; face-indexed in under 2 seconds</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+              <div className="size-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                <Images className="size-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Step 4: Live Gallery</div>
+                <div className="text-[11px] text-muted-foreground">Appears in ~10s — guests scan QR and find photos</div>
+              </div>
+            </div>
           </div>
         </section>
 
