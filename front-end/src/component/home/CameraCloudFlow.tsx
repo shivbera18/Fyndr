@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Camera, ArrowDownToLine, ScanFace, Images, Zap, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 
 /* ------------------------------------------------------------------ */
 /* Camera-to-Cloud live flow: 3 shooters merge into FTP ingest, then   */
@@ -79,6 +80,8 @@ const Packet = React.memo(function Packet({
 
 function CameraCloudFlowInner() {
   const reduce = useReducedMotion();
+  const { isMobile } = useMediaQuery();
+  const shouldAnimate = !reduce && !isMobile;
   const [sel, setSel] = useState<Sel>(null);
   const [leg, setLeg] = useState(-1); // -1 idle, 0..2 packet leg, 3 delivered
   const [shots, setShots] = useState(1248);
@@ -147,14 +150,14 @@ function CameraCloudFlowInner() {
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={shouldAnimate ? { opacity: 0, y: 24 } : false}
+      whileInView={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
+      transition={shouldAnimate ? { duration: 0.6, ease: "easeOut" } : undefined}
       className="relative w-full overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-950/50 p-6 md:p-8 backdrop-blur-sm"
     >
       <div className="absolute inset-0 bg-dot-grid opacity-60 pointer-events-none" />
-      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="hidden md:block absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10">
         {/* Stepper */}
@@ -172,7 +175,7 @@ function CameraCloudFlowInner() {
                   className="flex items-center gap-2 min-h-[44px] group"
                 >
                   <motion.span
-                    animate={active && !reduce ? { scale: [1, 1.15, 1] } : { scale: 1 }}
+                    animate={active && shouldAnimate ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                     transition={{ duration: 0.45 }}
                     className={cn(
                       "size-7 rounded-full flex items-center justify-center text-[11px] font-bold border transition-colors",
@@ -213,10 +216,10 @@ function CameraCloudFlowInner() {
         <div className="flex flex-col md:flex-row items-stretch gap-3 md:gap-0">
           {/* L1 cameras */}
           <motion.div
-            initial={reduce ? false : { opacity: 0, x: -16 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={shouldAnimate ? { opacity: 0, x: -16 } : false}
+            whileInView={shouldAnimate ? { opacity: 1, x: 0 } : undefined}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.05 }}
+            transition={shouldAnimate ? { duration: 0.5, delay: 0.05 } : undefined}
             className="flex md:flex-col gap-3 flex-1 justify-center"
           >
             {CAMS.map((c, i) => (
@@ -243,9 +246,10 @@ function CameraCloudFlowInner() {
             ))}
           </motion.div>
 
-          {/* Link: 3 merge into 1 */}
-          <svg
-            className="hidden md:block w-16 self-stretch"
+          {/* Link: 3 merge into 1 (unmounted on mobile) */}
+          {!isMobile && (
+            <svg
+              className="hidden md:block w-16 self-stretch"
             viewBox="0 0 64 240"
             fill="none"
             preserveAspectRatio="none"
@@ -280,14 +284,15 @@ function CameraCloudFlowInner() {
                 ) : null
               )}
             {leg === 0 && <Packet path={inPath(IN_EDGE[shotCam])} color="#10b981" r={5} dur="0.55s" />}
-          </svg>
+            </svg>
+          )}
 
           {/* L2 ingest */}
           <motion.div
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
+            whileInView={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.15 }}
+            transition={shouldAnimate ? { duration: 0.5, delay: 0.15 } : undefined}
             className="flex-1 flex flex-col justify-center"
           >
             <button
@@ -309,9 +314,10 @@ function CameraCloudFlowInner() {
             </button>
           </motion.div>
 
-          {/* Link: trunk */}
-          <svg
-            className="hidden md:block w-16 self-stretch"
+          {/* Link: trunk (unmounted on mobile) */}
+          {!isMobile && (
+            <svg
+              className="hidden md:block w-16 self-stretch"
             viewBox="0 0 64 240"
             fill="none"
             preserveAspectRatio="none"
@@ -325,14 +331,15 @@ function CameraCloudFlowInner() {
               </>
             )}
             {leg === 1 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
-          </svg>
+            </svg>
+          )}
 
           {/* L3 pipeline */}
           <motion.div
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
+            whileInView={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.25 }}
+            transition={shouldAnimate ? { duration: 0.5, delay: 0.25 } : undefined}
             className="flex-1 flex flex-col justify-center"
           >
             <button
@@ -354,9 +361,10 @@ function CameraCloudFlowInner() {
             </button>
           </motion.div>
 
-          {/* Link: trunk */}
-          <svg
-            className="hidden md:block w-16 self-stretch"
+          {/* Link: trunk (unmounted on mobile) */}
+          {!isMobile && (
+            <svg
+              className="hidden md:block w-16 self-stretch"
             viewBox="0 0 64 240"
             fill="none"
             preserveAspectRatio="none"
@@ -365,14 +373,15 @@ function CameraCloudFlowInner() {
             <path d={TRUNK} className="stroke-neutral-200 dark:stroke-neutral-800" strokeWidth="2" strokeDasharray="4 4" />
             {!reduce && <Packet path={TRUNK} color="#10b981" dur="2.2s" begin="0.4s" />}
             {leg === 2 && <Packet path={TRUNK} color="#10b981" r={5} dur="0.55s" />}
-          </svg>
+            </svg>
+          )}
 
           {/* L4 gallery */}
           <motion.div
-            initial={reduce ? false : { opacity: 0, x: 16 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={shouldAnimate ? { opacity: 0, x: 16 } : false}
+            whileInView={shouldAnimate ? { opacity: 1, x: 0 } : undefined}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.35 }}
+            transition={shouldAnimate ? { duration: 0.5, delay: 0.35 } : undefined}
             className="flex-1 flex flex-col justify-center"
           >
             <button
@@ -385,7 +394,7 @@ function CameraCloudFlowInner() {
               )}
             >
               <motion.span
-                animate={leg === 3 && !reduce ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                animate={leg === 3 && shouldAnimate ? { scale: [1, 1.12, 1] } : { scale: 1 }}
                 transition={{ duration: 0.5 }}
                 className="size-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0"
               >
@@ -408,7 +417,7 @@ function CameraCloudFlowInner() {
                   decoding="async"
                   width={160}
                   initial={false}
-                  animate={{ scale: leg === 3 && i === 0 ? [1, 1.12, 1] : 1 }}
+                  animate={{ scale: leg === 3 && i === 0 && shouldAnimate ? [1, 1.12, 1] : 1 }}
                   className="aspect-square w-full rounded-md border border-neutral-200 dark:border-neutral-800 object-cover bg-neutral-100 dark:bg-neutral-800"
                 />
               ))}

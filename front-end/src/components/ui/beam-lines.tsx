@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState, type ReactNode } from "react
 import { motion, useReducedMotion } from "motion/react";
 import { Upload, ScanFace, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 
 export interface BeamSource {
   icon: ReactNode;
@@ -54,6 +55,7 @@ const DEFAULT_HUB: BeamHub = {
 function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCES, hub = DEFAULT_HUB }: BeamLinesProps) {
   const id = useId().replace(/:/g, "-");
   const reduce = useReducedMotion();
+  const { isMobile } = useMediaQuery();
   const [inView, setInView] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   // ponytail: infinite gradient loops run only while the hero visual is onscreen — offscreen rAF ticks steal scroll frames on phones.
@@ -70,8 +72,8 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
     io.observe(el);
     return () => io.disconnect();
   }, []);
-  // ponytail: infinite gradient loops pause for reduced-motion users (static beam).
-  const shouldAnimate = inView && !reduce;
+  // ponytail: infinite gradient loops run only on desktop when onscreen and not reduced motion.
+  const shouldAnimate = inView && !reduce && !isMobile;
   const loop = (delay: number) =>
     !shouldAnimate
       ? { duration: 0 }
@@ -84,9 +86,8 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
         className
       )}
     >
-      {/* Background ambient light */}
-      <div className="absolute inset-0 bg-dot-grid opacity-60 pointer-events-none" />
-      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Background ambient light — desktop only to eliminate mobile GPU fill-rate overdraw */}
+      <div className="hidden md:block absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4">
         {/* Left Source Nodes — User Experience Journey */}
@@ -111,8 +112,9 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
           ))}
         </div>
 
-        {/* Center Connecting SVG Multi-Step Beams (Desktop view) */}
-        <div className="hidden md:block flex-1 h-56 relative">
+        {/* Center Connecting SVG Multi-Step Beams (Desktop view only; completely unmounted on mobile to prevent Framer Motion rAF background churn) */}
+        {!isMobile && (
+          <div className="hidden md:block flex-1 h-56 relative">
           <svg
             className="w-full h-full overflow-visible"
             viewBox="0 0 300 200"
@@ -209,7 +211,8 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
               strokeLinecap="round"
             />
           </svg>
-        </div>
+          </div>
+        )}
 
         {/* Right Destination / Magic Match Hub */}
         <div className="relative flex flex-col items-center justify-center z-20 w-full md:w-56 shrink-0">
@@ -218,16 +221,17 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
             <div
               className={cn(
                 "absolute inset-0 rounded-full [background-image:conic-gradient(at_center,transparent,rgba(16,185,129,0.8)_30%,rgba(59,130,246,0.8)_60%,transparent_85%)]",
-                shouldAnimate && "animate-[spin_5s_linear_infinite]"
+                shouldAnimate && "md:animate-[spin_5s_linear_infinite]"
               )}
             />
 
             {/* Glowing Center Hub */}
-            <div className="absolute inset-1.5 rounded-full bg-white dark:bg-neutral-950 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 shadow-xl flex flex-col items-center justify-center p-3 text-center">
+            {/* Center Hub — solid background on mobile to avoid costly backdrop-blur repaints */}
+            <div className="absolute inset-1.5 rounded-full bg-white dark:bg-neutral-950 md:backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col items-center justify-center p-3 text-center">
               <div
                 className={cn(
                   "size-9 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-1",
-                  shouldAnimate && "animate-pulse"
+                  shouldAnimate && "md:animate-pulse"
                 )}
               >
                 {hub.icon}
@@ -246,7 +250,7 @@ function BeamLinesInner({ className, showLabels = true, sources = DEFAULT_SOURCE
                 <span
                   className={cn(
                     "size-1.5 rounded-full bg-emerald-500 motion-reduce:animate-none [@media(pointer:coarse)]:animate-none",
-                    shouldAnimate && "animate-ping"
+                    shouldAnimate && "md:animate-ping"
                   )}
                 />
                 {hub.pill}

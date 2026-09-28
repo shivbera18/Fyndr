@@ -321,11 +321,11 @@ function InteractiveFaceMatcher() {
           <div className="relative size-32 border-2 border-emerald-400/80 rounded-xl p-2.5 flex flex-col justify-between shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all">
             <div className="flex justify-between items-start text-[10px] font-mono text-emerald-400">
               <span>{matching ? "Scanning..." : "Face Detected"}</span>
-              <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="size-2 rounded-full bg-emerald-400 md:animate-ping" />
             </div>
 
             <div className="flex flex-col items-center justify-center">
-              <ScanFace className="size-12 text-emerald-400/80 animate-pulse" />
+              <ScanFace className="size-12 text-emerald-400/80 md:animate-pulse" />
             </div>
 
             <div className="flex justify-between items-end text-[10px] font-mono text-neutral-300">
@@ -341,7 +341,7 @@ function InteractiveFaceMatcher() {
           </div>
 
           {/* Scanning sweep line */}
-          <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-[pulse_2s_ease-in-out_infinite]" />
+          <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent md:animate-[pulse_2s_ease-in-out_infinite]" />
         </div>
 
         {/* User-friendly telemetry ticker */}
@@ -657,8 +657,8 @@ export default function Home(): React.JSX.Element {
 
           <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
             {/* Eyebrow Status Pill */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-neutral-100/80 dark:bg-neutral-900/80 px-4 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 backdrop-blur-md shadow-xs">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 md:bg-neutral-100/80 md:dark:bg-neutral-900/80 px-4 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 md:backdrop-blur-md shadow-xs">
+              <span className="size-2 rounded-full bg-emerald-500 md:animate-pulse" />
               <span>The modern way to deliver event photos · Zero app needed</span>
             </div>
 
@@ -766,7 +766,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 4. SIGNATURE BENTO GRID SHOWCASE                             */}
         {/* ============================================================ */}
-        <section id="features" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section id="features" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_600px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <span className="font-mono text-xs uppercase tracking-widest text-emerald-600 dark:text-emerald-400 font-semibold">
               Next-Gen Architecture
@@ -858,7 +858,7 @@ export default function Home(): React.JSX.Element {
             >
               <div className="mt-4 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/60 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="size-2 rounded-full bg-emerald-500 md:animate-pulse" />
                   <span className="text-neutral-800 dark:text-neutral-200 font-semibold">
                     Fast Parallel Upload
                   </span>
@@ -881,7 +881,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 4B. CAMERA-TO-CLOUD (SHOOTERS MERGE INTO LIVE GALLERY)        */}
         {/* ============================================================ */}
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_600px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">Camera-to-Cloud</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -899,7 +899,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 5. INTERACTIVE ROLE EXPLORER (TABS)                          */}
         {/* ============================================================ */}
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-neutral-200 dark:border-neutral-800">
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-8 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_600px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">Tailored Solutions</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -926,7 +926,7 @@ export default function Home(): React.JSX.Element {
             </div>
 
             <TabsContent value="photographer">
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 p-6 sm:p-8 backdrop-blur-md shadow-sm space-y-6">
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:bg-white/70 md:dark:bg-neutral-900/70 p-6 sm:p-8 md:backdrop-blur-md shadow-xs space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="size-11 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
                     <Camera className="size-6" />
@@ -956,7 +956,7 @@ export default function Home(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="guests">
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 p-6 sm:p-8 backdrop-blur-md shadow-sm space-y-6">
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:bg-white/70 md:dark:bg-neutral-900/70 p-6 sm:p-8 md:backdrop-blur-md shadow-xs space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="size-11 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
                     <Users className="size-6" />
@@ -986,7 +986,7 @@ export default function Home(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="organizers">
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 p-6 sm:p-8 backdrop-blur-md shadow-sm space-y-6">
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:bg-white/70 md:dark:bg-neutral-900/70 p-6 sm:p-8 md:backdrop-blur-md shadow-xs space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="size-11 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0">
                     <Sparkles className="size-6" />
@@ -1020,7 +1020,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 6. HOW IT WORKS WORKFLOW                                     */}
         {/* ============================================================ */}
-        <section id="how-it-works" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section id="how-it-works" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_600px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">How it works</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -1036,7 +1036,7 @@ export default function Home(): React.JSX.Element {
               <div
                 key={s.title}
                 className={cn(
-                  "rounded-2xl border border-neutral-200 dark:border-neutral-800 p-6 sm:p-8 space-y-4 backdrop-blur-md transition-all duration-200 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-md bg-white/70 dark:bg-neutral-900/70",
+                  "rounded-2xl border border-neutral-200 dark:border-neutral-800 p-6 sm:p-8 space-y-4 md:backdrop-blur-md transition-all duration-200 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-md bg-white dark:bg-neutral-900 md:bg-white/70 md:dark:bg-neutral-900/70",
                   idx === 1 ? "ring-1 ring-emerald-500/40 border-emerald-500/40" : ""
                 )}
               >
@@ -1065,7 +1065,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 7. WHY SWITCH (TRADITIONAL VS FYNDR COMPARISON MATRIX)        */}
         {/* ============================================================ */}
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_600px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">Why Switch</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -1076,7 +1076,7 @@ export default function Home(): React.JSX.Element {
             </p>
           </div>
 
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white/50 dark:bg-neutral-950/50 backdrop-blur-md shadow-sm">
+          <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-neutral-950 md:bg-white/50 md:dark:bg-neutral-950/50 md:backdrop-blur-md shadow-xs">
             {/* Table Header */}
             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/60 dark:bg-neutral-900/60">
               <div className="p-5 flex items-center justify-between">
@@ -1153,7 +1153,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 8. USE CASES                                                 */}
         {/* ============================================================ */}
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_500px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">Use cases</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -1168,7 +1168,7 @@ export default function Home(): React.JSX.Element {
             {USE_CASES.map((u) => (
               <div
                 key={u.title}
-                className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 p-6 space-y-3 backdrop-blur-md transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
+                className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:bg-white/60 md:dark:bg-neutral-900/60 p-6 space-y-3 md:backdrop-blur-md transition-all hover:border-neutral-300 dark:hover:border-neutral-700"
               >
                 <div className="flex items-center justify-between">
                   <span className="size-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 inline-flex items-center justify-center text-foreground">
@@ -1186,7 +1186,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 9. TESTIMONIALS                                              */}
         {/* ============================================================ */}
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_500px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">Testimonials</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -1201,7 +1201,7 @@ export default function Home(): React.JSX.Element {
             {QUOTES.map((t) => (
               <div
                 key={t.author}
-                className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 p-6 sm:p-8 space-y-4 flex flex-col justify-between"
+                className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:bg-white/60 md:dark:bg-neutral-900/60 p-6 sm:p-7 space-y-4 md:backdrop-blur-md"
               >
                 <div className="space-y-4">
                   <div className="flex items-center gap-1 text-amber-500" role="img" aria-label="5 out of 5 stars">
@@ -1225,7 +1225,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 10. PRICING TIERS                                            */}
         {/* ============================================================ */}
-        <section id="pricing" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section id="pricing" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_700px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">Transparent Pricing</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -1296,7 +1296,7 @@ export default function Home(): React.JSX.Element {
               return (
                 <div
                   key={tier.name}
-                  className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 p-6 flex flex-col justify-between space-y-6 backdrop-blur-md"
+                  className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:bg-white/60 md:dark:bg-neutral-900/60 p-6 flex flex-col justify-between space-y-6 md:backdrop-blur-md"
                 >
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -1352,7 +1352,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 11. FAQ SECTION                                              */}
         {/* ============================================================ */}
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800">
+        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 space-y-12 border-b border-neutral-200 dark:border-neutral-800 [content-visibility:auto] [contain-intrinsic-size:1px_600px]">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
             <Badge variant="secondary">FAQ</Badge>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -1372,7 +1372,7 @@ export default function Home(): React.JSX.Element {
         <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 text-white p-8 sm:p-12 lg:p-16">
             <div className="absolute inset-0 bg-dot-grid opacity-20 pointer-events-none" />
-            <div className="absolute top-0 right-0 size-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="hidden md:block absolute top-0 right-0 size-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
               <div className="space-y-5">
@@ -1403,7 +1403,7 @@ export default function Home(): React.JSX.Element {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 backdrop-blur-sm p-6 space-y-4">
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900 md:bg-neutral-900/80 md:backdrop-blur-sm p-6 space-y-4">
                 <span className="font-bold text-sm text-white block">Everything included:</span>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-neutral-300">
                   {[
