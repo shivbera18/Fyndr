@@ -6,7 +6,7 @@ import FormData from "form-data";
 import { FLASK_URL } from "../config";
 import Photo from "../models/Photo";
 import { enqueue, markDone, markFailed } from "../queue/mongoQueue";
-import { putObjectBytes } from "../utils/r2";
+import { putObjectBytes, hasR2 } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 
 export interface UploadFile {
@@ -118,9 +118,12 @@ export async function processUploadedFile(
     if (!skipQueue) await markDone(event_id, hash).catch(()=>{});
     try {
       const bytes = await fs.promises.readFile(file.path);
-      await putObjectBytes(`${event_id}/${file.filename}`, bytes);
-      // Human-readable Drive backup alongside the G3 pool mirror above.
-      await syncUploadToDrive(event_id, upload_by, file, bytes);
+      if (hasR2()) {
+        await putObjectBytes(`${event_id}/${file.filename}`, bytes);
+      } else {
+        // Direct Drive backup only when G3/R2 is unconfigured (avoids duplicate uploads).
+        await syncUploadToDrive(event_id, upload_by, file, bytes);
+      }
     } catch {}
     void unlinkAsync(file.path);
     return photo;
