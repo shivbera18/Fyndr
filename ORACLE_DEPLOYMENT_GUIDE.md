@@ -308,13 +308,14 @@ server {
 
     # G3 S3 storage — direct browser-to-G3 photo PUTs (bypasses Node API & multer disk buffering)
     location /fyndr-photos/ {
+        limit_except PUT GET HEAD OPTIONS { deny all; }
         proxy_pass http://127.0.0.1:9000;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 100M;
+        client_max_body_size 50M;
         proxy_request_buffering off;
         proxy_read_timeout 300s;
         proxy_connect_timeout 300s;

@@ -75,7 +75,7 @@ Because your project is in **Testing** status (unverified personal app), Google 
 cd C:\Users\Shiv\desktop\g3-fork-check
 docker build -t g3 .
 docker run -d --name g3 `
-  -p 8787:8787 -p 9000:9000 `
+  -p 127.0.0.1:8787:8787 -p 127.0.0.1:9000:9000 `
   -v g3-data:/data `
   -e G3_DEV=true `
   -e G3_ADMIN_EMAIL=you@example.com `
@@ -136,15 +136,18 @@ In `/etc/nginx/conf.d/fyndr.conf`, proxy `/fyndr-photos/` directly to G3 port 90
 
 ```nginx
 location /fyndr-photos/ {
+    limit_except PUT GET HEAD OPTIONS { deny all; }
     proxy_pass http://127.0.0.1:9000;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    proxy_set_header Host $http_host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    client_max_body_size 100M;
+    client_max_body_size 50M;
     proxy_request_buffering off;
     proxy_read_timeout 300s;
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
 }
 ```
 

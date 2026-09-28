@@ -46,8 +46,23 @@ try {
   console.log("[r2] public endpoint client not configured, direct upload disabled:", (e as Error).message);
 }
 
+function isPrivateEndpoint(ep?: string): boolean {
+  if (!ep) return true;
+  try {
+    const u = new URL(ep);
+    const h = u.hostname.toLowerCase();
+    if (h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "0.0.0.0") return true;
+    if (h.startsWith("10.") || h.startsWith("192.168.")) return true;
+    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(h)) return true;
+    if (h.endsWith(".local") || h.endsWith(".internal")) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export async function getPresignedPut(key: string, contentType = "image/jpeg"): Promise<string | null> {
-  if (!s3) return null;
+  if (!s3 && !s3Public) return null;
   if (!key || typeof key !== "string" || key.includes("..") || key.length > 512) throw new Error("invalid key");
   const { PutObjectCommand } = require("@aws-sdk/client-s3");
   const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
@@ -55,12 +70,9 @@ export async function getPresignedPut(key: string, contentType = "image/jpeg"): 
     Bucket: process.env.R2_BUCKET || "fyndr-photos",
     Key: key,
     ContentType: contentType,
-    // P2: prevent abuse – limit to images, 10MB hint (actual enforcement at upload)
   });
-  // ponytail: browser needs the public origin; never hand a 127.0.0.1 loopback URL to remote clients.
-  const endpoint = process.env.R2_ENDPOINT || "";
-  const isLoopback = endpoint.includes("127.0.0.1") || endpoint.includes("localhost") || endpoint.includes("::1");
-  const signer = s3Public || (isLoopback ? null : s3);
+  // ponytail: browser needs a public origin; never hand a loopback/private URL to remote clients.
+  const signer = s3Public || (isPrivateEndpoint(process.env.R2_ENDPOINT) ? null : s3);
   if (!signer) return null;
   return getSignedUrl(signer, cmd, { expiresIn: 3600 });
 }
