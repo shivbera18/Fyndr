@@ -17,8 +17,6 @@ const PRECACHE_ASSETS = [
   '/logo-mark-dark.svg',
   '/logo-mark-light.svg',
   '/logo192.png',
-  '/logo512.png',
-  '/logo-maskable-512.png',
 ];
 
 // Helper: Trim LRU cache entries (oldest first). keepUrls are absolute URLs
@@ -281,7 +279,7 @@ self.addEventListener('fetch', (event) => {
         const cachedResponse = await caches.match(request);
         const fetchPromise = fetch(request)
           .then(async (networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
+            if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
               const cache = await caches.open(CACHE_STATIC);
               cache.put(request, networkResponse.clone());
             }
@@ -289,8 +287,14 @@ self.addEventListener('fetch', (event) => {
           })
           .catch(() => null);
 
+        // Stale-While-Revalidate: deliver cached response immediately (0ms); revalidate in background
+        if (cachedResponse) {
+          event.waitUntil(fetchPromise);
+          return cachedResponse;
+        }
+
         const networkResponse = await fetchPromise;
-        return cachedResponse || networkResponse || Response.error();
+        return networkResponse || Response.error();
       })()
     );
   }

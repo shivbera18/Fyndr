@@ -86,29 +86,31 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
     { name: "Dashboard", link: "/dashboard" },
   ];
 }
+function getStoredUser(): SessionUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? (JSON.parse(raw) as SessionUser) : null;
+  } catch {
+    return null;
+  }
+}
 
-
-export default function Header(): React.JSX.Element {
+function HeaderInner(): React.JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(getStoredUser);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = useMemo(() => getNavItems(location.pathname, user), [location.pathname, user]);
 
   useEffect(() => {
     const loadUser = () => {
-      try {
-        const raw = localStorage.getItem("user");
-        setUser(raw ? (JSON.parse(raw) as SessionUser) : null);
-      } catch {
-        setUser(null);
-      }
+      setUser(getStoredUser());
     };
-    loadUser();
     window.addEventListener("user-updated", loadUser);
     setMobileOpen(false);
     return () => window.removeEventListener("user-updated", loadUser);
-  }, [location]);
+  }, [location.pathname]);
   const logout = useCallback(() => {
     try {
       localStorage.removeItem("user");
@@ -326,3 +328,6 @@ export default function Header(): React.JSX.Element {
     </Navbar>
   );
 }
+
+export const Header = React.memo(HeaderInner);
+export default Header;

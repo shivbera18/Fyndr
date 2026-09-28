@@ -1,10 +1,13 @@
+import React, { Suspense, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
-import { PWAInstallModal } from './PWAInstallModal';
 import { Button } from '../ui/button';
 import { LogoMark } from '../../component/brand/LogoMark';
 import { Download, X } from 'lucide-react';
 
+const PWAInstallModal = lazy(() =>
+  import('./PWAInstallModal').then((m) => ({ default: m.PWAInstallModal }))
+);
 export function PWAInstallBanner() {
   const location = useLocation();
   const {
@@ -104,14 +107,18 @@ export function PWAInstallBanner() {
         </div>
       </aside>
 
-      <PWAInstallModal
-        open={showGuideModal}
-        onOpenChange={setShowGuideModal}
-        onInstall={async () => {
-          await installApp();
-        }}
-        isIOS={isIOS}
-      />
+      {showGuideModal && (
+        <Suspense fallback={null}>
+          <PWAInstallModal
+            open={showGuideModal}
+            onOpenChange={setShowGuideModal}
+            onInstall={async () => {
+              await installApp();
+            }}
+            isIOS={isIOS}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

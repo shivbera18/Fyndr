@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
@@ -16,8 +16,12 @@ import {
   TabsTrigger,
   TabsContent,
 } from "../../components/ui/tabs";
-import { BeamLines } from "../../components/ui/beam-lines";
-import { CameraCloudFlow } from "./CameraCloudFlow";
+const BeamLines = lazy(() =>
+  import("../../components/ui/beam-lines").then((m) => ({ default: m.default || m.BeamLines }))
+);
+const CameraCloudFlow = lazy(() =>
+  import("./CameraCloudFlow").then((m) => ({ default: m.default || m.CameraCloudFlow }))
+);
 import { ConicBorderCard } from "../../components/ui/conic-border-card";
 import {
   BentoGrid,
@@ -712,7 +716,9 @@ export default function Home(): React.JSX.Element {
 
         {/* Hero Visual: Desktop/PC interactive diagram */}
         <div className="mt-14 w-full max-w-5xl mx-auto hidden md:block">
-          <BeamLines />
+          <Suspense fallback={null}>
+            <BeamLines />
+          </Suspense>
         </div>
         {/* Mobile: Ultra-lightweight static 3-step value cards (zero Framer Motion, zero blur, zero animations) */}
         <div className="mt-8 w-full max-w-md mx-auto md:hidden grid grid-cols-1 gap-2.5 text-left">
@@ -926,7 +932,9 @@ export default function Home(): React.JSX.Element {
           </div>
           {/* Desktop/PC: Full interactive multi-camera flow with animated packets */}
           <div className="max-w-5xl mx-auto hidden md:block">
-            <CameraCloudFlow />
+            <Suspense fallback={null}>
+              <CameraCloudFlow />
+            </Suspense>
           </div>
           {/* Mobile: Ultra-lightweight static 4-stage pipeline overview (zero animation, zero JS loop, instant scroll) */}
           <div className="max-w-md mx-auto md:hidden grid grid-cols-1 gap-2.5 text-left">
