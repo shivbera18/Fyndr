@@ -68,11 +68,14 @@ export async function getObjectBytes(key: string): Promise<Buffer | null> {
   try {
     const { GetObjectCommand } = require("@aws-sdk/client-s3");
     // ponytail: lazy require is untyped, so send() returns the SDK union — any keeps the Body read compiling.
+    // 50MB cap mirrors the stage/multer limits; a bigger object is corrupt, not a photo.
     const res: any = await s3.send(
-      new GetObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key })
+      new GetObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key }),
+      { abortSignal: AbortSignal.timeout(30000) }
     );
     if (!res || !res.Body || typeof res.Body.transformToByteArray !== "function") return null;
     const bytes = await res.Body.transformToByteArray();
+    if (!bytes || bytes.length > 50 * 1024 * 1024) return null;
     return Buffer.from(bytes);
   } catch (err) {
     console.warn("[r2] GetObject failed for key", key, (err as Error).message);
@@ -80,17 +83,25 @@ export async function getObjectBytes(key: string): Promise<Buffer | null> {
   }
 }
 
-// Stage-complete probe: did the browser PUT land? True on 2xx, false on any throw.
-export async function headObject(key: string): Promise<boolean> {
-  if (!s3 || !key || typeof key !== "string") return false;
+// Stage-complete probe: true = PUT landed, false = absent, null = store
+// error (outage/creds) — caller must NOT treat null as missing.
+export async function headObject(key: string): Promise<boolean | null> {
+  if (!s3 || !key || typeof key !== "string") return null;
   try {
     const { HeadObjectCommand } = require("@aws-sdk/client-s3");
     await s3.send(
-      new HeadObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key })
+      new HeadObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key }),
+      { abortSignal: AbortSignal.timeout(15000) }
     );
     return true;
-  } catch {
-    return false;
+  } catch (e: unknown) {
+    // ponytail: NotFound (404/NoSuchKey) is the only "absent"; everything
+    // else is an outage — conflating them re-PUT-loops during downtime.
+    const status = (e as { $metadata?: { httpStatusCode?: number }; $response?: { statusCode?: number } }) || {};
+    const code = status.$metadata?.httpStatusCode ?? status.$response?.statusCode;
+    const name = (e as { name?: string }).name || "";
+    if (code === 404 || name === "NotFound" || name === "NoSuchKey") return false;
+    return null;
   }
 }
 

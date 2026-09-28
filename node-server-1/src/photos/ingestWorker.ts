@@ -1,10 +1,11 @@
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import FormData from "form-data";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import { claimNext, markDone, markFailed, Job } from "../queue/mongoQueue";
-import { deleteObject, getObjectBytes, putObjectBytes } from "../utils/r2";
+import { deleteObject, getObjectBytes, headObject, putObjectBytes } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import { httpClient } from "../utils/http";
 import logger from "../utils/logger";
@@ -41,10 +42,17 @@ let started = false;
 export function startIngestWorker(): void {
   if (started) return;
   started = true;
+  let inFlight = false;
   setInterval(() => {
-    void pollOnce().catch((e: unknown) => {
-      logger.warn("[ingest] poll tick failed", { error: e instanceof Error ? e.message : String(e) });
-    });
+    if (inFlight) return;
+    inFlight = true;
+    void pollOnce()
+      .catch((e: unknown) => {
+        logger.warn("[ingest] poll tick failed", { error: e instanceof Error ? e.message : String(e) });
+      })
+      .finally(() => {
+        inFlight = false;
+      });
   }, 2000);
 }
 
@@ -77,9 +85,35 @@ async function pollOnce(): Promise<void> {
 
 async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<void> {
   const items: WorkItem[] = [];
+  // ponytail: a fresh direct-PUT is still uploading — don't burn one of 3
+  // claims on it. Young Jobs with both stubs absent go back to queued with
+  // attempts untouched (release, don't fail).
+  const GRACE_MS = 10 * 60 * 1000;
+  const fresh: QueuedClaim[] = [];
   for (const job of jobs) {
     const hash = String(job.photo_hash);
+    const created = (job as { createdAt?: unknown }).createdAt;
+    const age = Date.now() - new Date((created as string | number) || 0).getTime();
     const photo = await Photo.findOne({ event_id: eventId, hash }).catch(() => null);
+    if (age < GRACE_MS) {
+      let ready = !!photo;
+      if (photo) {
+        try {
+          await fs.promises.stat(path.join(UPLOAD_DIR, photo.name));
+        } catch {
+          const present = await headObject(eventId + "/" + photo.name).catch(() => null);
+          ready = present === true;
+        }
+      }
+      if (!ready) {
+        // Still uploading: release the claim without consuming an attempt.
+        await Job.updateOne(
+          { event_id: eventId, photo_hash: hash, status: "processing" },
+          { $set: { status: "queued" }, $inc: { attempts: -1 } }
+        ).catch(() => {});
+        continue;
+      }
+    }
     if (!photo) {
       await markFailed(eventId, hash, "photo stub missing").catch(() => {});
       // Terminal cleanup only when exhausted: retryable attempts own no file
@@ -208,11 +242,19 @@ async function fetchSingleEmbedding(item: WorkItem): Promise<number[][]> {
 
 async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void> {
   const tempPath = path.join(UPLOAD_DIR, item.photo.name);
+  // ponytail: stage trusts the browser's claimed sha256 — re-hash the actual
+  // bytes before completing, so a wrong claim fails loudly, never dedupes wrong.
+  try {
+    const actual = crypto.createHash("sha256").update(item.buffer).digest("hex");
+    if (actual !== item.hash.toLowerCase()) {
+      await markFailed(item.eventId, item.hash, `hash mismatch (claimed ${item.hash.slice(0, 12)} got ${actual.slice(0, 12)})`).catch(() => {});
+      return;
+    }
+  } catch { /* hashing never blocks ingest; fall through */ }
   try {
     await Photo.updateOne({ _id: item.photo._id }, { embedding: JSON.stringify(embeddings), status: "done" });
   } catch (e: unknown) {
     await markFailed(item.eventId, item.hash, e instanceof Error ? e.message : String(e)).catch(() => {});
-    // Keep file+stub for retry; terminal cleanup only when the Job is
     // exhausted (failed/missing) — a transient DB error must not eat the stub.
     const exhausted = await Job.findOne({ event_id: item.eventId, photo_hash: item.hash }).catch(() => null);
     if (!exhausted || exhausted.status === "failed") {

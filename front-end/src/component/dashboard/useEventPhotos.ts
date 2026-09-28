@@ -21,17 +21,20 @@ type PhotosResponse = {
 type UseEventPhotos = {
   photos: EventPhoto[];
   loading: boolean;
+  loadError: string | null;
   hasMore: boolean;
   sentinelRef: RefObject<HTMLDivElement>;
   refresh: () => Promise<void>;
   loadMore: () => void;
   removePhoto: (photoId: string) => void;
 };
+
 // Paged gallery source for the dashboard grid. Server filters by folder and
 // returns 60-photo pages with an opaque cursor; the sentinel auto-appends.
 export function useEventPhotos(eventID: string, activeFolder: string): UseEventPhotos {
   const [photos, setPhotos] = useState<EventPhoto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const cursorRef = useRef<string | null>(null);
   const fetchingRef = useRef<boolean>(false);
@@ -50,6 +53,7 @@ export function useEventPhotos(eventID: string, activeFolder: string): UseEventP
       fetchingRef.current = true;
       const request = ++requestRef.current;
       setLoading(true);
+      if (!append) setLoadError(null);
       try {
         const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
         if (activeFolder && activeFolder !== "All") params.set("folder", activeFolder);
@@ -57,6 +61,8 @@ export function useEventPhotos(eventID: string, activeFolder: string): UseEventP
         const res = await fetch(
           `${getApiBase()}/events/${encodeURIComponent(eventID)}/photos?${params.toString()}`
         );
+        // ponytail: a 500 used to render as an empty gallery — surface it.
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json().catch(() => null)) as PhotosResponse | EventPhoto[] | null;
         if (request !== requestRef.current) return;
         const page: EventPhoto[] = Array.isArray(data) ? data : data?.photos ?? [];
@@ -64,9 +70,12 @@ export function useEventPhotos(eventID: string, activeFolder: string): UseEventP
         setPhotos((prev) => (append ? [...prev, ...page] : page));
         cursorRef.current = next;
         setHasMore(Boolean(next));
-      } catch {
+      } catch (e: unknown) {
         if (request !== requestRef.current) return;
-        if (!append) setPhotos([]);
+        if (!append) {
+          setPhotos([]);
+          setLoadError(e instanceof Error ? e.message : "Gallery failed to load");
+        }
         cursorRef.current = null;
         setHasMore(false);
       } finally {
@@ -126,5 +135,5 @@ export function useEventPhotos(eventID: string, activeFolder: string): UseEventP
     setPhotos((prev) => prev.filter((p) => p._id !== photoId));
   }, []);
 
-  return { photos, loading, hasMore, sentinelRef, refresh, loadMore: fetchNext, removePhoto };
+  return { photos, loading, loadError, hasMore, sentinelRef, refresh, loadMore: fetchNext, removePhoto };
 }

@@ -345,13 +345,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             return false;
           }
           // ponytail: backend only reports duplicate when bytes are present
-          // (local or G3), so done here is real — no blind trust.
-          if (!stage || stage.duplicate) {
+          // (local or G3), so done here is real — no blind trust. Falsy stage
+          // (empty body) must fall back, never count as success.
+          if (stage && stage.duplicate) {
             batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
             commitAggregateProgress();
             return true;
           }
-          if (stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
+          if (!stage || stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
           const photoId = stage.photo && typeof stage.photo._id === "string" ? stage.photo._id : null;
           if (!photoId) return false;
           await axios.put(stage.uploadUrl, item.file, {

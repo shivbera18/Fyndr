@@ -1,7 +1,7 @@
+import crypto from "crypto";
 import multer from "multer";
 import path from "path";
 import { EVENT_PROFILE_DIR, UPLOAD_DIR } from "../config";
-
 export const IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"];
 
 function imageFilter(
@@ -23,7 +23,8 @@ function diskUpload(dir: string) {
     },
     filename: (_req, file, cb) => {
       const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
-      cb(null, `${Date.now()}-${safe}`); // Unique filename
+      // ponytail: 100-file batches land in the same ms — random suffix stops overwrites.
+      cb(null, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${safe}`); // Unique filename
     },
   });
   return multer({

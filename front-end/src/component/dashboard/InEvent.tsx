@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import { dataURLToBlob, sanitizeFileName, shareOrDownload } from "../../utils/download";
@@ -172,7 +173,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
 
   const navigate = useNavigate();
   const [activeFolder, setActiveFolder] = useState<string>("All");
-  const { photos: images, loading, hasMore, sentinelRef, refresh: fetchImages, loadMore, removePhoto } =
+  const { photos: images, loading, loadError, hasMore, sentinelRef, refresh: fetchImages, loadMore, removePhoto } =
     useEventPhotos(eventID, activeFolder);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
@@ -253,8 +254,12 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         });
         if (res.ok) {
           removePhoto(photoId);
+        } else {
+          toast.error(`Delete failed (HTTP ${res.status}) — photo kept.`);
         }
-      } catch {}
+      } catch {
+        toast.error("Delete failed (network) — photo kept.");
+      }
     },
     [eventID, removePhoto]
   );
@@ -1429,11 +1434,22 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
           </div>
         </div>
 
-        {loading && images.length === 0 ? (
+        {loading && images.length === 0 && !loadError ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm">Loading photos…</p>
           </div>
+        ) : loadError && images.length === 0 ? (
+          <Card className="text-center py-12 px-4">
+            <CardContent className="space-y-3">
+              <p className="text-sm text-destructive">
+                Gallery failed to load ({loadError}). Your photos are safe.
+              </p>
+              <Button size="sm" className="min-h-[44px]" onClick={() => void fetchImages()}>
+                <RefreshCw className="h-3.5 w-3.5" /> Retry
+              </Button>
+            </CardContent>
+          </Card>
         ) : images.length === 0 ? (
           <Card className="text-center py-12 px-4">
             <CardContent className="space-y-2">

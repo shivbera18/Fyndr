@@ -29,7 +29,7 @@ router.get("/queue/stats", async (req: Request, res: Response) => {
     res.send(await queueStats(event_id as string));
   } catch (e: any) {
     logger.error("Queue stats failed", { error: e.message, stack: e.stack, event_id });
-    res.status(500).send({ error: e.message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -45,7 +45,7 @@ router.get("/queue/failed", async (req: Request, res: Response) => {
     res.send(await listFailed(event_id as string, lim));
   } catch (e: any) {
     logger.error("Queue failed list", { error: e.message, stack: e.stack, event_id });
-    res.status(500).send({ error: e.message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -60,7 +60,7 @@ router.post("/queue/retry", async (req: Request, res: Response) => {
     res.send({ ok: true, modified: r.modifiedCount || r.matchedCount || 0 });
   } catch (e: any) {
     logger.error("Queue retry failed", { error: e.message, stack: e.stack, event_id });
-    res.status(500).send({ error: e.message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -78,7 +78,7 @@ router.post("/presign", async (req: Request, res: Response) => {
     res.send({ url: null, via: "local", message: "R2 not configured, use local upload" });
   } catch (e: any) {
     logger.error("Presign failed", { error: e.message, stack: e.stack, key });
-    res.status(500).send({ error: e.message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 

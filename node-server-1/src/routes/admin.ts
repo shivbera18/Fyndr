@@ -95,7 +95,7 @@ router.get("/admin/overview", async (_req: Request, res: Response) => {
     res.send({ users, events, photos, queuedJobs, failedJobs, driveConnections });
   } catch (e: unknown) {
     logger.error("Admin overview failed", { error: (e as Error).message, stack: (e as Error).stack });
-    res.status(500).send({ error: (e as Error).message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -119,7 +119,7 @@ router.get("/admin/users", async (_req: Request, res: Response) => {
     });
   } catch (e: unknown) {
     logger.error("Admin users failed", { error: (e as Error).message, stack: (e as Error).stack });
-    res.status(500).send({ error: (e as Error).message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -132,18 +132,22 @@ router.get("/admin/drive", async (_req: Request, res: Response) => {
     res.send({ totalConnections: connections.length, connections });
   } catch (e: unknown) {
     logger.error("Admin drive list failed", { error: (e as Error).message, stack: (e as Error).stack });
-    res.status(500).send({ error: (e as Error).message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
 router.post("/admin/drive/disconnect", async (req: Request, res: Response) => {
   const { userId } = req.body as { userId?: string };
-  if (!userId) return res.status(400).send({ error: "userId required" });
+  if (typeof userId !== "string" || !userId) return res.status(400).send({ error: "userId required" });
   try {
     const doc = await DriveConnection.findOne({ userId });
     if (doc) {
       try {
-        await axios.post(`https://oauth2.googleapis.com/revoke?token=${decryptRefreshToken(doc.refreshTokenEnc)}`);
+        // ponytail: token in POST body, not the URL — revoke URLs land in logs.
+        await axios.post("https://oauth2.googleapis.com/revoke", null, {
+          params: { token: decryptRefreshToken(doc.refreshTokenEnc) },
+          timeout: 15000,
+        });
       } catch {
         // revocation failure still deletes the doc
       }
@@ -152,7 +156,7 @@ router.post("/admin/drive/disconnect", async (req: Request, res: Response) => {
     res.send({ disconnected: true });
   } catch (e: unknown) {
     logger.error("Admin drive disconnect failed", { error: (e as Error).message, stack: (e as Error).stack });
-    res.status(500).send({ error: (e as Error).message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -162,7 +166,7 @@ router.get("/admin/queue", async (_req: Request, res: Response) => {
     res.send({ failed });
   } catch (e: unknown) {
     logger.error("Admin queue list failed", { error: (e as Error).message, stack: (e as Error).stack });
-    res.status(500).send({ error: (e as Error).message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 
@@ -179,7 +183,7 @@ router.post("/admin/queue/retry", async (req: Request, res: Response) => {
     res.send({ ok: true, modified: r.modifiedCount || 0 });
   } catch (e: unknown) {
     logger.error("Admin queue retry failed", { error: (e as Error).message, stack: (e as Error).stack });
-    res.status(500).send({ error: (e as Error).message });
+    res.status(500).send({ error: "internal error" });
   }
 });
 // G3 pool: linked Drive accounts + balancing, proxied with the operator

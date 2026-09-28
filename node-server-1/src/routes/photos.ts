@@ -173,9 +173,10 @@ async function resolveStageFolder(eventId: string, wantRaw: unknown): Promise<{ 
   if (!canonical) return { error: `unknown folder_name. Valid: ${valid.join(", ")}` };
   return { folder: canonical };
 }
-// True when the bytes for a staged photo exist anywhere the worker can
-// finish from: local temp (multer path) or the object store (direct path).
-async function stagedBytesPresent(eventId: string, name: string): Promise<boolean> {
+// Tri-state: true = bytes present (local temp or object store), false =
+// absent in both, null = store check errored (outage) — callers must not
+// treat null as absent.
+async function stagedBytesPresent(eventId: string, name: string): Promise<boolean | null> {
   try {
     await fs.promises.stat(path.join(UPLOAD_DIR, name));
     return true;
@@ -211,7 +212,8 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
         dup.folder_name = folder_name;
         await dup.save().catch(() => {});
       }
-      if (dup.status === "done" || (await stagedBytesPresent(event_id, dup.name))) {
+      const bytes = await stagedBytesPresent(event_id, dup.name);
+      if (dup.status === "done" || bytes === true) {
         return res.status(200).send({ duplicate: true, photo: dup });
       }
       const url = await getPresignedPut(`${event_id}/${dup.name}`, contentType).catch(() => null);
@@ -235,7 +237,7 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
       const statusVal = jobDoc && typeof jobDoc === "object" && "status" in jobDoc ? jobDoc.status : undefined;
       if (statusVal === "done") {
         const existing = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
-        if (existing && (existing.status === "done" || (await stagedBytesPresent(event_id, existing.name)))) {
+        if (existing && (existing.status === "done" || (await stagedBytesPresent(event_id, existing.name)) === true)) {
           return res.status(200).send({ duplicate: true, photo: existing });
         }
         if (existing) {
@@ -255,7 +257,7 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
     } catch (e: unknown) {
       if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
         const d = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
-        if (d && (d.status === "done" || (await stagedBytesPresent(event_id, d.name)))) {
+        if (d && (d.status === "done" || (await stagedBytesPresent(event_id, d.name)) === true)) {
           return res.status(200).send({ duplicate: true, photo: d });
         }
         if (d) {
@@ -267,6 +269,9 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
       }
       const msg = errMsg(e);
       await markFailed(event_id, hex, msg).catch(() => {});
+      // ponytail: enqueue ran before stub.save — non-dup failure leaves an
+      // orphan Job pointing at nothing; drop it so it never burns claims.
+      await Job.deleteOne({ event_id, photo_hash: hex }).catch(() => {});
       return res.status(422).send({ error: msg });
     }
     return res.status(200).send({ photo: stub, key, uploadUrl, via: "r2", expiresIn: 3600 });
@@ -276,6 +281,8 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
   }
 });
 // Browser confirms its PUT landed; worker needs no kick (the staged Job is already claimable).
+// Outage-aware: null (store error) → 503 so the client falls back to multer
+// instead of re-PUT-looping; revive a failed Job so the bytes get finished.
 router.post("/photo/complete", async (req: Request, res: Response) => {
   try {
     const b = (req.body || {}) as { photo_id?: unknown; event_id?: unknown };
@@ -286,7 +293,15 @@ router.post("/photo/complete", async (req: Request, res: Response) => {
     const photo = await Photo.findOne({ _id: b.photo_id, event_id: b.event_id });
     if (!photo) return res.status(404).send({ error: "photo not found" });
     const present = await headObject(`${b.event_id}/${photo.name}`);
+    if (present === null)
+      return res.status(503).send({ ok: false, reason: "store-unavailable" });
     if (!present) return res.status(200).send({ ok: false, reason: "object-missing" });
+    if (photo.hash && typeof photo.hash === "string") {
+      await Job.updateOne(
+        { event_id: b.event_id, photo_hash: photo.hash, status: "failed" },
+        { $set: { status: "queued", lastError: null } }
+      ).catch(() => {});
+    }
     return res.status(200).send({ ok: true });
   } catch (e: unknown) {
     logger.error("[photo] complete error", e instanceof Error ? e : new Error(String(e)));
