@@ -72,7 +72,8 @@ export async function getPresignedPut(key: string, contentType = "image/jpeg"): 
     ContentType: contentType,
   });
   // ponytail: browser needs a public origin; never hand a loopback/private URL to remote clients.
-  const signer = s3Public || (isPrivateEndpoint(process.env.R2_ENDPOINT) ? null : s3);
+  const hasPublicEndpoint = !!process.env.R2_PUBLIC_ENDPOINT;
+  const signer = (hasPublicEndpoint ? s3Public : null) || (isPrivateEndpoint(process.env.R2_ENDPOINT) ? null : s3);
   if (!signer) return null;
   return getSignedUrl(signer, cmd, { expiresIn: 3600 });
 }

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import axios from "axios";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -171,9 +172,15 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   }, [selectedFiles]);
 
   const addFiles = (files: FileList | File[]) => {
-    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    const raw = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (raw.length === 0) return;
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    const oversized = raw.filter((f) => f.size > MAX_FILE_SIZE);
+    if (oversized.length > 0) {
+      toast.error(`${oversized.length} photo(s) exceed the 50MB upload limit and were skipped.`);
+    }
+    const list = raw.filter((f) => f.size <= MAX_FILE_SIZE);
     if (list.length === 0) return;
-
     setSelectedFiles((prev) => {
       const currentCount = prev.length;
       const mapped: SelectedFile[] = list.map((file, idx) => {

@@ -2,9 +2,7 @@ import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
 import { promClient } from "../metrics";
 import { stats as queueStats, listFailed, retryFailed } from "../queue/mongoQueue";
-import { getPresignedPut } from "../utils/r2";
 import logger from "../utils/logger";
-import { IMAGE_MIMES } from "../middleware/upload";
 
 const router = Router();
 
@@ -64,22 +62,5 @@ router.post("/queue/retry", async (req: Request, res: Response) => {
   }
 });
 
-// P2: R2 presigned PUT (falls back to local if no R2 env) – validated key, contentType allowlist
-router.post("/presign", async (req: Request, res: Response) => {
-  const { key, contentType } = req.body;
-  if (!key || typeof key !== "string") return res.status(400).send({ error: "key required" });
-  if (key.includes("..") || key.startsWith("/") || key.length > 512)
-    return res.status(400).send({ error: "invalid key" });
-  const ct = contentType || "image/jpeg";
-  if (!IMAGE_MIMES.includes(ct)) return res.status(400).send({ error: "unsupported contentType" });
-  try {
-    const url = await getPresignedPut(key, ct);
-    if (url) return res.send({ url, via: "r2", expiresIn: 3600 });
-    res.send({ url: null, via: "local", message: "R2 not configured, use local upload" });
-  } catch (e: any) {
-    logger.error("Presign failed", { error: e.message, stack: e.stack, key });
-    res.status(500).send({ error: "internal error" });
-  }
-});
 
 export default router;
