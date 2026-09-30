@@ -23,8 +23,10 @@ import {
   Loader2,
   Sliders,
   Sparkles,
+  ImageUp,
 } from "lucide-react";
 import { PWAStudioCard } from "../../components/pwa";
+import UploadQualityToggle from "./UploadQualityToggle";
 
 export default function AccountPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -409,6 +411,22 @@ export default function AccountPage(): React.JSX.Element {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 2b: Upload Quality */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <ImageUp className="size-4 text-primary" />
+                Upload Quality
+              </CardTitle>
+              <CardDescription>
+                Compressed uploads are faster and near-lossless. Switch to original for full-resolution archival.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UploadQualityToggle />
             </CardContent>
           </Card>
 

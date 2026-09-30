@@ -4,8 +4,9 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
 import { API_URL } from "../../utils/api";
-import { User, Mail, Key, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, Mail, Key, ShieldCheck, Loader2, CheckCircle2, AlertCircle, ImageUp } from "lucide-react";
 import { PWAStudioCard } from "../../components/pwa";
+import UploadQualityToggle from "./UploadQualityToggle";
 
 export default function AccountDetailsCard(): React.JSX.Element {
   const [name, setName] = useState("");
@@ -204,6 +205,14 @@ export default function AccountDetailsCard(): React.JSX.Element {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="pt-4 border-t border-border space-y-2">
+              <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <ImageUp className="size-4 text-muted-foreground" />
+                Upload Quality
+              </div>
+              <UploadQualityToggle />
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">

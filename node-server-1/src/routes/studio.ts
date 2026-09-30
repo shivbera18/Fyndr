@@ -1,11 +1,13 @@
 import { Router, Request, Response } from "express";
+import fs from "fs";
 import Studio from "../models/Studio";
 import logger from "../utils/logger";
+import { eventProfileUpload } from "../middleware/upload";
 
 const router = Router();
 
 router.post("/studio", async (req: Request, resp: Response) => {
-  const { studio_name, phone_no, address, offer, description, create_by } = req.body;
+  const { studio_name, phone_no, address, offer, description, create_by, logoUrl, logoUpdatedAt } = req.body;
 
   if (create_by && studio_name && phone_no) {
     try {
@@ -16,7 +18,7 @@ router.post("/studio", async (req: Request, resp: Response) => {
         // Update existing record
         const updatedStudio = await Studio.findOneAndUpdate(
           { create_by: create_by },
-          { studio_name, phone_no, address, offer, description },
+          { studio_name, phone_no, address, offer, description, ...(logoUrl !== undefined ? { logoUrl } : {}), ...(logoUpdatedAt !== undefined ? { logoUpdatedAt } : {}) },
           { new: true } // Return the updated document
         );
 
@@ -46,6 +48,19 @@ router.post("/studio", async (req: Request, resp: Response) => {
   } else {
     return resp.status(400).send({ message: "Studio name, Phone No, and Created By are required" });
   }
+});
+
+// ponytail: logo rides the existing event_profile static mount
+// (/event_profile/<file>); 2MB png/jpeg/webp only, old logo kept on 400.
+const LOGO_MIMES: Record<string, true> = { "image/png": true, "image/jpeg": true, "image/webp": true };
+router.post("/studio/logo", eventProfileUpload.single("logo"), async (req: Request, res: Response) => {
+  const file = req.file;
+  if (!file) return res.status(400).send({ message: "logo file required" });
+  if (!LOGO_MIMES[file.mimetype] || file.size > 2 * 1024 * 1024) {
+    await fs.promises.unlink(file.path).catch(() => {});
+    return res.status(400).send({ message: "logo must be png/jpeg/webp under 2MB" });
+  }
+  return res.status(200).send({ logoUrl: `/event_profile/${file.filename}`, logoUpdatedAt: new Date().toISOString() });
 });
 
 router.post("/find_studio", async (req: Request, res: Response) => {
