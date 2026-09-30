@@ -73,6 +73,7 @@ type InEventPhotoCardProps = {
   photoUrl: string;
   wmOn: boolean;
   watermarkText: string;
+  logoUrl: string | null;
   onPreview: (preview: Preview) => void;
   onDownload: (url: string, name: string) => void;
   onDelete: (id: string) => void;
@@ -85,6 +86,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   photoUrl,
   wmOn,
   watermarkText,
+  logoUrl,
   onPreview,
   onDownload,
   onDelete,
@@ -138,10 +140,12 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
         className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
       />
       {wmOn ? (
-        <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
-          <span className="-rotate-[30deg] whitespace-nowrap text-lg font-bold text-white/25 select-none">
-            {watermarkText} • {watermarkText}
-          </span>
+        <span aria-hidden="true" className="pointer-events-none absolute right-2 bottom-2 z-10">
+          {logoUrl ? (
+            <img src={logoUrl} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} className="h-5 max-w-24 object-contain opacity-80" />
+          ) : (
+            <span className="text-[10px] font-semibold text-white/80 bg-black/45 px-1.5 py-0.5 rounded">{watermarkText}</span>
+          )}
         </span>
       ) : null}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2.5 flex items-center justify-between pointer-events-auto">
@@ -185,6 +189,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
   const [folderError, setFolderError] = useState<string>("");
   const [showPickedOnly, setShowPickedOnly] = useState<boolean>(false);
   const [studioName, setStudioName] = useState<string>("");
+  const [studioLogoUrl, setStudioLogoUrl] = useState<string | null>(null);
   const [wmOn, setWmOn] = useState<boolean>(true);
   const [insights, setInsights] = useState<{ scans: number; selfies: number; downloads: number; gate: boolean } | null>(null);
   const [savingFolders, setSavingFolders] = useState<boolean>(false);
@@ -332,6 +337,9 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
       .then((data) => {
         if (data && typeof data === "object" && "studio_name" in data && typeof data.studio_name === "string") {
           setStudioName(data.studio_name);
+        }
+        if (data && typeof data === "object" && "logoUrl" in data && typeof data.logoUrl === "string") {
+          setStudioLogoUrl(data.logoUrl);
         }
       })
       .catch(() => {});
@@ -1483,6 +1491,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
                     photoUrl={thumbUrl}
                     wmOn={wmOn}
                     watermarkText={watermarkText}
+                    logoUrl={studioLogoUrl ? `${getApiBase()}${studioLogoUrl}` : null}
                     onPreview={(preview) => handlePreview({ ...preview, url: fullUrl })}
                     onDownload={() => handleDownload(fullUrl, photo.name)}
                     onDelete={handleDelete}
@@ -1640,10 +1649,12 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
               )}
             >
               {wmOn ? (
-                <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
-                  <span className="-rotate-[30deg] whitespace-nowrap text-2xl font-bold text-white/25 select-none">
-                    {studioName.trim() || name}
-                  </span>
+                <span aria-hidden="true" className="pointer-events-none absolute right-2 bottom-2 z-10">
+                  {studioLogoUrl ? (
+                    <img src={`${getApiBase()}${studioLogoUrl}`} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} className="h-5 max-w-24 object-contain opacity-80" />
+                  ) : (
+                    <span className="text-[10px] font-semibold text-white/80 bg-black/45 px-1.5 py-0.5 rounded">{watermarkText}</span>
+                  )}
                 </span>
               ) : null}
               <img

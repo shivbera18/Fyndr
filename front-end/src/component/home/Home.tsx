@@ -16,12 +16,6 @@ import {
   TabsTrigger,
   TabsContent,
 } from "../../components/ui/tabs";
-const BeamLines = lazy(() =>
-  import("../../components/ui/beam-lines").then((m) => ({ default: m.default || m.BeamLines }))
-);
-const CameraCloudFlow = lazy(() =>
-  import("./CameraCloudFlow").then((m) => ({ default: m.default || m.CameraCloudFlow }))
-);
 import { ConicBorderCard } from "../../components/ui/conic-border-card";
 import {
   BentoGrid,
@@ -51,6 +45,12 @@ import {
   Images,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+const BeamLines = lazy(() =>
+  import("../../components/ui/beam-lines").then((m) => ({ default: m.default || m.BeamLines }))
+);
+const CameraCloudFlow = lazy(() =>
+  import("./CameraCloudFlow").then((m) => ({ default: m.default || m.CameraCloudFlow }))
+);
 
 /* ------------------------------------------------------------------ */
 /* Data Constants                                                     */

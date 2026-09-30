@@ -7,6 +7,8 @@ const studioSchema = new mongoose.Schema(
     address: { type: String },
     offer: { type: String },
     description: { type: String },
+    logoUrl: { type: String },
+    logoUpdatedAt: { type: Date },
     create_by: { type: String, required: true, unique: true },
   },
   { timestamps: true }

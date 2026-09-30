@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner";
 import axios from "axios";
 import { API_URL } from "../../utils/api";
+import { prepareUploadImage } from "../../utils/clientImage";
+import { isOriginalQuality } from "../../utils/uploadPrefs";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -69,7 +71,7 @@ export function uploadDelayMs(failedAttempt: number): number {
 // ponytail: subtle absent (insecure ctx) → null → multer fallback.
 // Namespace object so tests can stub hashing (jsdom lacks crypto.subtle).
 export const fileHasher = {
-  sha256Hex: async (file: File): Promise<string | null> => {
+  sha256Hex: async (file: Blob): Promise<string | null> => {
     try {
       // ponytail: globalThis works in browsers + jsdom alike.
       const subtle = globalThis.crypto?.subtle;
@@ -85,10 +87,33 @@ export const fileHasher = {
   },
 };
 
+// ponytail: compress-once memo — retries reuse bytes; hash/stage/PUT all
+// use prepared bytes because the server re-hashes actuals (mismatch = failed).
+async function preparedFor(item: SelectedFile): Promise<{ blob: Blob; compressed: boolean }> {
+  if (!item.prepared) {
+    // ponytail: archival opt-out lives in user settings (localStorage);
+    // checked per file so a mid-queue toggle flip takes effect immediately.
+    if (isOriginalQuality()) {
+      item.prepared = { blob: item.file, compressed: false };
+    } else {
+      try {
+        const p = await prepareUploadImage(item.file);
+        item.prepared = { blob: p.blob, compressed: p.compressed };
+      } catch {
+        item.prepared = { blob: item.file, compressed: false };
+      }
+    }
+  }
+  return item.prepared;
+}
+
 export type SelectedFile = {
   file: File;
   preview: string;
   id: string;
+  // ponytail: compressed blob memoized per file so retries reuse bytes;
+  // hash/stage/PUT all use the prepared bytes (server re-hashes actuals).
+  prepared?: { blob: Blob; compressed: boolean };
 };
 
 type Props = {
@@ -286,6 +311,9 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     const batches = buildByteBudgetedBatches(allFiles);
     const totalBatches = batches.length;
     let uploadedCount = 0;
+    // ponytail: shared across concurrent batches — caption only when every file compressed.
+    let hadFallback = false;
+    let allCompressed = true;
 
     try {
       // ponytail: aggregate progress via fractions so concurrent batches share one ref-throttled bar.
@@ -319,7 +347,9 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         // when the store is unconfigured, hashing is unavailable, or a stage
         // call answers local. Same retry/cancel/progress scaffolding below.
         const uploadOneDirect = async (item: SelectedFile, slot: number): Promise<boolean> => {
-          const hash = await fileHasher.sha256Hex(item.file);
+          const { blob, compressed } = await preparedFor(item);
+          const type = compressed ? "image/jpeg" : item.file.type;
+          const hash = await fileHasher.sha256Hex(blob);
           if (!hash) return false;
           let stage: {
             duplicate?: boolean; photo?: { _id?: string }; key?: string | null;
@@ -332,8 +362,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 event_id,
                 hash,
                 filename: item.file.name,
-                size: item.file.size,
-                contentType: item.file.type,
+                size: blob.size,
+                contentType: type,
                 folder_name,
                 upload_by: USER_ID ?? undefined,
               },
@@ -362,8 +392,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           if (!stage || stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
           const photoId = stage.photo && typeof stage.photo._id === "string" ? stage.photo._id : null;
           if (!photoId) return false;
-          await axios.put(stage.uploadUrl, item.file, {
-            headers: { "Content-Type": item.file.type || "image/jpeg" },
+          await axios.put(stage.uploadUrl, blob, {
+            headers: { "Content-Type": type || "image/jpeg" },
             signal: abortController.signal,
             timeout: 0,
             onUploadProgress: (progressEvent) => {
@@ -435,12 +465,19 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           return;
         }
         let attempt = 0;
+        // ponytail: compress once per file (memoized); server originalname
+        // stays the photographer's filename, dedup hash is content-based.
+        const preparedFallback = await Promise.all(needFallback.map((item) => preparedFor(item)));
+        if (preparedFallback.length > 0) {
+          hadFallback = true;
+          if (!preparedFallback.every((p) => p.compressed)) allCompressed = false;
+        }
         for (;;) {
           attempt += 1;
           try {
             const formData = new FormData();
-            needFallback.forEach((item) => {
-              formData.append("name", item.file);
+            needFallback.forEach((item, i) => {
+              formData.append("name", preparedFallback[i]?.blob ?? item.file, item.file.name);
             });
             formData.append("event_id", event_id);
             if (folder_name) formData.append("folder_name", folder_name);
@@ -563,7 +600,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
       setUploadStatus({
         kind: "success",
-        text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!`,
+        text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback && allCompressed ? " Optimized for fast upload, original quality." : ""}`,
       });
       setProgress(100);
        setBatchInfo(null);

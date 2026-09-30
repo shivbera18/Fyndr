@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
@@ -11,6 +12,8 @@ export default function Photographer_detail(): React.JSX.Element {
   const [address, setAddress] = useState("");
   const [offer, setOffer] = useState("");
   const [description, setDescription] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
@@ -33,6 +36,7 @@ export default function Photographer_detail(): React.JSX.Element {
           setAddress(data.address || "");
           setOffer(data.offer || "");
           setDescription(data.description || "");
+          if (typeof data.logoUrl === "string") setLogoUrl(data.logoUrl);
         }
       } catch {}
     };
@@ -75,6 +79,56 @@ export default function Photographer_detail(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ponytail: logo rides event_profile static mount; persist via existing POST /studio.
+  const persistLogo = async (next: string | null) => {
+    if (!userId) return;
+    await fetch(`${API_URL}/studio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        create_by: userId,
+        studio_name: studioName,
+        phone_no: phoneNo,
+        address,
+        offer,
+        description,
+        logoUrl: next,
+        logoUpdatedAt: next ? new Date().toISOString() : null,
+      }),
+    }).catch(() => {});
+  };
+
+  const handleLogoFile = async (file: File | undefined) => {
+    if (!file || !userId) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Logo must be under 2MB.");
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const form = new FormData();
+      form.append("logo", file);
+      const up = await fetch(`${API_URL}/studio/logo`, { method: "POST", body: form });
+      const data = await up.json().catch(() => null);
+      if (!up.ok || !data || typeof data.logoUrl !== "string") {
+        toast.error(data?.message || "Logo upload failed.");
+        return;
+      }
+      setLogoUrl(data.logoUrl);
+      await persistLogo(data.logoUrl);
+      toast.success("Studio logo saved.");
+    } catch {
+      toast.error("Network error uploading logo.");
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    setLogoUrl(null);
+    await persistLogo(null);
   };
 
   return (
@@ -153,8 +207,38 @@ export default function Photographer_detail(): React.JSX.Element {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Tell your clients and event guests about your photography experience…"
-                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="studioLogo">Studio logo (corner mark on previews)</Label>
+              <div className="flex items-center gap-3">
+                {logoUrl ? (
+                  <img src={`${API_URL}${logoUrl}`} alt="Studio logo" className="h-24 w-24 rounded-lg border object-contain bg-muted" />
+                ) : (
+                  <div className="h-24 w-24 rounded-lg border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                    No logo
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <Input
+                    id="studioLogo"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={logoBusy}
+                    onChange={(e) => {
+                      void handleLogoFile(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                  {logoUrl ? (
+                    <Button type="button" variant="outline" size="sm" disabled={logoBusy} onClick={() => void handleLogoRemove()} className="min-h-[44px]">
+                      Remove logo
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             <Button
