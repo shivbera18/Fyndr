@@ -116,7 +116,6 @@ export type SelectedFile = {
   prepared?: { blob: Blob; compressed: boolean };
 };
 
-
 type Props = {
   event_id: string;
   d_ref?: () => void;
