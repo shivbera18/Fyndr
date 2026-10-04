@@ -1,8 +1,11 @@
 // ponytail: browser-only JPEG recompress, zero server CPU. Unsupported
 // types (HEIC/RAW) return the original file untouched.
 
-export const MAX_LONG_EDGE = 2560;
-export const JPEG_QUALITY = 0.82;
+export const MAX_LONG_EDGE = 8192;
+export const JPEG_QUALITY = 0.97;
+// ponytail: files already ≤8MB upload in seconds on bad wifi — re-encoding
+// them saves little at the cost of a full lossy generation. Pass through.
+export const PASSTHROUGH_BYTES = 8 * 1024 * 1024;
 
 const JPEG_SOURCES: Record<string, true> = { "image/jpeg": true, "image/png": true, "image/webp": true };
 
@@ -16,6 +19,9 @@ export type PreparedImage = {
 export async function prepareUploadImage(file: File | Blob): Promise<PreparedImage> {
   const type = file.type || "";
   if (type && !JPEG_SOURCES[type]) {
+    return { blob: file, compressed: false, width: 0, height: 0 };
+  }
+  if (file.size <= PASSTHROUGH_BYTES) {
     return { blob: file, compressed: false, width: 0, height: 0 };
   }
   try {
@@ -32,6 +38,11 @@ export async function prepareUploadImage(file: File | Blob): Promise<PreparedIma
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) return { blob: file, compressed: false, width: 0, height: 0 };
+      // ponytail: white matte (no black fringing on PNG alpha) + high-quality downscale kernel.
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(bitmap, 0, 0, w, h);
       const blob: Blob | null = await (typeof (canvas as HTMLCanvasElement & { convertToBlob?: (o?: object) => Promise<Blob> }).convertToBlob === "function"
         ? (canvas as HTMLCanvasElement & { convertToBlob: (o?: object) => Promise<Blob> }).convertToBlob({ type: "image/jpeg", quality: JPEG_QUALITY })
