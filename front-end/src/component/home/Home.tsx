@@ -1179,7 +1179,7 @@ export default function Home(): React.JSX.Element {
         {/* ============================================================ */}
         {/* 11. FAQ SECTION                                              */}
         {/* ============================================================ */}
-        <section className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7">
+        <section id="faq" className="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 space-y-7 scroll-mt-24">
           <div className="glass-landing-soft rounded-2xl px-6 py-7 sm:px-8 max-w-3xl">
             <span className="font-mono text-xs tracking-widest text-emerald-600 font-semibold">09 — FAQ</span>
             <h2 className="font-cinematic-display text-2xl sm:text-3xl font-normal tracking-tight text-neutral-900 text-balance">

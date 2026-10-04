@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import Home from "../Home";
+import { MobileNavToggle } from "../../../components/ui/resizable-navbar";
 
 jest.mock("../../navbar/Header", () => ({
   __esModule: true,
@@ -52,13 +53,42 @@ describe("landing scroll-jank contracts", () => {
     expect(cta?.className ?? "").not.toMatch("backdrop-blur");
   });
 
-  test("hamburger toggle meets the 44px tap-target contract", async () => {
-    const mod = await import("../../../components/ui/resizable-navbar");
-    expect(mod.MobileNavToggle).toBeDefined();
+  test("hamburger toggle meets the 44px tap-target contract", () => {
+    render(
+      <MobileNavToggle isOpen={false} onClick={() => {}} />
+    );
+    const toggle = screen.getByRole("button", { name: /open menu/i });
+    expect(toggle.className).toMatch(/min-h-\[44px\]/);
+    expect(toggle.className).toMatch(/min-w-\[44px\]/);
   });
 
   test("demo carousel pauses offscreen via IntersectionObserver", () => {
+    // ponytail: jsdom lacks IO — install a controllable mock, render, then
+    // drive offscreen and assert the rotation interval is cleared.
+    const observe = jest.fn();
+    const disconnect = jest.fn();
+    let ioCallback: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
+    const setIntervalSpy = jest.spyOn(window, "setInterval");
+    const clearIntervalSpy = jest.spyOn(window, "clearInterval");
+    Object.defineProperty(window, "IntersectionObserver", {
+      value: jest.fn().mockImplementation((cb: (entries: { isIntersecting: boolean }[]) => void) => {
+        ioCallback = cb;
+        return { observe, disconnect, unobserve: jest.fn() };
+      }),
+      configurable: true,
+      writable: true,
+    });
     renderHome();
     expect(document.getElementById("fy-demo-card")).not.toBeNull();
+    expect(observe).toHaveBeenCalled();
+    // ponytail: effect starts stopped — drive visible first (interval on),
+    // then offscreen (interval cleared). Matches the IO wiring in Home.
+    ioCallback?.([{ isIntersecting: true }]);
+    expect(setIntervalSpy).toHaveBeenCalled();
+    ioCallback?.([{ isIntersecting: false }]);
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
+    Reflect.deleteProperty(window, "IntersectionObserver");
   });
 });
