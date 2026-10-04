@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap");
+/* ponytail: faces declared here; files load via preconnected <link> tags in
+   index.html (no serial CSS @import round-trip on landing first paint). */
 
 .font-cinematic-display {
   font-family: "Instrument Serif", Georgia, serif;

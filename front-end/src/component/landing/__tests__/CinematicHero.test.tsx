@@ -30,7 +30,7 @@ describe("CinematicHero", () => {
     expect(screen.queryByText(/silence/i)).not.toBeInTheDocument();
   });
 
-  test("video background has fade-loop wiring", () => {
+  test("video background restarts seamlessly on ended", () => {
     renderHero();
     const video = screen.getByTestId("cinematic-hero-video") as HTMLVideoElement;
     expect(video).toHaveAttribute(
@@ -42,6 +42,10 @@ describe("CinematicHero", () => {
     const film = screen.getByTestId("cinematic-film");
     expect(film.className).toMatch(/fixed/);
     expect(film.className).not.toMatch(/-z-10/);
+    // ponytail: native loop attribute drives the restart — no manual
+    // ended-handler left to cover, so assert the attribute itself.
+    expect(video).toHaveAttribute("loop");
+    expect(video).toHaveAttribute("poster");
   });
 
   test("Begin Journey buttons navigate to login", () => {
