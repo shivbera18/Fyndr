@@ -163,3 +163,11 @@ export async function deleteObject(key: string): Promise<void> {
 export function hasR2(): boolean {
   return !!s3;
 }
+// ponytail: album segment keeps one folder per album inside the event prefix.
+// Same transforms as driveStore sanitize (strip trailing dots, 60 chars) but
+// falls back to General (Drive sanitize falls back to Untitled event — blank
+// album names diverge between the two views).
+export function g3Key(eventId: string, album: string, filename: string): string {
+  const seg = (album || "General").replace(/[\r\n"/\\]/g, "_").trim().replace(/\.+$/, "").slice(0, 60) || "General";
+  return `${eventId}/${seg}/${filename}`;
+}

@@ -5,7 +5,7 @@ import FormData from "form-data";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import { claimNext, markDone, markFailed, Job } from "../queue/mongoQueue";
-import { deleteObject, getObjectBytes, headObject, putObjectBytes, hasR2 } from "../utils/r2";
+import { deleteObject, getObjectBytes, g3Key, headObject, putObjectBytes, hasR2 } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import { httpClient } from "../utils/http";
 import logger from "../utils/logger";
@@ -24,6 +24,7 @@ interface StubPhoto {
   upload_by?: unknown;
   status?: unknown;
   embedding?: unknown;
+  folder_name?: unknown;
 }
 
 interface WorkItem {
@@ -101,7 +102,9 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
         try {
           await fs.promises.stat(path.join(UPLOAD_DIR, photo.name));
         } catch {
-          const present = await headObject(eventId + "/" + photo.name).catch(() => null);
+          const alb = typeof photo.folder_name === "string" ? photo.folder_name : "General";
+          const present = (await headObject(g3Key(eventId, alb, photo.name)).catch(() => null))
+            || (await headObject(eventId + "/" + photo.name).catch(() => null));
           ready = present === true;
         }
       }
@@ -138,7 +141,8 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
     } catch (e: unknown) {
       // Direct browser-to-G3 stubs never touch local disk: pull bytes back
       // from the store so they flow through the identical finish path.
-      const remote = await getObjectBytes(eventId + "/" + photo.name);
+      const alb2 = typeof photo.folder_name === "string" ? photo.folder_name : "General";
+      const remote = (await getObjectBytes(g3Key(eventId, alb2, photo.name))) || (await getObjectBytes(eventId + "/" + photo.name));
       if (remote) {
         buffer = remote;
       } else {
@@ -280,7 +284,8 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
     }
     if (localPresent) {
       try {
-        const ok = await putObjectBytes(`${item.eventId}/${item.photo.name}`, item.buffer);
+        const alb3 = typeof item.photo.folder_name === "string" ? item.photo.folder_name : "General";
+        const ok = await putObjectBytes(g3Key(item.eventId, alb3, item.photo.name), item.buffer);
         if (!ok) logger.warn("[ingest] G3 mirror skipped", { event_id: item.eventId, name: item.photo.name });
       } catch (e: unknown) {
         logger.warn("[ingest] G3 mirror failed", {
@@ -295,7 +300,7 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
       await syncUploadToDrive(item.eventId, owner, {
         filename: item.photo.name,
         originalname: item.photo.name,
-      }, item.buffer);
+      }, item.buffer, typeof item.photo.folder_name === "string" ? item.photo.folder_name : "General");
     } catch (e: unknown) {
       logger.warn("[ingest] Drive mirror failed", {
         event_id: item.eventId,

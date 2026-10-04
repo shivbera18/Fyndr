@@ -11,7 +11,7 @@ const photoSchema = new mongoose.Schema(
     status: { type: String, enum: ["queued", "done", "failed"], default: "done", index: true },
     // P0: sub-event folder — 'General' = unfiled, keeps old photos valid
     folder_name: { type: String, default: "General", trim: true, maxlength: 60, index: true },
-    // Direct-Drive backup id (Fyndr Storage/<event>/<file>); G3 pool mirror is keyed separately
+    // Direct-Drive backup id (Fyndr Storage/<event>/<album>/<file>); G3 pool mirror is keyed separately
     driveFileId: { type: String },
     // 640px JPEG mirror served from /uploads/thumbs; absent = legacy photo, gallery falls back to original
     thumb: { type: String },

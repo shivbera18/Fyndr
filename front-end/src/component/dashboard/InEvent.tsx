@@ -1605,7 +1605,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
             setIsZoomed(false);
           }
         }}
-        className="sm:max-w-3xl"
+        className="sm:max-w-3xl max-h-[90dvh] overflow-y-auto"
         title={previewImage ? `Photo preview #${previewImage.index}` : "Photo preview"}
       >
         {previewImage && (
@@ -1665,7 +1665,7 @@ const InEventPhotoCard = React.memo(function InEventPhotoCard({
                 className={cn(
                   "rounded-lg transition-transform",
                   isZoomed
-                    ? "max-w-none max-h-none object-none cursor-zoom-out"
+                    ? "max-w-full max-h-none object-contain cursor-zoom-out"
                     : "max-w-full max-h-[60vh] object-contain cursor-zoom-in"
                 )}
               />

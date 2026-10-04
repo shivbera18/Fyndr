@@ -70,6 +70,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
 
   const [eventId] = useState<string | null>(initialEventId);
   const [studioName, setStudioName] = useState<string>("");
+  const [studioLogoUrl, setStudioLogoUrl] = useState<string>("");
   const [eventName, setEventName] = useState<string>("");
   const [paywallConfig, setPaywallConfig] = useState<PaywallConfig | null>(null);
   const [showPaywallModal, setShowPaywallModal] = useState<boolean>(false);
@@ -94,6 +95,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         sessionStorage.setItem(`fy-require-lead-${eventId}`, gate ? "1" : "0");
         if (data && typeof data === "object" && "studio" in data && data.studio && typeof data.studio === "object" && "studio_name" in data.studio) {
           setStudioName(String(data.studio.studio_name));
+          if ("logoUrl" in data.studio && typeof data.studio.logoUrl === "string") setStudioLogoUrl(data.studio.logoUrl);
         }
         if (ev && typeof ev === "object" && "event_name" in ev) {
           setEventName(String(ev.event_name));
@@ -890,6 +892,9 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                           >
                             {simPercent}% match
                           </Badge>
+                          {studioLogoUrl ? (
+                            <img src={`${getApiBase()}${studioLogoUrl}`} alt="" aria-hidden="true" className="pointer-events-none absolute right-2 bottom-2 z-10 h-6 w-auto max-w-[30%] object-contain opacity-90" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                          ) : null}
                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
@@ -992,10 +997,11 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
 
               <div
                 className={cn(
-                  "rounded-xl border border-border bg-black/95 flex justify-center p-2 max-h-[65vh]",
+                  "relative rounded-xl border border-border bg-black/95 flex justify-center p-2 max-h-[65vh]",
                   isZoomed ? "overflow-auto items-start" : "overflow-hidden items-center"
                 )}
               >
+                {studioLogoUrl ? (<img src={`${getApiBase()}${studioLogoUrl}`} alt="" aria-hidden="true" className="pointer-events-none absolute right-4 bottom-4 z-10 h-8 w-auto max-w-[25%] object-contain opacity-90" onError={(e) => { e.currentTarget.style.display = "none"; }} />) : null}
                 {paywallConfig?.enabled &&
                 paywallConfig.stage === "watermark_removal" &&
                 !isPhotoUnlocked(eventId, previewPhoto.name) ? (
@@ -1016,7 +1022,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                   className={cn(
                     "rounded-lg transition-transform",
                     isZoomed
-                      ? "max-w-none max-h-none object-none cursor-zoom-out"
+                      ? "max-w-full max-h-none object-contain cursor-zoom-out"
                       : "max-w-full max-h-[60vh] object-contain cursor-zoom-in"
                   )}
                 />

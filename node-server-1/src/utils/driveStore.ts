@@ -9,7 +9,7 @@ import { GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET } from "../config";
 import logger from "./logger";
 
 // Direct-Drive mirror: human-readable backup at
-//   Fyndr Storage / <event name> / <filename>
+//   Fyndr Storage / <event name> / <album> / <filename>
 // alongside the G3 pool (machine-readable .part blobs in G3 Storage).
 // Every export never throws — ingest/delete must survive a Drive outage.
 
@@ -118,7 +118,7 @@ async function ensureEventFolder(token: string, eventName: string): Promise<stri
   try {
     let rootId = await findFolder(token, ROOT);
     if (!rootId) {
-      const created = await axios.post<DriveFileId>(
+      const created = await axios.post<{ id: string }>(
         "https://www.googleapis.com/drive/v3/files?fields=id",
         { name: ROOT, mimeType: "application/vnd.google-apps.folder" },
         { headers, timeout: 15000 }
@@ -128,7 +128,7 @@ async function ensureEventFolder(token: string, eventName: string): Promise<stri
     const folder = sanitize(eventName);
     let folderId = await findFolder(token, folder, rootId);
     if (!folderId) {
-      const created = await axios.post<DriveFileId>(
+      const created = await axios.post<{ id: string }>(
         "https://www.googleapis.com/drive/v3/files?fields=id",
         { name: folder, mimeType: "application/vnd.google-apps.folder", parents: [rootId] },
         { headers, timeout: 15000 }
@@ -137,9 +137,29 @@ async function ensureEventFolder(token: string, eventName: string): Promise<stri
     }
     return folderId;
   } catch (e: unknown) {
-    logger.warn("[drive] folder ensure failed", {
-      error: e instanceof Error ? e.message : String(e),
-    });
+    logger.warn("[drive] folder ensure failed", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+async function ensureAlbumFolder(token: string, eventName: string, album: string): Promise<string | null> {
+  const eventId = await ensureEventFolder(token, eventName);
+  if (!eventId) return null;
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const folder = sanitize(album || "General");
+    let folderId = await findFolder(token, folder, eventId);
+    if (!folderId) {
+      const created = await axios.post<DriveFileId>(
+        "https://www.googleapis.com/drive/v3/files?fields=id",
+        { name: folder, mimeType: "application/vnd.google-apps.folder", parents: [eventId] },
+        { headers, timeout: 15000 }
+      );
+      folderId = created.data.id;
+    }
+    return folderId;
+  } catch (e: unknown) {
+    logger.warn("[drive] album folder ensure failed", { error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }
@@ -148,14 +168,15 @@ export async function syncUploadToDrive(
   event_id: string,
   uploadBy: string | undefined,
   file: DriveMirrorFile,
-  bytes: Buffer
+  bytes: Buffer,
+  album = "General"
 ): Promise<void> {
   try {
     const event = await Event.findById(event_id).select("created_id event_name");
     if (!event) return;
     const token = await tokenFor([event.created_id, uploadBy]);
     if (!token) return;
-    const folderId = await ensureEventFolder(token, event.event_name || "Untitled event");
+    const folderId = await ensureAlbumFolder(token, event.event_name || "Untitled event", album);
     if (!folderId) return;
     const headers = { Authorization: `Bearer ${token}` };
     const mime = mimeFor(file.filename);
