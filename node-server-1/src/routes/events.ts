@@ -693,8 +693,8 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
                 if (err) logger.error(`Failed to delete file: ${photoPath}`, err);
                 else logger.info(`Deleted file: ${photoPath}`);
             });
-            deleteObject(`${_id}/${photo.name}`).catch(() => {});
-            deleteObject(g3Key(String(_id), photo.folder_name || "General", photo.name)).catch(() => {});
+            deleteObject(`${_id}/${photo.name}`).catch((e) => logger.warn("[delete-event] G3 legacy delete failed", { file: photo.name, error: e instanceof Error ? e.message : String(e) }));
+            deleteObject(g3Key(String(_id), photo.folder_name || "General", photo.name)).catch((e) => logger.warn("[delete-event] G3 album delete failed", { file: photo.name, error: e instanceof Error ? e.message : String(e) }));
         });
         // Direct-Drive sibling: file deletes + the event-named folder itself (best-effort).
         void syncDeleteEventFromDrive(_id, event.event_name, event.created_id, photos.map((p) => ({ driveFileId: p.driveFileId, filename: p.name, uploadBy: p.upload_by }))).catch(() => {});
