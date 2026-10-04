@@ -12,6 +12,7 @@ import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
 import { deleteObject, getObjectBytes, getPresignedPut, g3Key, headObject } from "../utils/r2";
 import { watermarked } from "../utils/watermark";
+import { syncDeletePhotoFromDrive } from "../utils/driveStore";
 import { IMAGE_MIMES, upload } from "../middleware/upload";
 import { removeFaissVector } from "../photos/processUpload";
 
