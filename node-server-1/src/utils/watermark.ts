@@ -4,8 +4,10 @@ import Photo from "../models/Photo";
 import Event from "../models/Event";
 import Studio from "../models/Studio";
 import { EVENT_PROFILE_DIR } from "../config";
+import logger from "./logger";
 
 // ponytail: 20-entry LRU keyed photo.updatedAt+logoUpdatedAt; logo change invalidates.
+// Returns null (caller serves original) when no logo, image narrower than 400px, or sharp/logo unreadable.
 const cache = new Map<string, Buffer>();
 
 // Composites studio logo bottom-right into image bytes. Null = serve original.
@@ -19,12 +21,12 @@ export async function watermarked(photoName: string, bytes: Buffer): Promise<Buf
     if (!studio?.logoUrl) return null;
     const key = `${photoName}:${String(photo.updatedAt)}:${String(studio.logoUpdatedAt)}`;
     const hit = cache.get(key);
-    if (hit) return hit;
+    if (hit) { cache.delete(key); cache.set(key, hit); return hit; }
     let sharp: (input: unknown) => { metadata: () => Promise<{ width?: number; height?: number }>; resize: (o: unknown) => { png: () => { toBuffer: () => Promise<Buffer> } }; composite: (o: unknown) => { toBuffer: () => Promise<Buffer> } };
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       sharp = require("sharp");
-    } catch (e) { console.error("[watermark] sharp unavailable, serving original", e instanceof Error ? e.message : String(e)); return null; }
+    } catch (e) { logger.warn("[watermark] sharp unavailable, serving original", { error: e instanceof Error ? e.message : String(e) }); return null; }
     const meta = await sharp(bytes).metadata();
     if (!meta.width || meta.width < 400) return null;
     await fs.promises.stat(path.join(EVENT_PROFILE_DIR, path.basename(studio.logoUrl)));
@@ -42,7 +44,8 @@ export async function watermarked(photoName: string, bytes: Buffer): Promise<Buf
     if (cache.size >= 20) cache.delete(cache.keys().next().value as string);
     cache.set(key, out);
     return out;
-  } catch {
+  } catch (e) {
+    logger.warn("[watermark] composite failed, serving original", { photo: photoName, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

@@ -430,13 +430,14 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
             if (owner.folder_name) ownerAlbum = owner.folder_name;
             await Event.updateOne({ _id: owner.event_id }, { $inc: { downloadCount: 1 } });
           }
-        } catch {}
+        } catch (e) { logger.warn("[download] owner lookup failed", { file: baseName, error: e instanceof Error ? e.message : String(e) }); }
         if (!localPresent) {
           // Direct-uploaded originals never touch disk — stream from the store.
           if (ownerEventId) {
             const bytes = (await getObjectBytes(g3Key(ownerEventId, ownerAlbum, baseName))) || (await getObjectBytes(`${ownerEventId}/${baseName}`));
             if (bytes) {
               const wm = await watermarked(baseName, bytes);
+              if (!wm) logger.warn("[download] watermark skipped, serving original", { file: baseName });
               const final = wm || bytes;
               let originalName = baseName;
               const match = originalName.match(/^\d+-(.+)$/);

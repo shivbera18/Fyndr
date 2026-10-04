@@ -8,6 +8,7 @@ import Photo from "../models/Photo";
 import { enqueue, markDone, markFailed } from "../queue/mongoQueue";
 import { g3Key, putObjectBytes, hasR2 } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
+import logger from "../utils/logger";
 
 export interface UploadFile {
   path: string;
@@ -124,7 +125,7 @@ export async function processUploadedFile(
         // Direct Drive backup only when G3/R2 is unconfigured (avoids duplicate uploads).
         await syncUploadToDrive(event_id, upload_by, file, bytes, folder_name);
       }
-    } catch {}
+    } catch (e) { logger.warn("[upload] storage mirror failed", { event_id, filename: file.filename, error: e instanceof Error ? e.message : String(e) }); }
     void unlinkAsync(file.path);
     return photo;
   } catch (e: any) {

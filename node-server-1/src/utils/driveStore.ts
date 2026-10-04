@@ -9,7 +9,7 @@ import { GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET } from "../config";
 import logger from "./logger";
 
 // Direct-Drive mirror: human-readable backup at
-//   Fyndr Storage / <event name> / <filename>
+//   Fyndr Storage / <event name> / <album> / <filename>
 // alongside the G3 pool (machine-readable .part blobs in G3 Storage).
 // Every export never throws — ingest/delete must survive a Drive outage.
 
@@ -111,6 +111,35 @@ async function findFolder(token: string, name: string, parentId?: string): Promi
     { headers, timeout: 15000 }
   );
   return found.data.files?.[0]?.id || null;
+}
+
+async function ensureEventFolder(token: string, eventName: string): Promise<string | null> {
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    let rootId = await findFolder(token, ROOT);
+    if (!rootId) {
+      const created = await axios.post<{ id: string }>(
+        "https://www.googleapis.com/drive/v3/files?fields=id",
+        { name: ROOT, mimeType: "application/vnd.google-apps.folder" },
+        { headers, timeout: 15000 }
+      );
+      rootId = created.data.id;
+    }
+    const folder = sanitize(eventName);
+    let folderId = await findFolder(token, folder, rootId);
+    if (!folderId) {
+      const created = await axios.post<{ id: string }>(
+        "https://www.googleapis.com/drive/v3/files?fields=id",
+        { name: folder, mimeType: "application/vnd.google-apps.folder", parents: [rootId] },
+        { headers, timeout: 15000 }
+      );
+      folderId = created.data.id;
+    }
+    return folderId;
+  } catch (e: unknown) {
+    logger.warn("[drive] folder ensure failed", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
 }
 
 async function ensureAlbumFolder(token: string, eventName: string, album: string): Promise<string | null> {
