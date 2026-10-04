@@ -32,7 +32,7 @@ function prefersReducedMotion(): boolean {
 
 export default function CinematicHero(): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [reduced] = React.useState<boolean>(() => prefersReducedMotion());
+  const [reduced] = useState<boolean>(() => prefersReducedMotion());
 
   useEffect(() => {
     const video = videoRef.current;
