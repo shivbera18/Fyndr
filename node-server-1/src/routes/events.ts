@@ -11,7 +11,7 @@ import Photo from "../models/Photo";
 import Lead from "../models/Lead";
 import { Job } from "../queue/mongoQueue";
 import logger from "../utils/logger";
-import { deleteObject } from "../utils/r2";
+import { deleteObject, g3Key } from "../utils/r2";
 import { syncDeleteEventFromDrive } from "../utils/driveStore";
 import { eventProfileUpload } from "../middleware/upload";
 
@@ -694,6 +694,7 @@ router.delete('/delete-event', async (req: Request, res: Response) => {
                 else logger.info(`Deleted file: ${photoPath}`);
             });
             deleteObject(`${_id}/${photo.name}`).catch(() => {});
+            deleteObject(g3Key(String(_id), photo.folder_name || "General", photo.name)).catch(() => {});
         });
         // Direct-Drive sibling: file deletes + the event-named folder itself (best-effort).
         void syncDeleteEventFromDrive(_id, event.event_name, event.created_id, photos.map((p) => ({ driveFileId: p.driveFileId, filename: p.name, uploadBy: p.upload_by }))).catch(() => {});

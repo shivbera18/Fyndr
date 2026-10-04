@@ -1,7 +1,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import fs from "fs";
+import path from "path";
 import Studio from "../models/Studio";
 import logger from "../utils/logger";
+import { EVENT_PROFILE_DIR } from "../config";
 import { eventProfileUpload } from "../middleware/upload";
 
 const router = Router();
@@ -68,7 +70,24 @@ router.post(
       await fs.promises.unlink(file.path).catch(() => {});
       return res.status(400).send({ message: "logo must be png/jpeg/webp under 2MB" });
     }
-    return res.status(200).send({ logoUrl: `/event_profile/${file.filename}`, logoUpdatedAt: new Date().toISOString() });
+    const create_by = typeof req.body.create_by === "string" ? req.body.create_by : "";
+    if (!create_by) {
+      await fs.promises.unlink(file.path).catch(() => {});
+      return res.status(400).send({ message: "create_by required" });
+    }
+    const logoUrl = `/event_profile/${file.filename}`;
+    try {
+      const prev = await Studio.findOne({ create_by }).select("logoUrl");
+      await Studio.findOneAndUpdate({ create_by }, { logoUrl, logoUpdatedAt: new Date() }, { upsert: true });
+      if (prev?.logoUrl && prev.logoUrl !== logoUrl) {
+        await fs.promises.unlink(path.join(EVENT_PROFILE_DIR, path.basename(prev.logoUrl))).catch(() => {});
+      }
+    } catch (e) {
+      await fs.promises.unlink(file.path).catch(() => {});
+      logger.warn("[studio] logo persist failed", { error: e instanceof Error ? e.message : String(e) });
+      return res.status(500).send({ message: "failed to save logo" });
+    }
+    return res.status(200).send({ logoUrl, logoUpdatedAt: new Date().toISOString() });
   },
 );
 

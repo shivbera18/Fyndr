@@ -10,8 +10,8 @@ import Event from "../models/Event";
 import { Job, enqueue, markFailed } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
-import { deleteObject, getObjectBytes, getPresignedPut, headObject } from "../utils/r2";
-import { syncDeletePhotoFromDrive } from "../utils/driveStore";
+import { deleteObject, getObjectBytes, getPresignedPut, g3Key, headObject } from "../utils/r2";
+import { watermarked } from "../utils/watermark";
 import { IMAGE_MIMES, upload } from "../middleware/upload";
 import { removeFaissVector } from "../photos/processUpload";
 
@@ -333,6 +333,7 @@ const deleteImageHandler = async (req: Request, res: Response) => {
             // ponytail: async unlink frees the event loop; no existsSync TOCTOU (unlink ENOENT is swallowed).
             fs.promises.unlink(path.join(UPLOAD_DIR, fileName)).catch((err) => logger.warn('[delete-image] unlink error', err));
             deleteObject(`${result.event_id}/${fileName}`).catch(() => {});
+            deleteObject(g3Key(String(result.event_id), result.folder_name || "General", fileName)).catch(() => {});
             // Direct-Drive sibling of the G3 pool delete above (best-effort, never blocks).
             void syncDeletePhotoFromDrive(result.event_id, { driveFileId: result.driveFileId, filename: fileName, uploadBy: result.upload_by }).catch(() => {});
         }
@@ -421,36 +422,49 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
         }
         // ROI counter — analytics must never break downloads, resolve owner first
         let ownerEventId: string | null = null;
+        let ownerAlbum = "General";
         try {
-          const owner = await Photo.findOne({ name: baseName }).select("event_id");
+          const owner = await Photo.findOne({ name: baseName }).select("event_id folder_name");
           if (owner && owner.event_id) {
             ownerEventId = String(owner.event_id);
+            if (owner.folder_name) ownerAlbum = owner.folder_name;
             await Event.updateOne({ _id: owner.event_id }, { $inc: { downloadCount: 1 } });
           }
         } catch {}
         if (!localPresent) {
           // Direct-uploaded originals never touch disk — stream from the store.
           if (ownerEventId) {
-            const bytes = await getObjectBytes(`${ownerEventId}/${baseName}`);
+            const bytes = (await getObjectBytes(g3Key(ownerEventId, ownerAlbum, baseName))) || (await getObjectBytes(`${ownerEventId}/${baseName}`));
             if (bytes) {
+              const wm = await watermarked(baseName, bytes);
+              const final = wm || bytes;
               let originalName = baseName;
               const match = originalName.match(/^\d+-(.+)$/);
               if (match && match[1]) originalName = match[1];
               const clean = originalName.replace(/[\r\n"\x00-\x1f\\]/g, "_").slice(0, 255);
               res.setHeader("Content-Type", "application/octet-stream");
               res.setHeader("Content-Disposition", `attachment; filename="${clean}"`);
-              res.setHeader("Content-Length", String(bytes.length));
-              return res.send(bytes);
+              res.setHeader("Content-Length", String(final.length));
+              return res.send(final);
             }
           }
           return res.status(404).json({ error: "File not found" });
         }
+        const diskBytes = ownerEventId ? await fs.promises.readFile(safePath).catch(() => null) : null;
+        const wmLocal = diskBytes ? await watermarked(baseName, diskBytes) : null;
+        if (wmLocal) {
+          let originalName = baseName;
+          const m2 = originalName.match(/^\d+-(.+)$/);
+          if (m2 && m2[1]) originalName = m2[1];
+          res.setHeader("Content-Type", "application/octet-stream");
+          res.setHeader("Content-Disposition", `attachment; filename="${originalName.replace(/[\r\n"\x00-\x1f\\]/g, "_").slice(0, 255)}"`);
+          res.setHeader("Content-Length", String(wmLocal.length));
+          return res.send(wmLocal);
+        }
         let originalName = baseName;
         const match = originalName.match(/^\d+-(.+)$/);
-        if (match && match[1]) {
-            originalName = match[1];
-        }
-        const sanitizedOriginalName = originalName.replace(/[\r\n"\x00-\x1f\\]/g, '_').slice(0, 255);
+        if (match && match[1]) originalName = match[1];
+        const sanitizedOriginalName = originalName.replace(/[\r\n"\x00-\x1f\\]/g, "_").slice(0, 255);
         res.download(safePath, sanitizedOriginalName, (err) => {
             if (err && !res.headersSent) {
                 logger.error('Download stream error', err);
