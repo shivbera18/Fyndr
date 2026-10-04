@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { API_URL } from "../../utils/api";
+import { signOut } from "../../utils/session";
 import { LogoMark } from "../brand/LogoMark";
 import { cn } from "../../lib/utils";
 
@@ -43,7 +44,9 @@ const Login_Register = (): React.JSX.Element => {
       });
       const d = await r.json();
       if (r.ok && d._id) {
+        await signOut();
         localStorage.setItem("user", JSON.stringify(d));
+        window.dispatchEvent(new Event("user-updated"));
         setOk("Signed in — redirecting…");
         setTimeout(() => navigate("/dashboard"), 800);
       } else {

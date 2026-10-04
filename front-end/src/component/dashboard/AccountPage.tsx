@@ -8,6 +8,7 @@ import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { API_URL } from "../../utils/api";
+import { signOut } from "../../utils/session";
 import {
   User,
   Mail,
@@ -165,11 +166,7 @@ export default function AccountPage(): React.JSX.Element {
 
   // Handle Logout
   const handleLogout = () => {
-    try {
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-    } catch {}
-    navigate("/login");
+    void signOut().finally(() => navigate("/login"));
   };
 
   // Handle Account Deletion
@@ -188,9 +185,7 @@ export default function AccountPage(): React.JSX.Element {
       });
 
       if (res.ok) {
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
-        navigate("/login");
+        void signOut().finally(() => navigate("/login"));
       } else {
         const d = await res.json();
         setDeleteError(d.message || "Failed to delete account. Please try again.");

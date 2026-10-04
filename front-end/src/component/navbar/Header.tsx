@@ -16,6 +16,7 @@ import { ThemeToggle } from "../landing/Theme";
 import AccountMenu from "./AccountMenu";
 import { User } from "lucide-react";
 import { PWAInstallButton } from "../../components/pwa";
+import { signOut } from "../../utils/session";
 function Logo(): React.JSX.Element {
   return (
     <span className="inline-flex items-center gap-2.5">
@@ -112,12 +113,10 @@ function HeaderInner(): React.JSX.Element {
     return () => window.removeEventListener("user-updated", loadUser);
   }, [location.pathname]);
   const logout = useCallback(() => {
-    try {
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-    } catch {}
-    setUser(null);
-    navigate("/login");
+    void signOut().finally(() => {
+      setUser(null);
+      navigate("/login");
+    });
   }, [navigate]);
 
   const handleNavClick = useCallback(

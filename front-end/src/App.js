@@ -28,6 +28,8 @@ const SelectEvent = lazy(() => import('./component/select/Select_event'));
 const CameraCaptureWithMask = lazy(() => import('./component/collect_images/CameraCaptureWithMask'));
 const ReelPage = lazy(() => import('./component/collect_images/reel/ReelPage'));
 const AdminPage = lazy(() => import('./component/admin/AdminPage'));
+const PrivacyPage = lazy(() => import('./component/legal/PrivacyPage'));
+const TermsPage = lazy(() => import('./component/legal/TermsPage'));
 
 // Reset scroll on page switch; hash links are handled by the target page.
 function ScrollToTop() {
@@ -141,6 +143,8 @@ function App() {
           <Route path='/api/accounts/callback' element={<DriveCallback />} />
           <Route path='/admin' element={<AdminPage />} />
           <Route path='/about' element={<About />} />
+          <Route path='/privacy' element={<PrivacyPage />} />
+          <Route path='/terms' element={<TermsPage />} />
         </Routes>
         </Suspense>
         </RouteErrorBoundary>

@@ -1,16 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { API_URL } from "../../utils/api";
+import { purgeEphemeralCaches } from "../../utils/session";
 
 export default function DriveCallback(): React.JSX.Element {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"working" | "done" | "error">("working");
   const [message, setMessage] = useState("Connecting your Drive…");
+  // OAuth codes are single-use: StrictMode double-fires this effect in dev,
+  // so guard the exchange to one attempt.
+  const didRun = useRef(false);
 
   useEffect(() => {
+    if (didRun.current) return;
+    didRun.current = true;
     const error = searchParams.get("error");
     if (error) {
       setStatus("error");
@@ -34,6 +40,9 @@ export default function DriveCallback(): React.JSX.Element {
       .then(async (r) => {
         const d = await r.json();
         if (r.ok && d.connected) {
+          // Fresh token minted — drop pre-reconnect caches so the new link
+          // never reads stale event/album/photo state from the dead session.
+          await purgeEphemeralCaches();
           setStatus("done");
           setMessage(`Drive connected (${d.email}). Returning to Settings…`);
           setTimeout(() => navigate("/settings?tab=storage"), 1200);

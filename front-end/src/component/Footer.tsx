@@ -167,8 +167,12 @@ export default function Footer(): React.JSX.Element {
               About
             </Link>
             <span aria-hidden="true">•</span>
-            <Link to="/" className="hover:text-foreground transition-colors">
+            <Link to="/privacy" className="hover:text-foreground transition-colors">
               Privacy Policy
+            </Link>
+            <span aria-hidden="true">•</span>
+            <Link to="/terms" className="hover:text-foreground transition-colors">
+              Terms
             </Link>
             <span aria-hidden="true">•</span>
             <a

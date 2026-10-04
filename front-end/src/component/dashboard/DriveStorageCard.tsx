@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { API_URL } from "../../utils/api";
 import { toast } from "sonner";
+import { purgeEphemeralCaches } from "../../utils/session";
 import { HardDrive, Loader2 } from "lucide-react";
 
 interface DriveStatus {
@@ -54,7 +55,10 @@ export default function DriveStorageCard(): React.JSX.Element {
         body: JSON.stringify({ user_id: userId }),
       });
       if (r.ok) {
-        toast.success("Drive disconnected");
+        // Hard purge: server revoked at Google + deleted the doc. Drop every
+        // local trace so a reconnect starts clean.
+        await purgeEphemeralCaches();
+        toast.success("Drive disconnected — local Drive cache cleared, reconnect anytime");
         await load();
       } else toast.error("Disconnect failed");
     } catch {
