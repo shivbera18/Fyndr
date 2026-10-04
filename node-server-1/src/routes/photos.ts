@@ -332,8 +332,8 @@ const deleteImageHandler = async (req: Request, res: Response) => {
         if (fileName) {
             // ponytail: async unlink frees the event loop; no existsSync TOCTOU (unlink ENOENT is swallowed).
             fs.promises.unlink(path.join(UPLOAD_DIR, fileName)).catch((err) => logger.warn('[delete-image] unlink error', err));
-            deleteObject(`${result.event_id}/${fileName}`).catch(() => {});
-            deleteObject(g3Key(String(result.event_id), result.folder_name || "General", fileName)).catch(() => {});
+            deleteObject(`${result.event_id}/${fileName}`).catch((e) => logger.warn("[delete] G3 legacy delete failed", { file: fileName, error: e instanceof Error ? e.message : String(e) }));
+            deleteObject(g3Key(String(result.event_id), result.folder_name || "General", fileName)).catch((e) => logger.warn("[delete] G3 album delete failed", { file: fileName, error: e instanceof Error ? e.message : String(e) }));
             // Direct-Drive sibling of the G3 pool delete above (best-effort, never blocks).
             void syncDeletePhotoFromDrive(result.event_id, { driveFileId: result.driveFileId, filename: fileName, uploadBy: result.upload_by }).catch(() => {});
         }
@@ -451,7 +451,7 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
           }
           return res.status(404).json({ error: "File not found" });
         }
-        const diskBytes = ownerEventId ? await fs.promises.readFile(safePath).catch(() => null) : null;
+        const diskBytes = ownerEventId ? await fs.promises.readFile(safePath).catch((e) => { logger.warn("[download] disk read failed", { file: baseName, error: e instanceof Error ? e.message : String(e) }); return null; }) : null;
         const wmLocal = diskBytes ? await watermarked(baseName, diskBytes) : null;
         if (wmLocal) {
           let originalName = baseName;
@@ -462,6 +462,7 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
           res.setHeader("Content-Length", String(wmLocal.length));
           return res.send(wmLocal);
         }
+        if (diskBytes && !wmLocal) logger.warn("[download] watermark skipped, serving original", { file: baseName });
         let originalName = baseName;
         const match = originalName.match(/^\d+-(.+)$/);
         if (match && match[1]) originalName = match[1];

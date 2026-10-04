@@ -17,20 +17,22 @@ router.post("/studio", async (req: Request, resp: Response) => {
       const existingStudio = await Studio.findOne({ create_by: create_by });
 
       if (existingStudio) {
+        // Logo removed client-side (null/empty logoUrl): unlink the orphan file.
+        if ((logoUrl === null || logoUrl === "") && existingStudio.logoUrl) {
+          await fs.promises.unlink(path.join(EVENT_PROFILE_DIR, path.basename(existingStudio.logoUrl))).catch(() => {});
+        }
         // Update existing record
         const updatedStudio = await Studio.findOneAndUpdate(
           { create_by: create_by },
           { studio_name, phone_no, address, offer, description, ...(logoUrl !== undefined ? { logoUrl } : {}), ...(logoUpdatedAt !== undefined ? { logoUpdatedAt } : {}) },
-          { new: true } // Return the updated document
+          { new: true }
         );
-
         if (updatedStudio) {
           return resp.status(200).send({ message: "Updated your details!", updatedStudio });
         } else {
           return resp.status(404).send({ message: "Failed to update your details!" });
         }
       } else {
-        // Create a new record
         const studio = new Studio(req.body);
         const result = await studio.save();
 
