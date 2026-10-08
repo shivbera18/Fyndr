@@ -39,6 +39,11 @@ export function buildByteBudgetedBatches(files: SelectedFile[]): SelectedFile[][
   if (current.length > 0) batches.push(current);
   return batches;
 }
+export function overallUploadPct(batchFractions: number[], totalFiles: number): number {
+  if (totalFiles <= 0) return 0;
+  const loaded = batchFractions.reduce((sum, f) => sum + f, 0);
+  return Math.min(99, Math.round((loaded / totalFiles) * 100));
+}
 
 export function isRetryableUploadError(err: unknown): boolean {
   // ponytail: canceled requests must never retry — abort means the user (or unmount) killed it.

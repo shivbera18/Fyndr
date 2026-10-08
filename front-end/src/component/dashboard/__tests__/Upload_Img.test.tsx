@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import { API_URL } from "../../../utils/api";
-import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches } from "../Upload_Img";
+import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches, overallUploadPct } from "../Upload_Img";
 import * as UploadModule from "../Upload_Img";
 jest.mock("axios", () => {
   return {
@@ -457,5 +457,12 @@ describe("Upload_Img component memory safety and batching", () => {
     });
     const hex = await UploadModule.fileHasher.sha256Hex(new File(["hi"], "hi.jpg", { type: "image/jpeg" }));
     expect(hex).toBe("8f43434600ab0102");
+  });
+
+  test("overallUploadPct caps at 99 even when every batch is complete", () => {
+    expect(overallUploadPct([15, 15, 5], 35)).toBe(99);
+    expect(overallUploadPct([15], 15)).toBe(99);
+    expect(overallUploadPct([0, 0], 35)).toBe(0);
+    expect(overallUploadPct([], 0)).toBe(0);
   });
 });
