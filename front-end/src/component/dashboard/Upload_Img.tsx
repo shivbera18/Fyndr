@@ -302,6 +302,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     if (!loading) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
+      e.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
@@ -684,7 +685,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
       const successStatus = {
         kind: "success" as const,
-        text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback ? (allCompressed ? "" : " (some photos kept original quality)") : ""}`,
+        text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback && allCompressed ? " Optimized for fast upload, original quality." : ""}`,
       };
       setUploadStatus(successStatus);
       setProgress(100);

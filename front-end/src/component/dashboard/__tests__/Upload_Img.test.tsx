@@ -392,6 +392,23 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
+  test("beforeunload warns only while an upload is active", async () => {
+    const addSpy = jest.spyOn(window, "addEventListener");
+    const removeSpy = jest.spyOn(window, "removeEventListener");
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(() => gate);
+    const { container, unmount } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    await screen.findByRole("button", { name: /Uploading \(0%\)/i });
+    expect(addSpy).toHaveBeenCalledWith("beforeunload", expect.any(Function));
+    resolvePost({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+    expect(removeSpy).toHaveBeenCalledWith("beforeunload", expect.any(Function));
+    unmount();
+  });
   test("mismatched event ignores the orphan session", async () => {
     let resolvePost: (value: unknown) => void = () => {};
     const gate = new Promise((resolve) => { resolvePost = resolve; });
@@ -402,7 +419,6 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
     await screen.findByRole("button", { name: /Uploading \(0%\)/i });
     first.unmount();
-    // Event B mounts while A's upload is in flight: no adopted progress, no banner.
     const second = render(<Upload_Img event_id="evt_B" />);
     expect(screen.queryByRole("button", { name: /Uploading/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Successfully uploaded/i)).not.toBeInTheDocument();
