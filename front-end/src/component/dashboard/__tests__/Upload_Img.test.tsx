@@ -198,6 +198,28 @@ describe("Upload_Img component memory safety and batching", () => {
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
 
+  test("full per-batch fractions cap at 99 until the success banner", async () => {
+    // ponytail: Promise.withResolvers needs TS 5.2+ lib; repo pins TS 4.9.5 — revisit on TS upgrade.
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(
+      (_url: string, _formData: FormData, config: { onUploadProgress?: (event: { loaded: number; total?: number }) => void }) => {
+        config.onUploadProgress?.({ loaded: 100, total: 100 });
+        return gate;
+      }
+    );
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    // Bytes fully reported but server not yet answered: bar must sit at 99, never 100.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Uploading \(99%\)/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Successfully uploaded/i)).not.toBeInTheDocument();
+    resolvePost({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+  });
   test("uploads in safe batches of UPLOAD_BATCH_SIZE (15) and notifies refresh", async () => {
     const dRefMock = jest.fn();
     mockedAxios.post.mockResolvedValue({ status: 200, data: [] });

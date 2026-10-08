@@ -331,11 +331,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       let firstError: unknown = null;
 
       const commitAggregateProgress = () => {
-        const loadedFiles = batchFractions.reduce((sum, f) => sum + f, 0);
         const now = Date.now();
         if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
           lastProgressCommitRef.current = now;
-          setProgress(Math.min(99, Math.round((loadedFiles / totalFilesCount) * 100)));
+          setProgress(overallUploadPct(batchFractions, totalFilesCount));
         }
       };
 
