@@ -319,6 +319,7 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
     expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(getUploadSessionSnapshot().paused).toBe(true);
     expect(screen.getByText(/Paused \(0 of 4, 0%\)/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
@@ -326,8 +327,21 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
+  test("cancel while paused aborts immediately without hanging", async () => {
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(() => gate);
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(20) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 20 photos/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: /Cancel upload/i }));
+    expect(await screen.findByText(/Upload cancelled by user/i)).toBeInTheDocument();
+    resolvePost({ status: 200, data: [] });
+    expect(screen.queryByText(/AI indexing started/i)).not.toBeInTheDocument();
+  });
   test("pause freezes scheduling until resume", async () => {
-    // 20 files => 2 batches; pause lands before any worker polls, so no POST may fire until resume.
     let releaseFirst: (value: unknown) => void = () => {};
     const firstGate = new Promise((resolve) => { releaseFirst = resolve; });
     let calls = 0;
@@ -425,7 +439,37 @@ describe("Upload_Img component memory safety and batching", () => {
     });
     expect(await screen.findByText(/Successfully uploaded 5 photos/i)).toBeInTheDocument();
   });
-
+  test("pause mid-backoff freezes the retry countdown", async () => {
+    const blip = Object.assign(new Error("Network Error"), {
+      isAxiosError: true,
+      code: "ERR_NETWORK",
+    });
+    let calls = 0;
+    // Attempt 1 fails; pause during the 1500ms backoff — no second POST may fire until resume.
+    mockedAxios.post.mockImplementation((url: string) => {
+      if (url === `${API_URL}/photo/stage`) {
+        return Promise.resolve({ status: 200, data: { via: "local", photo: null, key: null, uploadUrl: null } });
+      }
+      calls += 1;
+      return Promise.resolve({ status: 200, data: [] });
+    });
+    mockedAxios.post.mockRejectedValueOnce(blip);
+    mockedAxios.post.mockRejectedValueOnce(blip);
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    await screen.findByText(/network blip — retrying/i);
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    // Backoff is 1500ms; sleep past it — without a freeze attempt 3 would fire while paused.
+    await new Promise((resolve) => { window.setTimeout(resolve, 1800); });
+    expect(calls).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(
+      () => expect(screen.getByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument(),
+      { timeout: 8000 }
+    );
+  });
   test("gives up after max attempts on a persistently failing batch", async () => {
     const down = Object.assign(new Error("Network Error"), {
       isAxiosError: true,

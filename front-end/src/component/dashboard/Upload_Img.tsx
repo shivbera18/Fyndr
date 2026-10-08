@@ -380,9 +380,21 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       const waitWhilePaused = async () => {
         while (isUploadPaused()) {
           if (abortController.signal.aborted) throw new Error("CanceledError");
-          await new Promise<void>((resolve) => {
-            const timer = window.setTimeout(resolve, PROGRESS_COMMIT_INTERVAL_MS);
-            abortController.signal.addEventListener("abort", () => window.clearTimeout(timer), { once: true });
+          const signal = abortController.signal;
+          await new Promise<void>((resolve, reject) => {
+            if (signal.aborted) {
+              reject(new Error("CanceledError"));
+              return;
+            }
+            const onAbort = () => {
+              window.clearTimeout(timer);
+              reject(new Error("CanceledError"));
+            };
+            const timer = window.setTimeout(() => {
+              signal.removeEventListener("abort", onAbort);
+              resolve();
+            }, PROGRESS_COMMIT_INTERVAL_MS);
+            signal.addEventListener("abort", onAbort, { once: true });
           });
         }
       };
@@ -580,10 +592,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             });
             // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
             const waitMs = uploadDelayMs(attempt);
-            // ponytail: pause freezes the retry countdown — elapsed pause time never burns a retry delay.
-            await waitWhilePaused();
-            if (waitMs > 0) {
+            // ponytail: pause freezes the retry countdown — sleep in capped slices so
+            // a mid-backoff pause parks instead of burning the delay. Abort wins.
+            let waitedMs = 0;
+            while (waitedMs < waitMs) {
+              await waitWhilePaused();
+              if (abortController.signal.aborted) throw new Error("CanceledError");
               const signal = abortController.signal;
+              const sliceMs = Math.min(PROGRESS_COMMIT_INTERVAL_MS, waitMs - waitedMs);
               await new Promise<void>((resolve, reject) => {
                 if (signal.aborted) {
                   reject(new Error("CanceledError"));
@@ -596,9 +612,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 const timer = window.setTimeout(() => {
                   signal.removeEventListener("abort", onAbort);
                   resolve();
-                }, waitMs);
+                }, sliceMs);
                 signal.addEventListener("abort", onAbort, { once: true });
               });
+              waitedMs += sliceMs;
             }
           }
         }
