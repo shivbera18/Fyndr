@@ -285,7 +285,16 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       detach();
     };
   }, [event_id]);
-
+  // ponytail: in-app navigation is safe (session survives remount), so only
+  // a full reload/close needs a warning — in-memory queue restarts there.
+  useEffect(() => {
+    if (!loading) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [loading]);
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
