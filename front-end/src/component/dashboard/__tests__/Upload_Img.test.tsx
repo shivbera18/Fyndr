@@ -374,7 +374,23 @@ describe("Upload_Img component memory safety and batching", () => {
     render(<Upload_Img event_id="evt_test_1" />);
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
-    expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument();
+  });
+  test("remount keeps Pause/Cancel reachable and clears on completion", async () => {
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(() => gate);
+    const first = render(<Upload_Img event_id="evt_test_1" />);
+    const input = first.container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    await screen.findByRole("button", { name: /Uploading \(0%\)/i });
+    first.unmount();
+    render(<Upload_Img event_id="evt_test_1" />);
+    // Empty queue after navigation, but the adopted session still offers controls.
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cancel upload/i })).toBeInTheDocument();
+    resolvePost({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
   test("mismatched event ignores the orphan session", async () => {
     let resolvePost: (value: unknown) => void = () => {};

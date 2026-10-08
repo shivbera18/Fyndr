@@ -264,9 +264,15 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   // ponytail: uploads survive in-app navigation — unmount revokes only preview
   // URLs; the session abort stays alive. Remount for the same event re-attaches
   // progress listeners; a mismatched event_id ignores the orphan session.
+  // ponytail: adoptedRef latches once this mount observes the active session —
+  // terminal (inactive) emits then still land here to clear loading/show status,
+  // but a fresh mount never replays stale banners with an empty queue.
+  const adoptedRef = useRef(false);
   useEffect(() => {
+    adoptedRef.current = false;
     const snapshot = getUploadSnapshot();
     if (snapshot.active && snapshot.eventId === event_id) {
+      adoptedRef.current = true;
       setLoading(true);
       setProgress(snapshot.progress);
       setBatchInfo(snapshot.batchTotal > 0 ? { current: snapshot.batchCurrent, total: snapshot.batchTotal } : null);
@@ -275,6 +281,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     }
     const detach = attachUploadSession((next) => {
       if (next.eventId !== event_id) return;
+      if (next.active) adoptedRef.current = true;
+      if (!next.active && !adoptedRef.current) return;
       setLoading(next.active);
       setProgress(next.progress);
       setBatchInfo(next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
@@ -324,6 +332,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   const cancelUpload = () => {
     cancelUploadSession();
     abortControllerRef.current = null;
+    setLoading(false);
     setPaused(false);
     setUploadStatus({ kind: "error", text: "Upload cancelled by user." });
   };
@@ -776,16 +785,6 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 {selectedFiles.length} photo{selectedFiles.length > 1 ? "s" : ""} queued ({formatFileSize(totalSize)})
               </span>
               <div className="flex items-center gap-2">
-                {loading && (
-                  <Button variant="outline" size="sm" onClick={paused ? resumeUpload : pauseUpload} title={paused ? "Resume the upload queue" : "Pause after the current file finishes — in-flight bytes run to completion"} className="h-8 text-xs min-h-[44px]">
-                    {paused ? "Resume" : "Pause"}
-                  </Button>
-                )}
-                {loading && (
-                  <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive min-h-[44px]">
-                    Cancel upload
-                  </Button>
-                )}
                 <Button variant="ghost" size="sm" onClick={clearAll} disabled={loading} className="h-8 text-xs">
                   Clear all
                 </Button>
@@ -843,6 +842,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                     : `Uploading (${progress}%)`}
               </span>
               <span>Memory-safe stream</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={paused ? resumeUpload : pauseUpload} title={paused ? "Resume the upload queue" : "Pause after the current file finishes — in-flight bytes run to completion"} className="h-8 text-xs min-h-[44px]">
+                {paused ? "Resume" : "Pause"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive min-h-[44px]">
+                Cancel upload
+              </Button>
             </div>
             <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
               <div
