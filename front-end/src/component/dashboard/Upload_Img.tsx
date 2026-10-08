@@ -464,7 +464,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
               return item;
             });
           });
-          const overallPct = Math.round((batchFractions.reduce((sum, f) => sum + f, 0) / totalFilesCount) * 100);
+          const overallPct = overallUploadPct(batchFractions, totalFilesCount);
           lastProgressCommitRef.current = Date.now();
           setProgress(overallPct);
           return;
@@ -579,7 +579,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             return item;
           });
         });
-        const overallPct = Math.round((batchFractions.reduce((sum, f) => sum + f, 0) / totalFilesCount) * 100);
+        const overallPct = overallUploadPct(batchFractions, totalFilesCount);
         lastProgressCommitRef.current = Date.now();
         setProgress(overallPct);
       };
