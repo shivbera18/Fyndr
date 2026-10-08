@@ -376,6 +376,26 @@ describe("Upload_Img component memory safety and batching", () => {
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
     expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument();
   });
+  test("mismatched event ignores the orphan session", async () => {
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(() => gate);
+    const first = render(<Upload_Img event_id="evt_A" />);
+    const input = first.container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    await screen.findByRole("button", { name: /Uploading \(0%\)/i });
+    first.unmount();
+    // Event B mounts while A's upload is in flight: no adopted progress, no banner.
+    const second = render(<Upload_Img event_id="evt_B" />);
+    expect(screen.queryByRole("button", { name: /Uploading/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Successfully uploaded/i)).not.toBeInTheDocument();
+    // A's stale completion must not paint B's UI (ownership guard).
+    resolvePost({ status: 200, data: [] });
+    await new Promise((resolve) => { window.setTimeout(resolve, 300); });
+    expect(screen.queryByText(/Successfully uploaded 4 photos/i)).not.toBeInTheDocument();
+    second.unmount();
+  });
   test("treats HTTP 207 Multi-Status as a batch failure", async () => {
     mockedAxios.post.mockImplementationOnce((url: string) =>
       url === `${API_URL}/photo`

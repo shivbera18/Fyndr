@@ -107,7 +107,10 @@ export function reportProgress(update: {
   uploadedCount?: number;
   uploadedIds?: string[];
   status?: UploadSessionStatus;
-}): void {
+}, eventId?: string): void {
+  // ponytail: stale closures (prior event's orphaned upload) must not clobber
+  // the current session — callers pass their event_id, mismatches are dropped.
+  if (eventId !== undefined && eventId !== state.eventId) return;
   if (update.fractions !== undefined) state.fractions = [...update.fractions];
   if (update.progress !== undefined) state.progress = update.progress;
   if (update.batchCurrent !== undefined) state.batchCurrent = update.batchCurrent;
@@ -124,15 +127,14 @@ export function cancelSession(): void {
   emit();
 }
 
-export function endSession(): void {
+export function endSession(eventId?: string): void {
+  if (eventId !== undefined && eventId !== state.eventId) return;
   state.abort = null;
   state.paused = false;
   emit();
 }
-
 export function pauseSession(): void {
   state.paused = true;
-  emit();
 }
 
 export function resumeSession(): void {

@@ -371,7 +371,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           lastProgressCommitRef.current = now;
           const pct = overallUploadPct(batchFractions, totalFilesCount);
           setProgress(pct);
-          reportUploadProgress({ fractions: batchFractions, progress: pct });
+          reportUploadProgress({ fractions: batchFractions, progress: pct }, event_id);
         }
       };
 
@@ -527,7 +527,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           const overallPct = overallUploadPct(batchFractions, totalFilesCount);
           lastProgressCommitRef.current = Date.now();
           setProgress(overallPct);
-          reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, uploadedIds: currentBatch.map((b) => b.id) });
+          reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, uploadedIds: currentBatch.map((b) => b.id) }, event_id);
           return;
         }
         let attempt = 0;
@@ -650,7 +650,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         const overallPct = overallUploadPct(batchFractions, totalFilesCount);
         lastProgressCommitRef.current = Date.now();
         setProgress(overallPct);
-        reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, uploadedIds: currentBatch.map((b) => b.id) });
+        reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, uploadedIds: currentBatch.map((b) => b.id) }, event_id);
       };
 
       // ponytail: 3-slot pool over the same per-batch body — serial awaits left the uplink idle behind one slow batch.
@@ -679,8 +679,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       };
       setUploadStatus(successStatus);
       setProgress(100);
-      reportUploadProgress({ fractions: batchFractions, progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus });
-      endUploadSession();
+      reportUploadProgress({ fractions: batchFractions, progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus }, event_id);
+      endUploadSession(event_id);
        setBatchInfo(null);
        if (d_ref) {
          setTimeout(() => d_ref(), 800);
@@ -696,7 +696,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
         };
         setUploadStatus(cancelledStatus);
-        reportUploadProgress({ uploadedCount, status: cancelledStatus });
+        reportUploadProgress({ uploadedCount, status: cancelledStatus }, event_id);
       } else {
         let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
         if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
@@ -718,12 +718,12 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             : `Upload failed: ${message}. Please try again.`,
         };
         setUploadStatus(failedStatus);
-        reportUploadProgress({ uploadedCount, status: failedStatus });
+        reportUploadProgress({ uploadedCount, status: failedStatus }, event_id);
       }
     } finally {
       setLoading(false);
       abortControllerRef.current = null;
-      if (getUploadSnapshot().active) endUploadSession();
+      if (getUploadSnapshot().active) endUploadSession(event_id);
     }
   };
 
