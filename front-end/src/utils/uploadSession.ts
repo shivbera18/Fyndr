@@ -12,7 +12,6 @@ export type UploadSessionSnapshot = {
   batchCurrent: number;
   batchTotal: number;
   uploadedCount: number;
-  uploadedIds: string[];
   status: UploadSessionStatus;
   paused: boolean;
 };
@@ -27,7 +26,6 @@ type SessionState = {
   batchCurrent: number;
   batchTotal: number;
   uploadedCount: number;
-  uploadedIds: string[];
   status: UploadSessionStatus;
   paused: boolean;
 };
@@ -40,7 +38,6 @@ const state: SessionState = {
   batchCurrent: 0,
   batchTotal: 0,
   uploadedCount: 0,
-  uploadedIds: [],
   status: null,
   paused: false,
 };
@@ -57,7 +54,6 @@ export function getSnapshot(): UploadSessionSnapshot {
     batchCurrent: state.batchCurrent,
     batchTotal: state.batchTotal,
     uploadedCount: state.uploadedCount,
-    uploadedIds: [...state.uploadedIds],
     status: state.status,
     paused: state.paused,
   };
@@ -93,7 +89,6 @@ export function startSession(eventId: string, totalFiles: number, batchTotal: nu
   state.batchCurrent = 0;
   state.batchTotal = batchTotal;
   state.uploadedCount = 0;
-  state.uploadedIds = [];
   state.status = null;
   state.paused = false;
   emit();
@@ -105,7 +100,6 @@ export function reportProgress(update: {
   progress?: number;
   batchCurrent?: number;
   uploadedCount?: number;
-  uploadedIds?: string[];
   status?: UploadSessionStatus;
 }, eventId?: string): void {
   // ponytail: stale closures (prior event's orphaned upload) must not clobber
@@ -115,7 +109,6 @@ export function reportProgress(update: {
   if (update.progress !== undefined) state.progress = update.progress;
   if (update.batchCurrent !== undefined) state.batchCurrent = update.batchCurrent;
   if (update.uploadedCount !== undefined) state.uploadedCount = update.uploadedCount;
-  if (update.uploadedIds !== undefined) state.uploadedIds = [...update.uploadedIds];
   if (update.status !== undefined) state.status = update.status;
   emit();
 }
@@ -135,6 +128,7 @@ export function endSession(eventId?: string): void {
 }
 export function pauseSession(): void {
   state.paused = true;
+  emit();
 }
 
 export function resumeSession(): void {
@@ -151,7 +145,6 @@ export function __resetUploadSessionForTests(): void {
   state.batchCurrent = 0;
   state.batchTotal = 0;
   state.uploadedCount = 0;
-  state.uploadedIds = [];
   state.status = null;
   state.paused = false;
   listeners.clear();

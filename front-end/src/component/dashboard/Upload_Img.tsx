@@ -537,7 +537,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           const overallPct = overallUploadPct(batchFractions, totalFilesCount);
           lastProgressCommitRef.current = Date.now();
           setProgress(overallPct);
-          reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, uploadedIds: currentBatch.map((b) => b.id) }, event_id);
+          reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
           return;
         }
         let attempt = 0;
@@ -660,7 +660,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         const overallPct = overallUploadPct(batchFractions, totalFilesCount);
         lastProgressCommitRef.current = Date.now();
         setProgress(overallPct);
-        reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, uploadedIds: currentBatch.map((b) => b.id) }, event_id);
+        reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
       };
 
       // ponytail: 3-slot pool over the same per-batch body — serial awaits left the uplink idle behind one slow batch.
