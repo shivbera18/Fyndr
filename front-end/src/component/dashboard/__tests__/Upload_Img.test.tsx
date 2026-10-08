@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import { API_URL } from "../../../utils/api";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches, overallUploadPct } from "../Upload_Img";
-import { __resetUploadSessionForTests, getSnapshot as getUploadSessionSnapshot } from "../../../utils/uploadSession";
+import { __resetUploadSessionForTests, attach as attachUploadSession, getSnapshot as getUploadSessionSnapshot } from "../../../utils/uploadSession";
 import * as UploadModule from "../Upload_Img";
 jest.mock("axios", () => {
   return {
@@ -222,10 +222,27 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
+  test("multi-batch upload reaches 100 exactly once, at success", async () => {
+    mockedAxios.post.mockResolvedValue({ status: 200, data: [] });
+    const seen: number[] = [];
+    const detach = attachUploadSession((s) => seen.push(s.progress));
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    // 20 files => 2 batches; every emitted progress before the banner must be <= 99.
+    fireEvent.change(input, { target: { files: createDummyFiles(20) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 20 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 20 photos/i)).toBeInTheDocument();
+    detach();
+    // endSession re-emits the terminal snapshot, so 100 may appear twice; what must
+    // never happen is 100 (or more) BEFORE the terminal write, nor any value above 100.
+    expect(seen.every((p) => p <= 100)).toBe(true);
+    const firstHundred = seen.indexOf(100);
+    expect(firstHundred).toBeGreaterThan(0);
+    expect(seen.slice(0, firstHundred).every((p) => p <= 99)).toBe(true);
+  });
   test("uploads in safe batches of UPLOAD_BATCH_SIZE (15) and notifies refresh", async () => {
     const dRefMock = jest.fn();
     mockedAxios.post.mockResolvedValue({ status: 200, data: [] });
-
     const { container } = render(<Upload_Img event_id="evt_test_1" d_ref={dRefMock} />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
 
@@ -586,7 +603,48 @@ describe("Upload_Img component memory safety and batching", () => {
     const multipart = mockedAxios.post.mock.calls.filter(([u]) => String(u).endsWith("/photo"));
     expect(multipart).toHaveLength(0);
   });
-
+  test("pause gates the direct per-file pass", async () => {
+    jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue("cd".repeat(32));
+    let releasePut: (value: unknown) => void = () => {};
+    const putGate = new Promise((resolve) => { releasePut = resolve; });
+    let puts = 0;
+    mockedAxios.post.mockImplementation((url: string, body?: unknown) => {
+      if (url === `${API_URL}/photo/stage`) {
+        const filename =
+          body && typeof body === "object" && "filename" in body ? String(body.filename) : "f.jpg";
+        return Promise.resolve({
+          status: 200,
+          data: {
+            via: "r2",
+            key: `evt_test_1/pid-${filename}`,
+            uploadUrl: `https://g3.test/${filename}?sig=1`,
+            photo: { _id: `pid-${filename}` },
+          },
+        });
+      }
+      if (url === `${API_URL}/photo/complete`) {
+        return Promise.resolve({ status: 200, data: { ok: true } });
+      }
+      return Promise.reject(new Error(`unexpected POST ${String(url)}`));
+    });
+    // First file's PUT hangs in flight; pause must stop the second file from starting.
+    mockedAxios.put.mockImplementation(() => {
+      puts += 1;
+      return puts === 1 ? putGate : Promise.resolve({ status: 200, data: {}, headers: { etag: '"abc"' } });
+    });
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    const files = ["p1.jpg", "p2.jpg"].map((n, i) => new File([`pause-${i}`], n, { type: "image/jpeg" }));
+    fireEvent.change(input, { target: { files } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    // In-flight PUT runs to completion; nothing new starts while paused.
+    await new Promise((resolve) => { window.setTimeout(resolve, 600); });
+    expect(puts).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    releasePut({ status: 200, data: {}, headers: { etag: '"abc"' } });
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+  });
   test("a transient PUT blip degrades to multer fallback instead of failing the batch", async () => {
     jest.spyOn(UploadModule.fileHasher, "sha256Hex").mockResolvedValue("ef".repeat(32));
     const blip = Object.assign(new Error("Network Error"), { isAxiosError: true, code: "ERR_NETWORK" });
