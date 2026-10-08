@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, startSession as startUploadSession } from "../../utils/uploadSession";
+import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, isPaused as isUploadPaused, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, startSession as startUploadSession } from "../../utils/uploadSession";
 
 // ponytail: Limit active DOM previews to 12. Decoding 100s of RAW/JPEG bitmaps in the DOM
 // consumes gigabytes of uncompressed RAM and crashes mobile/desktop browser tabs.
@@ -375,6 +375,17 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         }
       };
 
+      // ponytail: pause gates scheduling, never bytes — in-flight PUT/POST run
+      // to completion; nothing new starts while paused. Abort wins immediately.
+      const waitWhilePaused = async () => {
+        while (isUploadPaused()) {
+          if (abortController.signal.aborted) throw new Error("CanceledError");
+          await new Promise<void>((resolve) => {
+            const timer = window.setTimeout(resolve, PROGRESS_COMMIT_INTERVAL_MS);
+            abortController.signal.addEventListener("abort", () => window.clearTimeout(timer), { once: true });
+          });
+        }
+      };
       const uploadBatch = async (batchIdx: number): Promise<void> => {
         if (abortController.signal.aborted) {
           throw new Error("CanceledError");
@@ -465,6 +476,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         // duplicate, so no orphan or double stub.
         const directDone: boolean[] = [];
         for (let slot = 0; slot < currentBatch.length; slot += 1) {
+          await waitWhilePaused();
           const item = currentBatch[slot];
           if (!item) continue;
           try {
@@ -568,6 +580,8 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             });
             // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
             const waitMs = uploadDelayMs(attempt);
+            // ponytail: pause freezes the retry countdown — elapsed pause time never burns a retry delay.
+            await waitWhilePaused();
             if (waitMs > 0) {
               const signal = abortController.signal;
               await new Promise<void>((resolve, reject) => {
@@ -626,6 +640,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       const worker = async (): Promise<void> => {
         for (;;) {
           if (batchFailed) return;
+          await waitWhilePaused();
           const batchIdx = nextBatchIdx;
           if (batchIdx >= totalBatches) return;
           nextBatchIdx += 1;

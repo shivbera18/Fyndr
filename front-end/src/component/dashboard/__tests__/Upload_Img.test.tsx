@@ -326,6 +326,26 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
   });
+  test("pause freezes scheduling until resume", async () => {
+    // 20 files => 2 batches; pause lands before any worker polls, so no POST may fire until resume.
+    let releaseFirst: (value: unknown) => void = () => {};
+    const firstGate = new Promise((resolve) => { releaseFirst = resolve; });
+    let calls = 0;
+    mockedAxios.post.mockImplementation(() => {
+      calls += 1;
+      return calls === 1 ? firstGate : Promise.resolve({ status: 200, data: [] });
+    });
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(20) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 20 photos/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    await new Promise((resolve) => { window.setTimeout(resolve, 600); });
+    expect(calls).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    releaseFirst({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 20 photos/i)).toBeInTheDocument();
+  });
   test("upload survives unmount/remount and completes without cancel", async () => {
     let resolvePost: (value: unknown) => void = () => {};
     const gate = new Promise((resolve) => { resolvePost = resolve; });

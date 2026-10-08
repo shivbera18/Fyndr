@@ -76,6 +76,10 @@ export function attach(listener: UploadSessionListener): () => void {
   };
 }
 
+export function isPaused(): boolean {
+  return state.paused;
+}
+
 export function startSession(eventId: string, totalFiles: number, batchTotal: number): AbortController {
   // ponytail: session-id guard — StrictMode double-mount replays startSession
   // with the same totals; only reset when the event or shape actually changes.
