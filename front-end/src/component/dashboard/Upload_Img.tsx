@@ -819,9 +819,11 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {batchInfo
-                  ? `Batch ${batchInfo.current} of ${batchInfo.total} (${progress}%)`
-                  : `Uploading (${progress}%)`}
+                {paused
+                  ? `Paused (${getUploadSnapshot().uploadedCount} of ${getUploadSnapshot().totalFiles}, ${progress}%)`
+                  : batchInfo
+                    ? `Batch ${batchInfo.current} of ${batchInfo.total} (${progress}%)`
+                    : `Uploading (${progress}%)`}
               </span>
               <span>Memory-safe stream</span>
             </div>

@@ -319,7 +319,7 @@ describe("Upload_Img component memory safety and batching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
     expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
-    expect(getUploadSessionSnapshot().paused).toBe(true);
+    expect(screen.getByText(/Paused \(0 of 4, 0%\)/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
     expect(getUploadSessionSnapshot().paused).toBe(false);
