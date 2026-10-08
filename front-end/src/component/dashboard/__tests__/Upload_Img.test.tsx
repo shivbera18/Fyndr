@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import { API_URL } from "../../../utils/api";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches, overallUploadPct } from "../Upload_Img";
+import { __resetUploadSessionForTests } from "../../../utils/uploadSession";
 import * as UploadModule from "../Upload_Img";
 jest.mock("axios", () => {
   return {
@@ -26,6 +27,7 @@ describe("Upload_Img component memory safety and batching", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    __resetUploadSessionForTests();
     createdUrls = [];
     revokedUrls = [];
     // ponytail: jsdom lacks crypto.subtle — null hash forces the multer
@@ -306,6 +308,23 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
   });
 
+  test("upload survives unmount/remount and completes without cancel", async () => {
+    // ponytail: Promise.withResolvers needs TS 5.2+ lib; repo pins TS 4.9.5 — revisit on TS upgrade.
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(() => gate);
+    const first = render(<Upload_Img event_id="evt_test_1" />);
+    const input = first.container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    // Upload in flight: unmount (route/tab change) must not abort it.
+    await screen.findByRole("button", { name: /Uploading \(0%\)/i });
+    first.unmount();
+    render(<Upload_Img event_id="evt_test_1" />);
+    resolvePost({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument();
+  });
   test("treats HTTP 207 Multi-Status as a batch failure", async () => {
     mockedAxios.post.mockImplementationOnce((url: string) =>
       url === `${API_URL}/photo`
