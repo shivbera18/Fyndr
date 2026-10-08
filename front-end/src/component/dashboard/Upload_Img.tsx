@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, isPaused as isUploadPaused, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, startSession as startUploadSession } from "../../utils/uploadSession";
 
 // ponytail: Limit active DOM previews to 12. Decoding 100s of RAW/JPEG bitmaps in the DOM
 // consumes gigabytes of uncompressed RAM and crashes mobile/desktop browser tabs.
@@ -38,6 +39,11 @@ export function buildByteBudgetedBatches(files: SelectedFile[]): SelectedFile[][
   }
   if (current.length > 0) batches.push(current);
   return batches;
+}
+export function overallUploadPct(batchFractions: number[], totalFiles: number): number {
+  if (totalFiles <= 0) return 0;
+  const loaded = batchFractions.reduce((sum, f) => sum + f, 0);
+  return Math.min(99, Math.round((loaded / totalFiles) * 100));
 }
 
 export function isRetryableUploadError(err: unknown): boolean {
@@ -183,6 +189,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   const [progress, setProgress] = useState(0);
   const [batchInfo, setBatchInfo] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [paused, setPaused] = useState(false);
 
   const filesRef = useRef<SelectedFile[]>([]);
   filesRef.current = selectedFiles;
@@ -254,17 +261,52 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     setBatchInfo(null);
   }, [selectedFiles]);
 
+  // ponytail: uploads survive in-app navigation — unmount revokes only preview
+  // URLs; the session abort stays alive. Remount for the same event re-attaches
+  // progress listeners; a mismatched event_id ignores the orphan session.
+  // ponytail: adoptedRef latches once this mount observes the active session —
+  // terminal (inactive) emits then still land here to clear loading/show status,
+  // but a fresh mount never replays stale banners with an empty queue.
+  const adoptedRef = useRef(false);
   useEffect(() => {
+    adoptedRef.current = false;
+    const snapshot = getUploadSnapshot();
+    if (snapshot.active && snapshot.eventId === event_id) {
+      adoptedRef.current = true;
+      setLoading(true);
+      setProgress(snapshot.progress);
+      setBatchInfo(snapshot.batchTotal > 0 ? { current: snapshot.batchCurrent, total: snapshot.batchTotal } : null);
+      setUploadStatus(snapshot.status);
+      setPaused(snapshot.paused);
+    }
+    const detach = attachUploadSession((next) => {
+      if (next.eventId !== event_id) return;
+      if (next.active) adoptedRef.current = true;
+      if (!next.active && !adoptedRef.current) return;
+      setLoading(next.active);
+      setProgress(next.progress);
+      setBatchInfo(next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
+      setUploadStatus(next.status);
+      setPaused(next.paused);
+    });
     return () => {
       filesRef.current.forEach((f) => {
         if (f.preview) URL.revokeObjectURL(f.preview);
       });
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      detach();
     };
-  }, []);
-
+  }, [event_id]);
+  // ponytail: in-app navigation is safe (session survives remount), so only
+  // a full reload/close needs a warning — in-memory queue restarts there.
+  useEffect(() => {
+    if (!loading) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [loading]);
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -289,10 +331,19 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   };
 
   const cancelUpload = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    cancelUploadSession();
+    abortControllerRef.current = null;
+    setLoading(false);
+    setPaused(false);
     setUploadStatus({ kind: "error", text: "Upload cancelled by user." });
+  };
+  const pauseUpload = () => {
+    pauseUploadSession();
+    setPaused(true);
+  };
+  const resumeUpload = () => {
+    resumeUploadSession();
+    setPaused(false);
   };
 
   const handleUpload = async () => {
@@ -303,13 +354,12 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     lastProgressCommitRef.current = 0;
     setProgress(0);
 
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
     const allFiles = [...selectedFiles];
     const totalFilesCount = allFiles.length;
     const batches = buildByteBudgetedBatches(allFiles);
     const totalBatches = batches.length;
+    const abortController = startUploadSession(event_id, totalFilesCount, totalBatches);
+    abortControllerRef.current = abortController;
     let uploadedCount = 0;
     // ponytail: shared across concurrent batches — caption only when every file compressed.
     let hadFallback = false;
@@ -326,14 +376,38 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       let firstError: unknown = null;
 
       const commitAggregateProgress = () => {
-        const loadedFiles = batchFractions.reduce((sum, f) => sum + f, 0);
         const now = Date.now();
         if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
           lastProgressCommitRef.current = now;
-          setProgress(Math.min(99, Math.round((loadedFiles / totalFilesCount) * 100)));
+          const pct = overallUploadPct(batchFractions, totalFilesCount);
+          setProgress(pct);
+          reportUploadProgress({ fractions: batchFractions, progress: pct }, event_id);
         }
       };
 
+      // ponytail: pause gates scheduling, never bytes — in-flight PUT/POST run
+      // to completion; nothing new starts while paused. Abort wins immediately.
+      const waitWhilePaused = async () => {
+        while (isUploadPaused()) {
+          if (abortController.signal.aborted) throw new Error("CanceledError");
+          const signal = abortController.signal;
+          await new Promise<void>((resolve, reject) => {
+            if (signal.aborted) {
+              reject(new Error("CanceledError"));
+              return;
+            }
+            const onAbort = () => {
+              window.clearTimeout(timer);
+              reject(new Error("CanceledError"));
+            };
+            const timer = window.setTimeout(() => {
+              signal.removeEventListener("abort", onAbort);
+              resolve();
+            }, PROGRESS_COMMIT_INTERVAL_MS);
+            signal.addEventListener("abort", onAbort, { once: true });
+          });
+        }
+      };
       const uploadBatch = async (batchIdx: number): Promise<void> => {
         if (abortController.signal.aborted) {
           throw new Error("CanceledError");
@@ -424,6 +498,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         // duplicate, so no orphan or double stub.
         const directDone: boolean[] = [];
         for (let slot = 0; slot < currentBatch.length; slot += 1) {
+          await waitWhilePaused();
           const item = currentBatch[slot];
           if (!item) continue;
           try {
@@ -459,9 +534,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
               return item;
             });
           });
-          const overallPct = Math.round((batchFractions.reduce((sum, f) => sum + f, 0) / totalFilesCount) * 100);
+          const overallPct = overallUploadPct(batchFractions, totalFilesCount);
           lastProgressCommitRef.current = Date.now();
           setProgress(overallPct);
+          reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
           return;
         }
         let attempt = 0;
@@ -526,8 +602,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             });
             // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
             const waitMs = uploadDelayMs(attempt);
-            if (waitMs > 0) {
+            // ponytail: pause freezes the retry countdown — sleep in capped slices so
+            // a mid-backoff pause parks instead of burning the delay. Abort wins.
+            let waitedMs = 0;
+            while (waitedMs < waitMs) {
+              await waitWhilePaused();
+              if (abortController.signal.aborted) throw new Error("CanceledError");
               const signal = abortController.signal;
+              const sliceMs = Math.min(PROGRESS_COMMIT_INTERVAL_MS, waitMs - waitedMs);
               await new Promise<void>((resolve, reject) => {
                 if (signal.aborted) {
                   reject(new Error("CanceledError"));
@@ -540,9 +622,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 const timer = window.setTimeout(() => {
                   signal.removeEventListener("abort", onAbort);
                   resolve();
-                }, waitMs);
+                }, sliceMs);
                 signal.addEventListener("abort", onAbort, { once: true });
               });
+              waitedMs += sliceMs;
             }
           }
         }
@@ -574,15 +657,17 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             return item;
           });
         });
-        const overallPct = Math.round((batchFractions.reduce((sum, f) => sum + f, 0) / totalFilesCount) * 100);
+        const overallPct = overallUploadPct(batchFractions, totalFilesCount);
         lastProgressCommitRef.current = Date.now();
         setProgress(overallPct);
+        reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
       };
 
       // ponytail: 3-slot pool over the same per-batch body — serial awaits left the uplink idle behind one slow batch.
       const worker = async (): Promise<void> => {
         for (;;) {
           if (batchFailed) return;
+          await waitWhilePaused();
           const batchIdx = nextBatchIdx;
           if (batchIdx >= totalBatches) return;
           nextBatchIdx += 1;
@@ -598,11 +683,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
       await Promise.all(Array.from({ length: Math.min(UPLOAD_BATCH_CONCURRENCY, totalBatches) }, () => worker()));
 
-      setUploadStatus({
-        kind: "success",
+      const successStatus = {
+        kind: "success" as const,
         text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback && allCompressed ? " Optimized for fast upload, original quality." : ""}`,
-      });
+      };
+      setUploadStatus(successStatus);
       setProgress(100);
+      reportUploadProgress({ fractions: batchFractions, progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus }, event_id);
+      endUploadSession(event_id);
        setBatchInfo(null);
        if (d_ref) {
          setTimeout(() => d_ref(), 800);
@@ -613,10 +701,12 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         (typeof axios.isCancel === "function" && axios.isCancel(err)) ||
         (err instanceof Error && (err.name === "CanceledError" || err.message === "CanceledError"))
       ) {
-        setUploadStatus({
-          kind: "error",
+        const cancelledStatus = {
+          kind: "error" as const,
           text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
-        });
+        };
+        setUploadStatus(cancelledStatus);
+        reportUploadProgress({ uploadedCount, status: cancelledStatus }, event_id);
       } else {
         let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
         if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
@@ -631,16 +721,19 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             message = String(responseData.error);
           }
         }
-        setUploadStatus({
-          kind: "error",
+        const failedStatus = {
+          kind: "error" as const,
           text: uploadedCount > 0
             ? `Uploaded ${uploadedCount} of ${totalFilesCount} photos. Batch failed: ${message}. Click Upload to retry remaining photos.`
             : `Upload failed: ${message}. Please try again.`,
-        });
+        };
+        setUploadStatus(failedStatus);
+        reportUploadProgress({ uploadedCount, status: failedStatus }, event_id);
       }
     } finally {
       setLoading(false);
       abortControllerRef.current = null;
+      if (getUploadSnapshot().active) endUploadSession(event_id);
     }
   };
 
@@ -693,11 +786,6 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
                 {selectedFiles.length} photo{selectedFiles.length > 1 ? "s" : ""} queued ({formatFileSize(totalSize)})
               </span>
               <div className="flex items-center gap-2">
-                {loading && (
-                  <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive">
-                    Cancel upload
-                  </Button>
-                )}
                 <Button variant="ghost" size="sm" onClick={clearAll} disabled={loading} className="h-8 text-xs">
                   Clear all
                 </Button>
@@ -748,11 +836,21 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {batchInfo
-                  ? `Batch ${batchInfo.current} of ${batchInfo.total} (${progress}%)`
-                  : `Uploading (${progress}%)`}
+                {paused
+                  ? `Paused (${getUploadSnapshot().uploadedCount} of ${getUploadSnapshot().totalFiles}, ${progress}%)`
+                  : batchInfo
+                    ? `Batch ${batchInfo.current} of ${batchInfo.total} (${progress}%)`
+                    : `Uploading (${progress}%)`}
               </span>
               <span>Memory-safe stream</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={paused ? resumeUpload : pauseUpload} title={paused ? "Resume the upload queue" : "Pause after the current file finishes — in-flight bytes run to completion"} className="h-8 text-xs min-h-[44px]">
+                {paused ? "Resume" : "Pause"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive min-h-[44px]">
+                Cancel upload
+              </Button>
             </div>
             <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
               <div
