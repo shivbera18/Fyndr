@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, reportProgress as reportUploadProgress, startSession as startUploadSession } from "../../utils/uploadSession";
+import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, startSession as startUploadSession } from "../../utils/uploadSession";
 
 // ponytail: Limit active DOM previews to 12. Decoding 100s of RAW/JPEG bitmaps in the DOM
 // consumes gigabytes of uncompressed RAM and crashes mobile/desktop browser tabs.
@@ -189,6 +189,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   const [progress, setProgress] = useState(0);
   const [batchInfo, setBatchInfo] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [paused, setPaused] = useState(false);
 
   const filesRef = useRef<SelectedFile[]>([]);
   filesRef.current = selectedFiles;
@@ -270,6 +271,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       setProgress(snapshot.progress);
       setBatchInfo(snapshot.batchTotal > 0 ? { current: snapshot.batchCurrent, total: snapshot.batchTotal } : null);
       setUploadStatus(snapshot.status);
+      setPaused(snapshot.paused);
     }
     const detach = attachUploadSession((next) => {
       if (next.eventId !== event_id) return;
@@ -277,6 +279,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       setProgress(next.progress);
       setBatchInfo(next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
       setUploadStatus(next.status);
+      setPaused(next.paused);
     });
     return () => {
       filesRef.current.forEach((f) => {
@@ -321,7 +324,16 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   const cancelUpload = () => {
     cancelUploadSession();
     abortControllerRef.current = null;
+    setPaused(false);
     setUploadStatus({ kind: "error", text: "Upload cancelled by user." });
+  };
+  const pauseUpload = () => {
+    pauseUploadSession();
+    setPaused(true);
+  };
+  const resumeUpload = () => {
+    resumeUploadSession();
+    setPaused(false);
   };
 
   const handleUpload = async () => {
@@ -733,7 +745,12 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
               </span>
               <div className="flex items-center gap-2">
                 {loading && (
-                  <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive">
+                  <Button variant="outline" size="sm" onClick={paused ? resumeUpload : pauseUpload} title={paused ? "Resume the upload queue" : "Pause after the current file finishes — in-flight bytes run to completion"} className="h-8 text-xs min-h-[44px]">
+                    {paused ? "Resume" : "Pause"}
+                  </Button>
+                )}
+                {loading && (
+                  <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive min-h-[44px]">
                     Cancel upload
                   </Button>
                 )}

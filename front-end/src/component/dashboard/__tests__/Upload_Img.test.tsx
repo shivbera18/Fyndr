@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import { API_URL } from "../../../utils/api";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches, overallUploadPct } from "../Upload_Img";
-import { __resetUploadSessionForTests } from "../../../utils/uploadSession";
+import { __resetUploadSessionForTests, getSnapshot as getUploadSessionSnapshot } from "../../../utils/uploadSession";
 import * as UploadModule from "../Upload_Img";
 jest.mock("axios", () => {
   return {
@@ -308,8 +308,25 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
   });
 
-  test("upload survives unmount/remount and completes without cancel", async () => {
+  test("pause toggle flips label and session flag", async () => {
     // ponytail: Promise.withResolvers needs TS 5.2+ lib; repo pins TS 4.9.5 — revisit on TS upgrade.
+    let resolvePost: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => { resolvePost = resolve; });
+    mockedAxios.post.mockImplementation(() => gate);
+    const { container } = render(<Upload_Img event_id="evt_test_1" />);
+    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(getUploadSessionSnapshot().paused).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(getUploadSessionSnapshot().paused).toBe(false);
+    resolvePost({ status: 200, data: [] });
+    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+  });
+  test("upload survives unmount/remount and completes without cancel", async () => {
     let resolvePost: (value: unknown) => void = () => {};
     const gate = new Promise((resolve) => { resolvePost = resolve; });
     mockedAxios.post.mockImplementation(() => gate);
