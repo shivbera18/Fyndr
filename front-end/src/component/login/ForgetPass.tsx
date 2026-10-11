@@ -112,7 +112,7 @@ const ForgetPass = (): React.JSX.Element => {
 
   const setDigit = (i: number, v: string): void => {
     const d = v.replace(/\D/g, "").slice(-1);
-    const next = (otp.padEnd(OTP_LEN, " ") .split("")).slice(0, OTP_LEN);
+    const next = otp.padEnd(OTP_LEN, " ").split("").slice(0, OTP_LEN);
     next[i] = d || " ";
     setOtp(next.join("").trim());
     if (d && i < OTP_LEN - 1) boxRefs.current[i + 1]?.focus();
