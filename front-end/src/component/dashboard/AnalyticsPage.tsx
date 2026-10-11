@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
 import StudioAnalytics from "./StudioAnalytics";
-import { PageShell, PageHero, StatusBadge } from "../../components/ui/page-kit";
+import { BarChart3 } from "lucide-react";
 
 type StoredUser = {
   _id: string;
@@ -29,22 +29,28 @@ export default function AnalyticsPage(): React.JSX.Element {
   }, [navigate]);
 
   return (
-    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-6xl">
-      <div className="space-y-8">
-        <PageHero
-          align="left"
-          kicker={
-            <StatusBadge status="ok">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-green-600 animate-pulse" />
-              Live — tracking every guest scan
-            </StatusBadge>
-          }
-          title="Studio Analytics"
-          lead="Guest scans, selfie-search engagement, and client leads across every event — one ledger for the whole studio."
-        />
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <Header />
+
+      <main className="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-20 md:pb-8 space-y-8">
+        {/* Page Heading */}
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-border bg-card">
+            <BarChart3 className="size-3.5 text-emerald-500" />
+            Performance &amp; Leads
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            Studio Analytics
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Track live guest scans, attendee engagement, and client lead generation across all events.
+          </p>
+        </div>
 
         {user?._id && <StudioAnalytics userId={user._id} />}
-      </div>
-    </PageShell>
+      </main>
+
+      <Footer />
+    </div>
   );
 }

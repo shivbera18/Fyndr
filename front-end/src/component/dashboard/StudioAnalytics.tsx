@@ -2,9 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
-import { StatusBadge, EmptyState } from "../../components/ui/page-kit";
-import "./GuestAnalyticsPage.css";
 import {
   Calendar,
   Users,
@@ -151,13 +150,13 @@ export const StudioAnalytics: React.FC<StudioAnalyticsProps> = ({ userId }) => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Studio ledger
+            Studio Intelligence
           </span>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-0.5">
-            Every event, every guest, one ledger
-          </h2>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-0.5">
+            Studio Analytics &amp; Guest Leads
+          </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Guest scans, verified entries, and downloads across the whole studio — newest leads first.
+            Track visitor outreach, lead acquisition, and photo downloads across all your events.
           </p>
         </div>
 
@@ -341,13 +340,11 @@ export const StudioAnalytics: React.FC<StudioAnalyticsProps> = ({ userId }) => {
           </div>
 
           {filteredLeads.length === 0 ? (
-            <EmptyState
-              icon={<Users className="h-6 w-6 text-muted-foreground" />}
-              title="No guest leads yet"
-              body={searchQuery ? "No guest leads match your filter." : "Leads from every event land here once guests start scanning."}
-            />
+            <div className="py-12 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+              {searchQuery ? "No guest leads match your filter." : "No guest leads recorded yet."}
+            </div>
           ) : (
-            <div className="rk-leads-table rounded-xl border border-border overflow-hidden">
+            <div className="rounded-xl border border-border overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
@@ -393,15 +390,15 @@ export const StudioAnalytics: React.FC<StudioAnalyticsProps> = ({ userId }) => {
 
                           <td className="px-4 py-3">
                             {lead.verified ? (
-                              <StatusBadge status="ok">
+                              <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-500/10 gap-1 font-medium">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Verified
-                              </StatusBadge>
+                              </Badge>
                             ) : (
-                              <StatusBadge status="error">
+                              <Badge variant="destructive" className="gap-1 font-medium">
                                 <XCircle className="h-3 w-3" />
                                 Incorrect PIN
-                              </StatusBadge>
+                              </Badge>
                             )}
                           </td>
 
@@ -409,10 +406,10 @@ export const StudioAnalytics: React.FC<StudioAnalyticsProps> = ({ userId }) => {
                             <div className="flex items-center gap-1.5">
                               <span>{lead.attempts || 1} total</span>
                               {hasWarnings && (
-                                <StatusBadge status="error">
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0 gap-0.5">
                                   <AlertTriangle className="h-2.5 w-2.5" />
                                   {lead.failedAttempts} fails
-                                </StatusBadge>
+                                </Badge>
                               )}
                             </div>
                           </td>

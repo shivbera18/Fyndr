@@ -1,30 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
 import PhotographerDetail from "./Photographer_detail";
 import AccountDetailsCard from "./AccountDetailsCard";
 import DriveStorageCard from "./DriveStorageCard";
-import { PageShell, PageHero } from "../../components/ui/page-kit";
-import { Sliders, User, HardDrive, ArrowRight } from "lucide-react";
+import { Sliders, User, HardDrive } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
-import { cn } from "../../lib/utils";
-
-const SETTINGS_TABS = [
-  { id: "studio", label: "Studio & Branding", icon: Sliders },
-  { id: "account", label: "Account Details", icon: User },
-  { id: "storage", label: "Storage", icon: HardDrive },
-] as const;
-
-type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
-
 export default function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const initialTab: SettingsTab =
-    tabParam === "account" ? "account" : tabParam === "storage" ? "storage" : "studio";
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const initialTab = searchParams.get("tab") === "account" ? "account" : searchParams.get("tab") === "storage" ? "storage" : "studio";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
     const userString = localStorage.getItem("user");
@@ -34,41 +21,53 @@ export default function SettingsPage(): React.JSX.Element {
   }, [navigate]);
 
   const handleTabChange = (val: string) => {
-    const next: SettingsTab = val === "account" || val === "storage" ? val : "studio";
-    setActiveTab(next);
-    setSearchParams({ tab: next });
+    setActiveTab(val);
+    setSearchParams({ tab: val });
   };
 
   return (
-    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-4xl">
-      <div className="space-y-8">
-        <PageHero
-          align="left"
-          kicker="Studio configuration"
-          title="Settings & Branding"
-          lead="How guests see your studio — the name on the gallery, the WhatsApp number for booking leads, and where originals live."
-        />
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <Header />
+
+      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-8 pb-20 md:pb-8 space-y-8">
+        {/* Page Heading */}
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-border bg-card">
+            <Sliders className="size-3.5 text-emerald-500" />
+            Studio Configuration
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            Settings &amp; Branding
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Customize your photography studio branding, WhatsApp lead contact, and client portal appearance.
+          </p>
+        </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
           <div className="flex justify-center">
-            <TabsList
-              role="tablist"
-              aria-label="Settings sections"
-              className="grid grid-cols-3 w-full max-w-lg h-11 p-1 bg-muted/60 rounded-full"
-            >
-              {SETTINGS_TABS.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="flex items-center gap-2 rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground shadow-xs min-h-[36px]"
-                  >
-                    <Icon className="size-3.5" />
-                    {tab.label}
-                  </TabsTrigger>
-                );
-              })}
+            <TabsList className="grid grid-cols-3 w-full max-w-lg h-11 p-1 bg-muted/60 rounded-xl">
+              <TabsTrigger
+                value="studio"
+                className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground shadow-xs"
+              >
+                <Sliders className="size-3.5" />
+                Studio &amp; Branding
+              </TabsTrigger>
+              <TabsTrigger
+                value="account"
+                className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground shadow-xs"
+              >
+                <User className="size-3.5" />
+                Account Details
+              </TabsTrigger>
+              <TabsTrigger
+                value="storage"
+                className="flex items-center gap-2 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm min-h-[44px]"
+              >
+                <HardDrive className="size-3.5" />
+                Storage
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -77,26 +76,16 @@ export default function SettingsPage(): React.JSX.Element {
           </TabsContent>
 
           <TabsContent value="account" className="focus-visible:outline-none">
-            <div className="space-y-4">
-              <AccountDetailsCard />
-              <p className="text-center text-xs text-muted-foreground">
-                Need the full account view — sessions, danger zone, app install?{" "}
-                <Link
-                  to="/account"
-                  className={cn("font-semibold text-primary hover:underline")}
-                >
-                  Open the deep account page
-                  <ArrowRight className="ml-1 inline size-3" />
-                </Link>
-              </p>
-            </div>
+            <AccountDetailsCard />
           </TabsContent>
 
           <TabsContent value="storage" className="focus-visible:outline-none">
             <DriveStorageCard />
           </TabsContent>
         </Tabs>
-      </div>
-    </PageShell>
+      </main>
+
+      <Footer />
+    </div>
   );
 }

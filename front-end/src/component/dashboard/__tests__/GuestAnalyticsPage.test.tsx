@@ -158,19 +158,19 @@ describe("GuestAnalyticsPage", () => {
     expect(screen.getByText("Rahul Verma")).toBeInTheDocument();
 
     // Test tab switching: Audience & Devices
-    const devicesTabBtn = screen.getByRole("tab", { name: /Audience & Devices/i });
+    const devicesTabBtn = screen.getByRole("button", { name: /Audience & Devices/i });
     fireEvent.click(devicesTabBtn);
     expect(await screen.findByText("Traffic & Activity Timeline")).toBeInTheDocument();
     expect(screen.getByText("Mobile Guests")).toBeInTheDocument();
 
     // Test tab switching: Monetization & Paywall
-    const monetizationTabBtn = screen.getByRole("tab", { name: /Monetization & Paywall/i });
+    const monetizationTabBtn = screen.getByRole("button", { name: /Monetization & Paywall/i });
     fireEvent.click(monetizationTabBtn);
     expect(await screen.findByText("Paywall Configuration")).toBeInTheDocument();
     expect(screen.getByText(/Thank you for joining our celebration!/i)).toBeInTheDocument();
 
     // Test tab switching: Live Audit Stream
-    const auditTabBtn = screen.getByRole("tab", { name: /Live Audit Stream/i });
+    const auditTabBtn = screen.getByRole("button", { name: /Live Audit Stream/i });
     fireEvent.click(auditTabBtn);
     expect(await screen.findByText(/Downloaded photo "Ceremony_042.jpg"/i)).toBeInTheDocument();
   });

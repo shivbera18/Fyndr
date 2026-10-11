@@ -49,7 +49,7 @@ describe("StudioAnalytics", () => {
     render(<StudioAnalytics userId="user_123" />);
 
     await waitFor(() => {
-      expect(screen.getByText("Every event, every guest, one ledger")).toBeInTheDocument();
+      expect(screen.getByText("Studio Analytics & Guest Leads")).toBeInTheDocument();
       expect(screen.getAllByText("Kavita & Amit Wedding").length).toBeGreaterThan(0);
       expect(screen.getByText("Ananya Roy")).toBeInTheDocument();
       expect(screen.getByText("+919811223344")).toBeInTheDocument();

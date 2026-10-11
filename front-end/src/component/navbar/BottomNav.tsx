@@ -46,7 +46,7 @@ function BottomNav(): React.JSX.Element | null {
     <nav
       aria-label="Mobile Navigation Bar"
       // ponytail: solid bg, no backdrop-blur — blur on a fixed bar repaints every scroll frame.
-      className="flex flex-row items-stretch justify-around fixed bottom-0 inset-x-0 z-40 bg-background border-t border-black/10 px-3 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:hidden"
+      className="flex flex-row items-stretch justify-around fixed bottom-0 inset-x-0 z-40 bg-background border-t border-border px-3 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:hidden"
     >
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
@@ -60,17 +60,14 @@ function BottomNav(): React.JSX.Element | null {
             to={item.link}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "relative flex flex-col items-center justify-center min-h-[44px] min-w-[60px] px-2 py-1 rounded-xl text-[11px] tracking-wide transition-all active:scale-95 no-underline",
+              "flex flex-col items-center justify-center min-h-[44px] min-w-[60px] px-2 py-1 rounded-xl text-[11px] font-medium transition-all active:scale-95 no-underline",
               isActive
-                ? "text-foreground font-semibold bg-black/[0.06] dark:bg-white/10"
-                : "text-muted-foreground font-medium hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/10"
+                ? "text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 dark:bg-emerald-500/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
             )}
           >
-            <Icon className={cn("size-5 mb-0.5", isActive ? "text-foreground" : "text-muted-foreground")} aria-hidden="true" />
+            <Icon className={cn("size-5 mb-0.5", isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")} />
             <span>{item.name}</span>
-            {isActive && (
-              <span aria-hidden="true" className="absolute top-1 h-1 w-1 rounded-full bg-foreground" />
-            )}
           </Link>
         );
       })}

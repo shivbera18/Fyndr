@@ -44,7 +44,7 @@ describe("cover preview blob-URL lifecycle", () => {
             <Dashboard />
           </MemoryRouter>
         );
-        fireEvent.click(screen.getByRole("tab", { name: "Create New Event" }));
+        fireEvent.click(screen.getByRole("button", { name: "Create New Event" }));
         return utils;
       },
     },
