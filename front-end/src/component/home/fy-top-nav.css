@@ -1,0 +1,461 @@
+/* Glass pill navbar ported from the RagKno reference (styles/app.css: .top-nav).
+   Scoped under .fy-top-nav so it never touches the dashboard Header. */
+
+.fy-top-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: 12px clamp(16px, 2vw, 28px) 0;
+  background: transparent;
+  pointer-events: none;
+  transition: padding 0.48s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateZ(0);
+}
+
+.fy-top-nav-track {
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.fy-top-nav-shell {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 1400px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  transform-origin: top center;
+  transition:
+    max-width 0.58s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.42s ease,
+    border-radius 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.42s ease,
+    box-shadow 0.42s ease,
+    backdrop-filter 0.42s ease,
+    transform 0.58s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fy-top-nav-shell::before {
+  position: absolute;
+  z-index: -1;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.2));
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.42s ease;
+}
+
+.fy-top-nav.scrolled {
+  padding-top: 14px;
+}
+
+.fy-top-nav.scrolled .fy-top-nav-shell {
+  max-width: min(1180px, 90vw);
+  border-color: rgba(255, 255, 255, 0.68);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(249, 249, 247, 0.64));
+  -webkit-backdrop-filter: blur(26px) saturate(175%);
+  backdrop-filter: blur(26px) saturate(175%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(17, 17, 17, 0.035),
+    0 18px 54px rgba(25, 24, 21, 0.12),
+    0 4px 14px rgba(25, 24, 21, 0.06);
+}
+
+.fy-top-nav.scrolled .fy-top-nav-shell::before {
+  opacity: 1;
+}
+
+.fy-top-nav-inner {
+  position: relative;
+  z-index: 1;
+  padding: 0 24px;
+  height: 48px;
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  column-gap: clamp(16px, 2vw, 28px);
+  align-items: center;
+  transition: height 0.54s cubic-bezier(0.22, 1, 0.36, 1), padding 0.54s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fy-top-nav.scrolled .fy-top-nav-inner {
+  height: 62px;
+  padding: 0 12px 0 22px;
+}
+
+.fy-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 10px;
+  font-family: "Archivo", Inter, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  text-decoration: none;
+  transition: color 0.24s ease, transform 0.44s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fy-brand-mark {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.24s ease;
+}
+
+/* LogoMark renders both theme tiles; force the light tile over the hero. */
+.fy-brand-mark img {
+  display: none;
+}
+
+.fy-brand-mark img:last-child {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.fy-top-nav.scrolled .fy-brand {
+  transform: scale(0.95);
+  color: #111111;
+}
+
+.fy-top-nav.scrolled .fy-brand-mark {
+  border-color: #111111;
+}
+
+/* Light pill: force the dark tile. */
+.fy-top-nav.scrolled .fy-brand-mark img {
+  display: none;
+}
+
+.fy-top-nav.scrolled .fy-brand-mark img:first-child {
+  display: block;
+}
+
+.fy-top-links {
+  display: flex;
+  align-items: center;
+  gap: clamp(26px, 3vw, 48px);
+  justify-self: center;
+}
+
+.fy-top-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  padding-bottom: 4px;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.fy-top-link:hover {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+.fy-top-nav.scrolled .fy-top-link {
+  color: #555555;
+}
+
+.fy-top-nav.scrolled .fy-top-link:hover {
+  color: #111111;
+  border-bottom-color: transparent;
+}
+
+/* Dark bento/workflow stretches: keep the floating pill readable. */
+.fy-top-nav.nav-on-dark.scrolled .fy-top-nav-shell {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, rgba(28, 28, 27, 0.7), rgba(11, 11, 11, 0.54));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+    0 18px 54px rgba(0, 0, 0, 0.24),
+    0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-top-nav-shell::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.015) 56%, rgba(255, 255, 255, 0.08));
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-brand,
+.fy-top-nav.nav-on-dark.scrolled .fy-top-link,
+.fy-top-nav.nav-on-dark.scrolled .fy-mobile-btn {
+  color: #ffffff;
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-brand-mark {
+  border-color: rgba(255, 255, 255, 0.86);
+}
+
+/* Dark pill: light tile again. */
+.fy-top-nav.nav-on-dark.scrolled .fy-brand-mark img {
+  display: none;
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-brand-mark img:last-child {
+  display: block;
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-btn-secondary {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-btn-primary {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #111111;
+}
+
+.fy-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+}
+
+.fy-btn {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.fy-btn:hover {
+  transform: translateY(-1px);
+}
+
+.fy-btn-secondary {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.38);
+  color: #ffffff;
+}
+
+.fy-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.fy-top-nav.scrolled .fy-btn-secondary {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #111111;
+}
+
+.fy-top-nav.scrolled .fy-btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #000000;
+}
+
+.fy-btn-primary {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 700;
+}
+
+.fy-btn-primary:hover {
+  background: #f0f0f0;
+}
+
+.fy-top-nav.scrolled .fy-btn-primary {
+  border-color: #111111;
+  background: #111111;
+  color: #ffffff;
+}
+
+.fy-top-nav.scrolled .fy-btn-primary:hover {
+  background: #2b2b2b;
+}
+
+.fy-mobile-btn {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.fy-mobile-menu {
+  display: none;
+}
+
+.fy-mobile-links {
+  display: grid;
+  gap: 2px;
+}
+
+.fy-mobile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.fy-mobile-link {
+  font-size: 0.86rem;
+  color: #676767;
+  padding: 10px 0;
+  text-decoration: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .fy-top-nav {
+    padding: 0;
+  }
+
+  .fy-top-nav.scrolled {
+    padding: 10px 12px 0;
+  }
+
+  .fy-top-nav-shell {
+    max-width: 100%;
+    border-radius: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .fy-top-nav.scrolled .fy-top-nav-shell {
+    max-width: 100%;
+    border-radius: 999px;
+    border-color: rgba(255, 255, 255, 0.68);
+  }
+
+  .fy-top-nav.mobile-open .fy-top-nav-shell {
+    border-radius: 24px;
+    border-color: rgba(17, 17, 17, 0.12);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 48px rgba(17, 17, 17, 0.16);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+
+  .fy-top-nav-shell::before {
+    display: none;
+  }
+
+  .fy-top-nav-inner,
+  .fy-top-nav.scrolled .fy-top-nav-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: 64px;
+    padding: 0 18px;
+  }
+
+  .fy-top-links {
+    display: none;
+  }
+
+  .fy-top-actions > .fy-btn {
+    display: none;
+  }
+
+  .fy-mobile-btn {
+    display: inline-flex;
+    transition: background 0.2s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .fy-top-nav.mobile-open .fy-mobile-btn {
+    transform: rotate(90deg);
+    border-color: rgba(17, 17, 17, 0.16);
+    background: #f4f3f0;
+    color: #111111;
+  }
+
+  .fy-mobile-menu {
+    display: grid;
+    gap: 2px;
+    padding: 10px 24px 14px;
+    border-top: 1px solid rgba(17, 17, 17, 0.1);
+    background: #ffffff;
+    animation: fy-mobile-reveal 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .fy-mobile-menu .fy-btn {
+    display: inline-flex;
+    flex: 1;
+    width: 100%;
+  }
+
+  .fy-mobile-menu .fy-btn-secondary {
+    border-color: rgba(17, 17, 17, 0.16);
+    background: #f4f3f0;
+    color: #111111;
+  }
+
+  .fy-mobile-menu .fy-btn-primary {
+    border-color: #111111;
+    background: #111111;
+    color: #ffffff;
+  }
+
+  .fy-top-nav.mobile-open .fy-brand {
+    color: #111111;
+  }
+
+  .fy-top-nav.mobile-open .fy-brand-mark {
+    border-color: #111111;
+  }
+
+  .fy-top-nav.mobile-open .fy-brand-mark img {
+    display: none;
+  }
+
+  .fy-top-nav.mobile-open .fy-brand-mark img:first-child {
+    display: block;
+  }
+}
+
+@keyframes fy-mobile-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fy-top-nav,
+  .fy-top-nav-shell,
+  .fy-top-nav-inner,
+  .fy-brand,
+  .fy-mobile-btn {
+    transition: none;
+  }
+}

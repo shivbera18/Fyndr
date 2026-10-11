@@ -41,17 +41,17 @@ export default function Footer(): React.JSX.Element {
               Overview
             </Link>
             <Link
-              to="/about"
+              to="/#how-it-works"
               className="px-3 py-1.5 rounded-lg hover:text-foreground hover:bg-accent/60 transition-colors"
             >
               How it works
             </Link>
-            <a
-              href="#pricing"
+            <Link
+              to="/#gallery-demo"
               className="px-3 py-1.5 rounded-lg hover:text-foreground hover:bg-accent/60 transition-colors"
             >
-              Pricing
-            </a>
+              Live demo
+            </Link>
             <Link
               to="/dashboard"
               className="px-3 py-1.5 rounded-lg hover:text-foreground hover:bg-accent/60 transition-colors"
@@ -110,9 +110,9 @@ export default function Footer(): React.JSX.Element {
                 </Link>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-foreground transition-colors">
-                  Studio pricing tiers
-                </a>
+                <Link to="/#faq" className="hover:text-foreground transition-colors">
+                  Questions &amp; privacy
+                </Link>
               </li>
               <li>
                 <Link to="/login" className="hover:text-foreground transition-colors">

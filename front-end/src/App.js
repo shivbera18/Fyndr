@@ -10,7 +10,7 @@ import { PWAInstallBanner, PWAOfflineIndicator } from './components/pwa';
 
 // ponytail: route-level code splitting — landing bundle no longer ships
 // dashboard/camera/analytics JS. Add new pages as lazy() here, never eager.
-const Home = lazy(() => import('./component/home/Home'));
+const Home = lazy(() => import('./component/home/RagknoLanding'));
 const About = lazy(() => import('./component/About'));
 const LoginRegister = lazy(() => import('./component/login/Login_Register'));
 const EmailVerified = lazy(() => import('./component/login/EmailVerify'));

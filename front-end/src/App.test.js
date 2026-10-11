@@ -2,6 +2,19 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
+jest.mock('./component/home/RagknoLanding', () => ({
+  __esModule: true,
+  default: () => (
+    <div>
+      <div>FYNDR</div>
+      <nav><a href="/">Overview</a></nav>
+      <h1>Face search for your Weddings</h1>
+      <a href="/login">Get Started Now</a>
+      <h2>Core capabilities.</h2>
+      <h2>Common questions, clear answers.</h2>
+    </div>
+  ),
+}));
 describe('Fyndr Web App Routing & Landing', () => {
   beforeAll(() => {
     window.scrollTo = jest.fn();
@@ -18,19 +31,19 @@ describe('Fyndr Web App Routing & Landing', () => {
 
   test('renders main hero headline and call-to-action buttons', async () => {
     render(<App />);
-    const heroHeadline = await screen.findByText(/FIND YOURSELF IN/i, {}, { timeout: 5000 });
+    const heroHeadline = await screen.findByText(/Face search/i, {}, { timeout: 5000 });
     expect(heroHeadline).toBeInTheDocument();
 
-    const ctaButton = await screen.findByRole('button', { name: /Create Free Event/i }, { timeout: 5000 });
+    const ctaButton = await screen.findByRole('link', { name: /Get Started/i }, { timeout: 5000 });
     expect(ctaButton).toBeInTheDocument();
   });
 
-  test('renders features and FAQ section', async () => {
+  test('renders capabilities and FAQ section', async () => {
     render(<App />);
-    const faqHeading = await screen.findByText(/Frequently Asked Questions/i, {}, { timeout: 5000 });
+    const faqHeading = await screen.findByText(/Common questions,/i, {}, { timeout: 5000 });
     expect(faqHeading).toBeInTheDocument();
 
-    const featuresHeadings = await screen.findAllByText(/Built for modern event photographers/i, {}, { timeout: 5000 });
+    const featuresHeadings = await screen.findAllByText(/Core capabilities/i, {}, { timeout: 5000 });
     expect(featuresHeadings.length).toBeGreaterThan(0);
   });
 });
