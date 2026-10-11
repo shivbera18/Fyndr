@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import Header from "../../navbar/Header";
 import Footer from "../../Footer";
 import { Button } from "../../../components/ui/button";
+import { PageShell, PageHero, EmptyState } from "../../../components/ui/page-kit";
+import "../../../components/ui/editorial.css";
 import ReelCreatorModal from "./ReelCreatorModal";
 import { API_URL } from "../../../utils/api";
 import { isPhotoEligible, type GatePaywall } from "../../../utils/gates";
@@ -137,25 +139,24 @@ const ReelPage = (): React.JSX.Element => {
 
   if (!eventId) {
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <Header />
-        <main className="flex-1 container mx-auto max-w-3xl px-4 py-10 space-y-4">
-          <h1 className="text-xl font-bold">Event link expired</h1>
-          <p className="text-sm text-muted-foreground">Rescan the event QR code to create a reel.</p>
-          <Button onClick={() => navigate("/")} className="min-h-[44px]">
-            Return to Home
-          </Button>
-        </main>
-        <Footer />
-      </div>
+      <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-3xl">
+        <EmptyState
+          title="Event link expired"
+          body="Rescan the event QR code to create a reel."
+          actions={
+            <Button onClick={() => navigate("/")} className="min-h-[44px]">
+              Return to Home
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-      <main className="flex-1 container mx-auto max-w-3xl px-4 sm:px-6 py-6">
-        <div className="mb-4 flex items-center gap-2">
+    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-3xl">
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -170,27 +171,39 @@ const ReelPage = (): React.JSX.Element => {
             {photos.length > 0 ? `${photos.length} photos ready` : "Reel studio"}
           </span>
         </div>
+        <PageHero
+          align="left"
+          kicker="Reel studio"
+          title={eventName ? `Turn ${eventName} into a reel` : "Turn your photos into a reel"}
+          lead={
+            photos.length > 0
+              ? `${photos.length} matched ${photos.length === 1 ? "photo" : "photos"} ready — pick a style, music, and export a vertical video.`
+              : "Your matched photos become a vertical video here."
+          }
+        />
         {photos.length === 0 ? (
-          <div className="space-y-3 rounded-2xl border border-border bg-card p-6 text-center">
-            <h1 className="text-xl font-bold">No photos yet</h1>
-            <p className="text-sm text-muted-foreground">
-              Find your photos with a selfie first — then come back here to turn them into a reel.
-            </p>
-            <Button
-              onClick={() => {
-                try {
-                  sessionStorage.setItem("fy-last-event", eventId);
-                } catch {
-                  // best-effort
-                }
-                navigate("/camera", { state: eventId });
-              }}
-              className="min-h-[44px]"
-            >
-              Find my photos →
-            </Button>
-          </div>
+          <EmptyState
+            title="No photos yet"
+            body="Find your photos with a selfie first — then come back here to turn them into a reel."
+            actions={
+              <Button
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem("fy-last-event", eventId);
+                  } catch {
+                    // best-effort
+                  }
+                  navigate("/camera", { state: eventId });
+                }}
+                className="min-h-[44px]"
+              >
+                Find my photos →
+              </Button>
+            }
+          />
         ) : (
+          // ReelCreatorModal is owned by no slice: keep passing asPage so its
+          // modal-forcing branch stays intact; this page shell is the native layout around it.
           <ReelCreatorModal
             key={eventId}
             open={true}
@@ -208,9 +221,8 @@ const ReelPage = (): React.JSX.Element => {
             asPage={true}
           />
         )}
-      </main>
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 };
 

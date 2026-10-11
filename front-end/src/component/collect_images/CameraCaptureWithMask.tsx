@@ -9,6 +9,8 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { PageShell, PageHero } from "../../components/ui/page-kit";
+import "../../components/ui/editorial.css";
 import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { PaywallModal, PaywallConfig } from "../../components/ui/paywall-modal";
 import { InquiryModal } from "./InquiryModal";
@@ -490,13 +492,12 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
   // If no eventId is found at all, prompt user to return home
   if (!eventId) {
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <Header />
-        <main className="flex-1 container mx-auto max-w-md px-4 py-12 flex flex-col justify-center">
-          <Card className="text-center p-6">
+      <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-md">
+        <div className="flex flex-col justify-center py-12">
+          <Card className="text-center p-6 border-black/10 bg-white">
             <CardContent className="space-y-4">
               <Badge variant="destructive">Event session expired</Badge>
-              <h1 className="text-xl font-bold">Event link expired</h1>
+              <h1 className="font-display text-xl font-bold">Event link expired</h1>
               <p className="text-sm text-muted-foreground">
                 Please rescan the event QR code or re-enter the event PIN to continue.
               </p>
@@ -505,44 +506,40 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
               </Button>
             </CardContent>
           </Card>
-        </main>
-        <Footer />
-      </div>
+        </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-
-      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-8 space-y-8">
+    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-4xl">
+      <div className="space-y-8">
         {/* Header Bar */}
-        <div className="flex items-center justify-between pb-6 border-b border-border">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              AI selfie match
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-0.5">
-              {eventName ? `${eventName} — Photos` : "Find your photos"}
-            </h1>
-            {studioName && (
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-xs text-muted-foreground">Photos by {studioName}</span>
-                <button
-                  type="button"
-                  onClick={() => setShowInquiry(true)}
-                  className="inline-flex min-h-[44px] items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
-                >
-                  Book Studio ↗
-                </button>
-              </div>
-            )}
-          </div>
+        <div className="flex items-center justify-between gap-3 pb-6 border-b border-black/10">
+          <PageHero
+            align="left"
+            kicker="AI selfie match"
+            title={eventName ? `${eventName} — Photos` : "Find your photos"}
+            lead={
+              studioName ? (
+                <span className="flex items-center gap-2 flex-wrap text-sm">
+                  <span>Photos by {studioName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowInquiry(true)}
+                    className="inline-flex min-h-[44px] items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
+                  >
+                    Book Studio ↗
+                  </button>
+                </span>
+              ) : undefined
+            }
+          />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate(`/collect/${eventId}`)}
-            className="min-h-[40px] flex items-center gap-1.5"
+            className="min-h-[40px] flex shrink-0 items-center gap-1.5"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Event
@@ -552,16 +549,16 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
         {/* STEP 1: CAPTURE OR RETAKE */}
         {!imageSrc ? (
           <div className="max-w-md mx-auto">
-            <Card className="shadow-md">
+            <Card className="border-black/10 bg-white shadow-sm">
               <CardContent className="p-6 sm:p-8 space-y-6 text-center">
                 <div className="space-y-2">
-                  <Badge variant="brand">Take a selfie to find your photos</Badge>
+                  <p className="rk-kicker">Step 1 of 2 — Selfie</p>
+                  <h2 className="font-display text-xl font-bold tracking-tight">Take a selfie to find your photos</h2>
                   <p className="text-xs text-muted-foreground">
-                    Position your face in the frame with good lighting. Your selfie is only used
+                    Position your face in the oval with good lighting. Your selfie is only used
                     for matching and is never stored permanently.
                   </p>
                 </div>
-
                 {/* Webcam / File Viewport */}
                 {!useUploadMode ? (
                   <div className="relative aspect-[4/3] max-h-[60dvh] overflow-hidden rounded-xl border border-border bg-black shadow-inner flex items-center justify-center">
@@ -617,8 +614,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                 )}
                 {/* Match sensitivity */}
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Match sensitivity</p>
-                  <div className="grid grid-cols-3 gap-2" role="group" aria-label="Face match sensitivity">
+                  <p className="rk-kicker">Match sensitivity</p>
+                  <div className="flex gap-2 justify-center" role="group" aria-label="Face match sensitivity">
                     {[
                       { label: "Strict", value: 0.42, hint: "Exact matches only" },
                       { label: "Balanced", value: 0.34, hint: "Best for weddings" },
@@ -632,8 +629,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                         onClick={() => setThreshold(opt.value)}
                         className={
                           threshold === opt.value
-                            ? "min-h-[44px] rounded-lg bg-primary px-2 py-2 text-xs font-bold text-primary-foreground"
-                            : "min-h-[44px] rounded-lg border border-input bg-background px-2 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                            ? "min-h-[44px] rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm"
+                            : "min-h-[44px] rounded-full border border-black/15 bg-white px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-black/30"
                         }
                       >
                         {opt.label}
@@ -678,9 +675,9 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
             </Card>
           </div>
         ) : (
-          /* STEP 2: RESULTS SECTION */
           <div className="space-y-6">
-            <Card>
+            <p className="rk-kicker text-center sm:text-left">Step 2 of 2 — Your matches</p>
+            <Card className="border-black/10 bg-white shadow-sm">
               <CardContent className="p-6">
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
                   <div className="relative h-28 w-28 shrink-0 rounded-xl overflow-hidden border border-border bg-muted shadow-sm">
@@ -747,14 +744,16 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                 )}
               </CardContent>
             </Card>
-
             {/* Matched Images Grid */}
             {matchedPhotos.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <h2 className="text-xl font-bold tracking-tight text-foreground">
-                    Your matched photos ({matchedPhotos.length})
-                  </h2>
+                <div className="flex items-center justify-between gap-3 flex-wrap border-b border-black/10 pb-4">
+                  <div className="space-y-0.5">
+                    <p className="rk-kicker">{matchedPhotos.length} match{matchedPhotos.length === 1 ? "" : "es"} found</p>
+                    <h2 className="font-display text-xl font-bold tracking-tight text-foreground">
+                      Your matched photos ({matchedPhotos.length})
+                    </h2>
+                  </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <PWAInstallButton
                       variant="header"
@@ -1097,10 +1096,8 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
           initialName={leadName}
           initialPhone={leadPhone}
         />
-      </main>
-
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 };
 

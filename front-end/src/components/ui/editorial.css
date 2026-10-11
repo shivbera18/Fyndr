@@ -1,0 +1,108 @@
+/* rk- editorial styles for legal/docs pages. Consumer adds class hooks
+   on plain markup; no dependency on typography plugin. */
+
+.rk-doc {
+  max-width: 44rem;
+  margin-inline: auto;
+  line-height: 1.75;
+}
+
+.rk-kicker {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--rk-muted, #6b675f);
+}
+
+/* Numbered clauses via <ol class="rk-clauses"> + CSS counters. */
+.rk-clauses {
+  list-style: none;
+  counter-reset: rk-clause;
+  padding: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.rk-clauses > li {
+  counter-increment: rk-clause;
+  border-top: 1px solid rgb(0 0 0 / 0.1);
+  padding-top: 1rem;
+}
+
+.rk-clauses > li::before {
+  content: counter(rk-clause, decimal-leading-zero);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--rk-muted, #6b675f);
+  margin-bottom: 0.25rem;
+}
+
+.rk-contact-card {
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1.25rem 1.5rem;
+}
+
+/* Docs 3-col: sidebar + content + TOC. Collapses under 1024px. */
+.rk-docs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+.rk-docs-nav,
+.rk-docs-toc {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .rk-docs {
+    grid-template-columns: 12rem minmax(0, 1fr) 12rem;
+    max-width: 72rem;
+    margin-inline: auto;
+  }
+
+  .rk-docs-nav,
+  .rk-docs-toc {
+    display: block;
+    position: sticky;
+    top: 5rem;
+    align-self: start;
+  }
+
+  .rk-docs-toc {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Callout + code companion classes for plain-markdown renders. */
+.rk-callout {
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-left: 3px solid #2563eb;
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: #fff;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.rk-code {
+  background: #141210;
+  color: #f7f5f1;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-doc *,
+  .rk-docs * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

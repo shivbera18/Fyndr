@@ -39,4 +39,12 @@ describe("BottomNav mobile bar", () => {
     renderNav("/dashboard");
     expect(screen.queryByRole("navigation", { name: /Mobile Navigation Bar/i })).not.toBeInTheDocument();
   });
+
+  test("active tab uses reference voice (ink pill + dot, aria-current)", () => {
+    renderNav("/dashboard");
+    const active = screen.getByRole("link", { current: "page" });
+    expect(active.textContent).toMatch(/My Events/);
+    expect(active.className).toMatch(/bg-black\/\[0\.06\]/);
+    expect(active.querySelector('[aria-hidden="true"].rounded-full')).toBeInTheDocument();
+  });
 });

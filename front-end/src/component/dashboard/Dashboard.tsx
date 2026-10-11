@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
@@ -11,8 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
-import { ImagePlus, RefreshCw } from "lucide-react";
+import { PageShell, PageHero, StatusBadge, UploadProgressBar } from "../../components/ui/page-kit";
+import { ImagePlus, RefreshCw, Plus } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type StoredUser = {
@@ -40,8 +40,18 @@ const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: "studio", label: "Studio Branding" },
 ];
 
+type IncomingEventState = {
+  newEvent?: {
+    eventID: string;
+    name: string;
+    pin: string;
+    ownerId: string;
+  };
+};
+
 export default function Dashboard(): React.JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>("events");
   const [selectedEvent, setSelectedEvent] = useState<SelectedEvent | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -69,6 +79,24 @@ export default function Dashboard(): React.JSX.Element {
       navigate("/login");
     }
   }, [navigate]);
+
+  // Open the workspace for an event freshly launched from /create-event.
+  useEffect(() => {
+    const incoming = (location.state as IncomingEventState | null)?.newEvent;
+    if (incoming?.eventID) {
+      setSelectedEvent({
+        eventID: incoming.eventID,
+        name: incoming.name,
+        pin: incoming.pin,
+        ownerId: incoming.ownerId,
+        folders: [],
+        selectionLimit: 0,
+        selectionLocked: false,
+      });
+    }
+    // ponytail: keyed on the navigation state object; runs once per arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const generateRandomPin = () => {
     const random = Math.floor(100000 + Math.random() * 900000).toString();
@@ -165,42 +193,51 @@ export default function Dashboard(): React.JSX.Element {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-
-      <main className="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-20 md:pb-8 space-y-8">
-        {/* Page Head */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-border">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Photographer dashboard
-            </h1>
-            <p className="mt-1 text-sm sm:text-base text-muted-foreground">
-              Welcome back, {user?.name || "Photographer"}! Manage your event galleries and guest access.
-            </p>
-          </div>
-          {!selectedEvent && (
-            <div className="flex items-center gap-2">
-              <Badge variant="success" className="font-mono">
-                ● Online
-              </Badge>
-            </div>
-          )}
-        </div>
-
-        {/* Tab Navigation (Desktop Only) */}
+    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-6xl">
+      <div className="space-y-8">
         {!selectedEvent && (
-          <div className="hidden md:flex items-center gap-2 border-b border-border overflow-x-auto scrollbar-hide py-1">
+          <PageHero
+            align="left"
+            kicker={
+              <StatusBadge status="ok">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-green-600 animate-pulse" />
+                Live — accepting guest scans
+              </StatusBadge>
+            }
+            title="Photographer dashboard"
+            lead={`Welcome back, ${user?.name || "Photographer"} — every gallery, guest list, and QR standee for your studio lives here.`}
+            actions={
+              <Button
+                type="button"
+                onClick={() => handleTabChange("create")}
+                className="min-h-[44px]"
+              >
+                <Plus className="h-4 w-4" />
+                Create new event
+              </Button>
+            }
+          />
+        )}
+
+        {/* Tab pills (Desktop Only) */}
+        {!selectedEvent && (
+          <div
+            role="tablist"
+            aria-label="Dashboard sections"
+            className="hidden md:flex items-center gap-2 overflow-x-auto scrollbar-hide py-1"
+          >
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap min-h-[44px]",
+                  "px-4 py-2 text-sm font-medium rounded-full transition-colors whitespace-nowrap min-h-[44px] border",
                   activeTab === tab.id
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "text-muted-foreground border-transparent hover:text-foreground hover:bg-black/5"
                 )}
               >
                 {tab.label}
@@ -231,7 +268,7 @@ export default function Dashboard(): React.JSX.Element {
               <CardHeader>
                 <CardTitle>Create new event</CardTitle>
                 <CardDescription>
-                  Set up a photo sharing event for your clients and guests.
+                  Name it, dress it with a cover, set the guest PIN — then launch the gallery.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -302,20 +339,28 @@ export default function Dashboard(): React.JSX.Element {
                             className="h-28 w-auto object-cover rounded-lg shadow-sm"
                           />
                           <span className="text-xs font-medium text-primary hover:underline">
-                            Click to change cover photo
+                            Looking good — click to swap the cover scene
                           </span>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
                           <ImagePlus className="h-8 w-8 text-muted-foreground/60" />
                           <span className="text-sm font-medium text-foreground">
-                            Click to select event cover photo
+                            Drop a cover scene here, or click to browse
                           </span>
-                          <span className="text-xs">PNG, JPG, WEBP up to 10MB</span>
+                          <span className="text-xs">PNG, JPG or WEBP up to 10MB — shown on QR standees</span>
                         </div>
                       )}
                     </label>
                   </div>
+
+                  {creating ? (
+                    <UploadProgressBar value={70} stage="Creating your gallery — setting the PIN and cover…" />
+                  ) : (
+                    coverPreview && (
+                      <UploadProgressBar value={100} stage="Cover photo attached — ready to launch." />
+                    )
+                  )}
 
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <Button
@@ -353,9 +398,7 @@ export default function Dashboard(): React.JSX.Element {
             }}
           />
         )}
-      </main>
-
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 }

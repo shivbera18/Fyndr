@@ -7,6 +7,8 @@ import { Card, CardContent } from "../../components/ui/card";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
+import { PageShell, PageHero, StatusBadge, EmptyState } from "../../components/ui/page-kit";
+import "./GuestAnalyticsPage.css";
 import {
   Users,
   KeyRound,
@@ -31,13 +33,11 @@ import {
   CreditCard,
   Sparkles,
   TrendingUp,
-  BarChart3,
   Layers,
   ChevronRight,
   Eye,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-
 interface SummaryData {
   totalVisitors: number;
   uniqueGuests: number;
@@ -337,10 +337,8 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
   const csvExportUrl = `${API_URL}/api/analytics/event/${eventId}/export-csv?created_id=${encodeURIComponent(resolvedOwner)}`;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-
-      <main className="flex-1 container mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-12 space-y-6">
+    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-7xl">
+      <div className="space-y-6">
         {/* Navigation Breadcrumbs & Back Button */}
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -364,27 +362,36 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
           </Button>
         </div>
 
-        {/* Header Block: Title, Badges & Top Actions */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl border border-border bg-card shadow-sm">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-primary/20 bg-primary/10 text-primary">
-                <BarChart3 className="size-3.5" />
-                Comprehensive Guest Intelligence
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-500/20 bg-emerald-500/10 text-emerald-600">
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <PageHero
+          align="left"
+          kicker="Guest intelligence"
+          title={`${eventName} — Guest Analytics`}
+          lead="Every guest scan, selfie search, and download for this gallery — the attendee ledger, the conversion funnel, and the leads to follow up."
+          actions={
+            <>
+              <StatusBadge status="ok">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-green-600 animate-pulse" />
                 Live Telemetry Active
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              {eventName} — Guest Analytics
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Real-time attendee ledger, facial search conversion funnel, and high-resolution photo download metrics.
-            </p>
-          </div>
+              </StatusBadge>
+              <StatusBadge status="info" dot={false}>
+                {engagementRating.label}
+              </StatusBadge>
+            </>
+          }
+        />
 
+        {/* Telemetry actions: refresh + CSV export, with sync note */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            <span>{lastRefreshedAt ? `Last synchronized: ${lastRefreshedAt.toLocaleTimeString()}` : "Awaiting first sync"}</span>
+            {peakActivity && (
+              <span className="hidden sm:inline-flex items-center gap-1 text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                Peak hour: {peakActivity.hour} ({peakActivity.volume} actions)
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="outline"
@@ -397,34 +404,12 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
               <RefreshCw className={cn("h-4 w-4", (refreshing || loading) && "animate-spin")} />
               {refreshing ? "Updating…" : "Refresh"}
             </Button>
-
             <a href={csvExportUrl} download target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "default", size: "sm" }), "min-h-[44px] inline-flex items-center gap-2 text-xs sm:text-sm")}>
               <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
               Export CSV Leads
             </a>
           </div>
         </div>
-
-        {/* Last Refreshed & Health Summary Pill */}
-        {lastRefreshedAt && (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground px-1">
-            <div className="flex items-center gap-2">
-              <Clock className="h-3.5 w-3.5" />
-              <span>Last synchronized: {lastRefreshedAt.toLocaleTimeString()}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={cn("px-2 py-0.5 rounded-md border font-medium text-xs", engagementRating.badge)}>
-                {engagementRating.label}
-              </span>
-              {peakActivity && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-muted-foreground">
-                  <TrendingUp className="h-3.5 w-3.5 text-primary" />
-                  Peak hour: {peakActivity.hour} ({peakActivity.volume} actions)
-                </span>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Loading Spinner */}
         {loading ? (
@@ -598,16 +583,18 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
               </div>
             </div>
 
-            {/* Tab Navigation Navigation Bar */}
-            <div className="flex items-center gap-1.5 border-b border-border overflow-x-auto scrollbar-hide py-1">
+            {/* Tab pills: leads, devices, paywall, live audit */}
+            <div role="tablist" aria-label="Guest analytics sections" className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1">
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === "leads"}
                 onClick={() => setActiveTab("leads")}
                 className={cn(
-                  "min-h-[44px] px-4 py-2 rounded-lg font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shrink-0",
+                  "min-h-[44px] px-4 py-2 rounded-full font-medium text-xs sm:text-sm flex items-center gap-2 transition-all whitespace-nowrap border",
                   activeTab === "leads"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "text-muted-foreground border-transparent hover:text-foreground hover:bg-black/5"
                 )}
               >
                 <Users className="h-4 w-4" />
@@ -616,12 +603,14 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
 
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === "traffic"}
                 onClick={() => setActiveTab("traffic")}
                 className={cn(
-                  "min-h-[44px] px-4 py-2 rounded-lg font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shrink-0",
+                  "min-h-[44px] px-4 py-2 rounded-full font-medium text-xs sm:text-sm flex items-center gap-2 transition-all whitespace-nowrap border",
                   activeTab === "traffic"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "text-muted-foreground border-transparent hover:text-foreground hover:bg-black/5"
                 )}
               >
                 <Smartphone className="h-4 w-4" />
@@ -630,12 +619,14 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
 
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === "monetization"}
                 onClick={() => setActiveTab("monetization")}
                 className={cn(
-                  "min-h-[44px] px-4 py-2 rounded-lg font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shrink-0",
+                  "min-h-[44px] px-4 py-2 rounded-full font-medium text-xs sm:text-sm flex items-center gap-2 transition-all whitespace-nowrap border",
                   activeTab === "monetization"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "text-muted-foreground border-transparent hover:text-foreground hover:bg-black/5"
                 )}
               >
                 <Coins className="h-4 w-4" />
@@ -644,12 +635,14 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
 
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === "activity"}
                 onClick={() => setActiveTab("activity")}
                 className={cn(
-                  "min-h-[44px] px-4 py-2 rounded-lg font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shrink-0",
+                  "min-h-[44px] px-4 py-2 rounded-full font-medium text-xs sm:text-sm flex items-center gap-2 transition-all whitespace-nowrap border",
                   activeTab === "activity"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "text-muted-foreground border-transparent hover:text-foreground hover:bg-black/5"
                 )}
               >
                 <Activity className="h-4 w-4" />
@@ -714,17 +707,17 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
 
                 {/* Table or Empty State */}
                 {filteredGuests.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border p-12 text-center space-y-3 bg-card">
-                    <Users className="h-10 w-10 mx-auto text-muted-foreground/60" />
-                    <h3 className="font-semibold text-lg text-foreground">No guest leads found</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-                      {searchQuery
+                  <EmptyState
+                    icon={<Users className="h-6 w-6 text-muted-foreground" />}
+                    title="No guest leads found"
+                    body={
+                      searchQuery
                         ? "No guests matched your current search filters. Try clearing the query."
-                        : "Guests will automatically populate here as they access the gallery via the QR standee or event link."}
-                    </p>
-                  </div>
+                        : "Guests will automatically populate here as they access the gallery via the QR standee or event link."
+                    }
+                  />
                 ) : (
-                  <div className="rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
+                  <div className="rk-leads-table rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
                         <thead className="bg-muted/70 text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
@@ -777,13 +770,13 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
                                 {/* Verification */}
                                 <td className="px-4 py-3.5">
                                   {g.verified ? (
-                                    <Badge variant="success" className="gap-1 text-xs font-normal">
+                                    <StatusBadge status="ok">
                                       <CheckCircle2 className="h-3 w-3" /> Verified
-                                    </Badge>
+                                    </StatusBadge>
                                   ) : (
-                                    <Badge variant="destructive" className="gap-1 text-xs font-normal">
+                                    <StatusBadge status="error">
                                       <XCircle className="h-3 w-3" /> Failed PIN
-                                    </Badge>
+                                    </StatusBadge>
                                   )}
                                 </td>
 
@@ -1220,9 +1213,7 @@ export default function GuestAnalyticsPage(): React.JSX.Element {
             )}
           </>
         )}
-      </main>
-
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 }

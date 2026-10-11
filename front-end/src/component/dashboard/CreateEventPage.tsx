@@ -13,6 +13,7 @@ import {
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
+import { PageShell, PageHero, StepGuide, Callout, UploadProgressBar } from "../../components/ui/page-kit";
 import {
   ImagePlus,
   Lock,
@@ -20,7 +21,6 @@ import {
   Sparkles,
   ArrowRight,
   RefreshCw,
-  Calendar,
 } from "lucide-react";
 
 type StoredUser = {
@@ -112,7 +112,22 @@ export default function CreateEventPage(): React.JSX.Element {
 
       const data = await res.json();
       if (res.ok && data) {
-        navigate("/dashboard");
+        // Launch into the new event workspace when the API returns an id; fall back to the dashboard.
+        const createdId = data._id || data.event?._id || data.eventID || (data.event && data.event._id);
+        if (createdId) {
+          navigate("/dashboard", {
+            state: {
+              newEvent: {
+                eventID: createdId,
+                name: eventName.trim(),
+                pin: requirePin ? pin.trim() : "",
+                ownerId: user?._id || "",
+              },
+            },
+          });
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         setCreateError(data.message || "Failed to create event.");
       }
@@ -124,22 +139,23 @@ export default function CreateEventPage(): React.JSX.Element {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
+    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-2xl">
+      <div className="space-y-8">
+        <PageHero
+          align="left"
+          kicker="New gallery"
+          title="Create New Event"
+          lead="Name the celebration, dress it with a cover scene, set the guest PIN — then launch the live gallery."
+        />
 
-      <main className="flex-1 container mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12 pb-20 md:pb-8 space-y-6">
-        <div className="space-y-1 text-center sm:text-left">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-border bg-card">
-            <Calendar className="size-3.5 text-emerald-500" />
-            New Gallery
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Create New Event
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Set up a live photo sharing gallery for your clients, attendees, and guests.
-          </p>
-        </div>
+        <StepGuide
+          steps={[
+            { title: "Name it", body: "The couple, the company offsite, the big night — whatever guests will recognize." },
+            { title: "Dress the cover", body: "One inviting photo for QR standees and the guest welcome screen." },
+            { title: "Set the PIN", body: "A short code guests type after scanning — or leave the gallery public." },
+            { title: "Launch", body: "Open the event workspace, upload photos, and share the QR." },
+          ]}
+        />
 
         <Card className="border border-border shadow-sm bg-card/80 backdrop-blur-sm">
           <CardHeader>
@@ -151,9 +167,9 @@ export default function CreateEventPage(): React.JSX.Element {
 
           <CardContent>
             {createError && (
-              <div className="mb-6 p-3.5 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium">
+              <Callout variant="error" title="Couldn't create the event" className="mb-6">
                 {createError}
-              </div>
+              </Callout>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -176,40 +192,40 @@ export default function CreateEventPage(): React.JSX.Element {
               {/* Cover Photo */}
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Event Cover Image (Optional)</Label>
-                <div className="flex items-center gap-4">
+                <label
+                  htmlFor="create-cover-file"
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 px-6 py-8 text-center cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/40"
+                >
+                  <input
+                    type="file"
+                    id="create-cover-file"
+                    accept="image/*"
+                    onChange={handleCoverChange}
+                    className="sr-only"
+                  />
                   {coverPreview ? (
-                    <img
-                      src={coverPreview}
-                      alt="Cover preview"
-                      className="size-20 rounded-xl object-cover border border-border shrink-0 shadow-xs"
-                    />
+                    <>
+                      <img
+                        src={coverPreview}
+                        alt="Cover preview"
+                        className="size-20 rounded-xl object-cover border border-border shrink-0 shadow-xs"
+                      />
+                      <span className="text-xs font-semibold text-primary">
+                        Looking good — click to swap the cover scene
+                      </span>
+                    </>
                   ) : (
-                    <div className="size-20 rounded-xl border-2 border-dashed border-border bg-muted/30 flex items-center justify-center text-muted-foreground shrink-0">
-                      <ImagePlus className="size-6" />
-                    </div>
+                    <>
+                      <ImagePlus className="size-6 text-muted-foreground/60" />
+                      <span className="text-sm font-medium text-foreground">
+                        Drop a cover scene here, or click to browse
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        PNG, JPG or WEBP up to 10MB — shown on table QR standees and guest welcome screens.
+                      </span>
+                    </>
                   )}
-                  <div className="space-y-1">
-                    <input
-                      type="file"
-                      id="create-cover-file"
-                      accept="image/*"
-                      onChange={handleCoverChange}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => document.getElementById("create-cover-file")?.click()}
-                      className="min-h-[44px] text-xs font-semibold"
-                    >
-                      Choose Cover Image
-                    </Button>
-                    <p className="text-[11px] text-muted-foreground">
-                      Displayed on table QR standees and guest welcome screens.
-                    </p>
-                  </div>
-                </div>
+                </label>
               </div>
 
               {/* PIN Access Settings */}
@@ -238,7 +254,7 @@ export default function CreateEventPage(): React.JSX.Element {
                     role="switch"
                     aria-checked={requirePin}
                     onClick={() => setRequirePin(!requirePin)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-hidden ${
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       requirePin ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
                     }`}
                   >
@@ -285,6 +301,10 @@ export default function CreateEventPage(): React.JSX.Element {
                 )}
               </div>
 
+              {creating && (
+                <UploadProgressBar value={70} stage="Creating your gallery — setting the PIN and cover…" />
+              )}
+
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-border">
                 <Button
@@ -298,18 +318,17 @@ export default function CreateEventPage(): React.JSX.Element {
                 <Button
                   type="submit"
                   disabled={creating}
+                  loading={creating}
                   className="w-full sm:w-auto min-h-[44px] px-6 font-semibold flex items-center justify-center gap-2"
                 >
-                  {creating ? "Creating event…" : "Create Event"}
+                  {creating ? "Launching gallery…" : "Launch event gallery"}
                   <ArrowRight className="size-4" />
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
-      </main>
-
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 }

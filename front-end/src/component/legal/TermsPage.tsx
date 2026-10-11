@@ -2,9 +2,9 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../navbar/Header";
 import Footer from "../Footer";
-import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
+import { PageHero, PageShell } from "../../components/ui/page-kit";
+import "../../components/ui/editorial.css";
 import { FileText, Image, Ban, Scale } from "lucide-react";
 
 const sections = [
@@ -33,36 +33,33 @@ const sections = [
 export default function TermsPage(): React.JSX.Element {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-      <main className="flex-1 container mx-auto max-w-4xl px-4 sm:px-6 py-12 space-y-8">
-        <div className="text-center space-y-3 max-w-2xl mx-auto">
-          <Badge variant="brand">Terms of Service</Badge>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Simple, fair terms</h1>
-          <p className="text-muted-foreground text-base sm:text-lg">
-            Effective {new Date().getFullYear()} · Contact: shiv@fyndr.in
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <PageShell header={<Header />} footer={<Footer />}>
+      <div className="rk-doc">
+        <PageHero
+          align="left"
+          kicker={<span className="rk-kicker">Terms of Service</span>}
+          title="Simple, fair terms"
+          lead={`Effective ${new Date().getFullYear()} · Contact: shiv@fyndr.in`}
+        />
+        <ol className="rk-clauses mt-8">
           {sections.map((s) => (
-            <Card key={s.title} className="border-border">
-              <CardContent className="p-6 space-y-2">
-                <div className="flex items-center gap-2">
-                  <s.icon className="h-4 w-4 text-primary" />
-                  <span className="font-semibold text-sm">{s.title}</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{s.body}</p>
-              </CardContent>
-            </Card>
+            <li key={s.title}>
+              <h2 className="flex items-center gap-2 text-base font-semibold">
+                <s.icon className="h-4 w-4 text-primary" aria-hidden />
+                {s.title}
+              </h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
+            </li>
           ))}
-        </div>
-        <div className="text-center">
+        </ol>
+        <div className="rk-contact-card mt-8 space-y-3">
+          <p className="text-sm font-semibold">Questions about these terms?</p>
+          <p className="text-sm text-muted-foreground">Reach us anytime at shiv@fyndr.in.</p>
           <Button onClick={() => navigate("/privacy")} variant="outline" className="min-h-[44px]">
             ← Read the Privacy Policy
           </Button>
         </div>
-      </main>
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 }

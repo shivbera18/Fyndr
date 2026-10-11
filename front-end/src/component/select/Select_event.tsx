@@ -6,9 +6,10 @@ import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Badge } from "../../components/ui/badge";
+import { PageShell, Callout, EmptyState } from "../../components/ui/page-kit";
+import { ResponsiveModal } from "../../components/ui/responsive-modal";
 import { API_URL } from "../../utils/api";
-import { Check, Heart, KeyRound, Lock } from "lucide-react";
+import { Check, Expand, Heart, KeyRound, Lock, StickyNote, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { PWAInstallButton } from "../../components/pwa";
 
@@ -36,7 +37,7 @@ type SelectPhotoCardProps = {
   locked: boolean;
   isPending: boolean;
   onToggleSelect: (photoId: string) => void;
-  onSaveNote: (photoId: string, note: string) => void;
+  onOpen: (photoId: string) => void;
 };
 
 const SelectPhotoCard = React.memo(function SelectPhotoCard({
@@ -46,29 +47,40 @@ const SelectPhotoCard = React.memo(function SelectPhotoCard({
   locked,
   isPending,
   onToggleSelect,
-  onSaveNote,
+  onOpen,
 }: SelectPhotoCardProps) {
-  const handleToggleClick = useCallback(() => {
-    onToggleSelect(photo._id);
-  }, [onToggleSelect, photo._id]);
-
-  const handleNoteBlur = useCallback(
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      onSaveNote(photo._id, e.target.value);
+  const handleToggleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleSelect(photo._id);
     },
-    [onSaveNote, photo._id]
+    [onToggleSelect, photo._id]
   );
 
-  const handleNoteKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-  }, []);
+  const handleOpen = useCallback(() => {
+    onOpen(photo._id);
+  }, [onOpen, photo._id]);
+
+  const handleOpenKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onOpen(photo._id);
+      }
+    },
+    [onOpen, photo._id]
+  );
 
   return (
     <div
-      key={photo._id}
+      role="button"
+      tabIndex={0}
+      onClick={handleOpen}
+      onKeyDown={handleOpenKey}
+      aria-label={`Open photo ${index + 1}${photo.isSelected ? " (selected)" : ""}`}
       className={cn(
-        "group cv-tile relative rounded-xl overflow-hidden bg-muted border",
-        photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
+        "group relative rounded-xl overflow-hidden bg-muted border cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        photo.isSelected ? "border-primary ring-2 ring-primary/40" : "border-black/10"
       )}
     >
       <div className="aspect-square">
@@ -87,18 +99,10 @@ const SelectPhotoCard = React.memo(function SelectPhotoCard({
       >
         <Heart className={cn("h-5 w-5", photo.isSelected && "fill-current")} />
       </button>
-      {photo.isSelected && !locked ? (
-        <input
-          defaultValue={photo.selectionNote || ""}
-          placeholder="Note for photographer…"
-          aria-label="Retouch note for photographer"
-          maxLength={500}
-          disabled={isPending}
-          title={isPending ? "Saving…" : undefined}
-          onBlur={handleNoteBlur}
-          onKeyDown={handleNoteKeyDown}
-          className="w-full px-3 py-2.5 min-h-[44px] text-xs bg-background border-t border-border outline-none focus:ring-1 focus:ring-primary font-sans text-foreground placeholder:text-muted-foreground"
-        />
+      {photo.selectionNote ? (
+        <span className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white" title="Has a note for the photographer">
+          <StickyNote className="h-3.5 w-3.5" />
+        </span>
       ) : null}
     </div>
   );
@@ -115,8 +119,9 @@ const SelectEvent = (): React.JSX.Element => {
   const [activeFolder, setActiveFolder] = useState<string>("All");
   const [selectedOnly, setSelectedOnly] = useState<boolean>(false);
   const [locking, setLocking] = useState<boolean>(false);
-  const [confirming, setConfirming] = useState<boolean>(false);
-  const confirmTimer = useRef<number | undefined>(undefined);
+  const [showSubmitModal, setShowSubmitModal] = useState<boolean>(false);
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState<boolean>(false);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
   // ponytail: cap initial grid render — large albums rendered every card at once.
   const [, startFilterTransition] = useTransition();
@@ -254,17 +259,14 @@ const SelectEvent = (): React.JSX.Element => {
     }
   }, [locked, eventId, pendingIds, pin]);
 
-  const lockSelection = async (): Promise<void> => {
+  const openSubmitModal = useCallback((): void => {
+    if (locked || locking) return;
+    setShowSubmitModal(true);
+  }, [locked, locking]);
+
+  const confirmLockSelection = async (): Promise<void> => {
     if (locked || !eventId || locking) return;
-    if (!confirming) {
-      setConfirming(true);
-      clearTimeout(confirmTimer.current);
-      confirmTimer.current = window.setTimeout(() => setConfirming(false), 6000);
-      return;
-    }
-    clearTimeout(confirmTimer.current);
-    confirmTimer.current = undefined;
-    setConfirming(false);
+    setShowSubmitModal(false);
     setLocking(true);
     setErrorMessage("");
     try {
@@ -283,6 +285,16 @@ const SelectEvent = (): React.JSX.Element => {
     }
   };
 
+  const openLightbox = useCallback((photoId: string): void => {
+    setLightboxZoom(false);
+    setLightboxId(photoId);
+  }, []);
+
+  const closeLightbox = useCallback((): void => {
+    setLightboxZoom(false);
+    setLightboxId(null);
+  }, []);
+
   const visible = useMemo(
     () =>
       photos.filter((p) => {
@@ -297,55 +309,58 @@ const SelectEvent = (): React.JSX.Element => {
     setVisibleCount(60);
   }, [activeFolder, selectedOnly, eventId]);
 
+  const lightboxPhoto = lightboxId ? photos.find((p) => p._id === lightboxId) ?? null : null;
+  const lightboxUrl = lightboxPhoto ? `${API_URL}/download/${encodeURIComponent(lightboxPhoto.name)}` : "";
+
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-      <main className="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6">
-        {!eventData ? (
-          <div className="max-w-md mx-auto w-full">
-            <Card className="shadow-md">
-              <CardContent className="p-6 sm:p-8 space-y-6">
-                <div className="text-center space-y-2">
-                  <Badge variant="brand">Client album picks</Badge>
-                  <h1 className="text-2xl font-bold tracking-tight">Choose your album photos</h1>
-                  <p className="text-sm text-muted-foreground">Enter the event PIN shared by your photographer.</p>
+    <PageShell header={<Header />} footer={<Footer />} maxWidth="max-w-6xl">
+      {!eventData ? (
+        <div className="max-w-md mx-auto w-full">
+          <Card className="border-black/10 bg-white shadow-sm">
+            <CardContent className="p-6 sm:p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <p className="rk-kicker">Client album picks</p>
+                <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight">Choose your album photos</h1>
+                <p className="text-sm text-muted-foreground">Enter the event PIN shared by your photographer.</p>
+              </div>
+              {errorMessage ? (
+                <div role="alert" className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
+                  {errorMessage}
                 </div>
-                {errorMessage ? (
-                  <div className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
-                    {errorMessage}
-                  </div>
-                ) : null}
-                <form onSubmit={loadSelection} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fy-select-pin" className="block text-center font-medium">
-                      Event PIN <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="fy-select-pin"
-                      type="tel"
-                      inputMode="numeric"
-                      maxLength={24}
-                      placeholder="••••••"
-                      value={pin}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPin(e.target.value)}
-                      required
-                      className="h-12 min-h-[48px] text-center tracking-[0.3em] font-mono text-xl font-bold"
-                    />
-                  </div>
-                  <Button type="submit" disabled={loading} size="lg" className="w-full min-h-[48px]">
-                    <KeyRound className="h-4 w-4" />
-                    {loading ? "Unlocking…" : "Unlock my gallery →"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <>
+              ) : null}
+              <form onSubmit={loadSelection} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fy-select-pin" className="block text-center font-medium">
+                    Event PIN <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="fy-select-pin"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={24}
+                    placeholder="••••••"
+                    value={pin}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPin(e.target.value)}
+                    required
+                    className="h-[52px] min-h-[52px] text-center tracking-[0.3em] font-mono text-xl font-bold"
+                  />
+                </div>
+                <Button type="submit" disabled={loading} size="lg" className="w-full min-h-[52px]">
+                  <KeyRound className="h-4 w-4" />
+                  {loading ? "Unlocking…" : "Unlock my gallery →"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <>
+          <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-[#f7f5f1]/95 backdrop-blur border-b border-black/10">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">{eventData.event_name}</h1>
-                <p className="text-sm text-muted-foreground">
+              <div className="min-w-0">
+                <p className="rk-kicker">Client album picks</p>
+                <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight truncate">{eventData.event_name}</h1>
+                <p className="text-sm text-muted-foreground" role="status">
                   Selected {selectedCount}
                   {limit > 0 ? ` / ${limit} album photos` : " photos"}
                 </p>
@@ -359,63 +374,69 @@ const SelectEvent = (): React.JSX.Element => {
                 />
                 <Button
                   type="button"
-                  onClick={() => void lockSelection()}
+                  onClick={openSubmitModal}
                   disabled={locked || locking}
                   className="min-h-[44px]"
                 >
                   {locked ? <Check className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                  {locked ? "Submitted" : locking ? "Submitting…" : confirming ? "Tap again to submit — this locks your picks" : "Lock & submit picks"}
+                  {locked ? "Submitted" : locking ? "Submitting…" : "Lock & submit picks"}
                 </Button>
               </div>
             </div>
-
-            {locked ? (
-              <div role="status" className="rounded-lg p-3 text-sm font-medium border bg-primary/10 text-primary border-primary/20">
-                Picks submitted and locked — thank you! Contact your photographer if anything must change.
-              </div>
-            ) : null}
-            {notice && !locked ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-            {errorMessage ? (
-              <div role="alert" className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
-                {errorMessage}
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-2 mt-3 overflow-x-auto pb-1 -mb-1" role="tablist" aria-label="Photo folders">
               {["All", ...eventData.folders.map((f) => f.name)].map((tab) => (
-                <Button
+                <button
                   key={tab}
                   type="button"
-                  variant={activeFolder === tab ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={activeFolder === tab}
+                  role="tab"
+                  aria-selected={activeFolder === tab}
                   onClick={() => handleFolderChange(tab)}
-                  className="min-h-[44px]"
+                  className={cn(
+                    "shrink-0 min-h-[44px] px-4 rounded-full text-sm font-medium border transition-colors",
+                    activeFolder === tab
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white text-foreground border-black/15 hover:border-black/30"
+                  )}
                 >
                   {tab}
-                </Button>
+                </button>
               ))}
-              <Button
+              <button
                 type="button"
-                variant={selectedOnly ? "default" : "outline"}
-                size="sm"
                 aria-pressed={selectedOnly}
                 onClick={handleSelectedOnlyToggle}
-                className="min-h-[44px]"
+                className={cn(
+                  "shrink-0 inline-flex items-center min-h-[44px] px-4 rounded-full text-sm font-medium border transition-colors",
+                  selectedOnly
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-white text-foreground border-black/15 hover:border-black/30"
+                )}
               >
-                <Heart className="h-3.5 w-3.5 fill-current mr-1 inline" />
+                <Heart className="h-3.5 w-3.5 fill-current mr-1.5 inline" />
                 Selected only
-              </Button>
+              </button>
             </div>
+          </div>
 
-            {visible.length === 0 ? (
-              <Card className="text-center py-12 px-4">
-                <CardContent className="text-sm text-muted-foreground">
-                  {selectedOnly ? "No picks yet — tap the heart on photos you love." : "No photos in this view yet."}
-                </CardContent>
-              </Card>
-            ) : (
-              <>
+          {locked ? (
+            <Callout variant="success" title="Picks submitted">
+              Thank you! Contact your photographer if anything must change.
+            </Callout>
+          ) : null}
+          {notice && !locked ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+          {errorMessage ? (
+            <div role="alert" className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          {visible.length === 0 ? (
+            <EmptyState
+              title={selectedOnly ? "No picks yet" : "No photos in this view"}
+              body={selectedOnly ? "Tap the heart on photos you love — they will gather here." : "Try another folder."}
+            />
+          ) : (
+            <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {shown.map((photo, index) => (
                   <SelectPhotoCard
@@ -426,7 +447,7 @@ const SelectEvent = (): React.JSX.Element => {
                     locked={locked}
                     isPending={pendingIds.has(photo._id)}
                     onToggleSelect={toggleSelect}
-                    onSaveNote={saveNote}
+                    onOpen={openLightbox}
                   />
                 ))}
               </div>
@@ -442,14 +463,166 @@ const SelectEvent = (): React.JSX.Element => {
                   </Button>
                 </div>
               )}
-              </>
-            )}
-          </>
+            </>
+          )}
+        </>
+      )}
+      <ResponsiveModal
+        open={showSubmitModal}
+        onOpenChange={setShowSubmitModal}
+        title="Submit your picks?"
+        description={
+          limit > 0
+            ? `You picked ${selectedCount} of ${limit} album photos. Submitting locks your choices.`
+            : `You picked ${selectedCount} photos. Submitting locks your choices.`
+        }
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => setShowSubmitModal(false)} className="min-h-[44px]">
+              Keep choosing
+            </Button>
+            <Button type="button" onClick={() => void confirmLockSelection()} disabled={locking} className="min-h-[44px]">
+              {locking ? "Submitting…" : "Submit picks"}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground pt-1">
+          The photographer starts retouching from your locked set — ask them directly if anything must change later.
+        </p>
+      </ResponsiveModal>
+      <ResponsiveModal
+        open={Boolean(lightboxPhoto)}
+        onOpenChange={(open) => {
+          if (!open) closeLightbox();
+        }}
+        className="sm:max-w-3xl"
+        title={lightboxPhoto ? `Photo preview${lightboxPhoto.isSelected ? " · selected" : ""}` : "Photo preview"}
+      >
+        {lightboxPhoto && (
+          <LightboxBody
+            photo={lightboxPhoto}
+            photoUrl={lightboxUrl}
+            locked={locked}
+            isPending={pendingIds.has(lightboxPhoto._id)}
+            zoomed={lightboxZoom}
+            onToggleZoom={() => setLightboxZoom((z) => !z)}
+            onToggleSelect={() => void toggleSelect(lightboxPhoto._id)}
+            onSaveNote={(note) => void saveNote(lightboxPhoto._id, note)}
+          />
         )}
-      </main>
-      <Footer />
-    </div>
+      </ResponsiveModal>
+    </PageShell>
   );
 };
+
+function LightboxBody({
+  photo,
+  photoUrl,
+  locked,
+  isPending,
+  zoomed,
+  onToggleZoom,
+  onToggleSelect,
+  onSaveNote,
+}: {
+  photo: SelectPhoto;
+  photoUrl: string;
+  locked: boolean;
+  isPending: boolean;
+  zoomed: boolean;
+  onToggleZoom: () => void;
+  onToggleSelect: () => void;
+  onSaveNote: (note: string) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState<string>(photo.selectionNote || "");
+  useEffect(() => {
+    setDraft(photo.selectionNote || "");
+  }, [photo._id, photo.selectionNote]);
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-sm font-semibold truncate" title={photo.name}>
+          {photo.name.replace(/^\d+-/, "")}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onToggleZoom} className="min-h-[44px]" aria-pressed={zoomed}>
+            {zoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+            {zoomed ? "Fit" : "Zoom"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={photo.isSelected ? "secondary" : "default"}
+            onClick={onToggleSelect}
+            disabled={locked || isPending}
+            className="min-h-[44px]"
+            aria-pressed={photo.isSelected}
+          >
+            <Heart className={cn("h-4 w-4 mr-1", photo.isSelected && "fill-current")} />
+            {photo.isSelected ? "Selected — tap to remove" : "Pick for album"}
+          </Button>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "relative rounded-xl border border-border bg-black/95 flex justify-center p-2 max-h-[65vh]",
+          zoomed ? "overflow-auto items-start" : "overflow-hidden items-center"
+        )}
+      >
+        <img
+          src={photoUrl}
+          alt="Full preview"
+          onClick={onToggleZoom}
+          className={cn(
+            "rounded-lg transition-transform",
+            zoomed
+              ? "max-w-full max-h-none object-contain cursor-zoom-out"
+              : "max-w-full max-h-[60vh] object-contain cursor-zoom-in"
+          )}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="fy-select-note" className="inline-flex items-center gap-1.5 text-sm font-medium">
+          <Expand className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+          Note for the photographer
+        </Label>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input
+            id="fy-select-note"
+            defaultValue={draft}
+            key={`${photo._id}-${photo.selectionNote || ""}`}
+            placeholder="Retouch note — e.g. remove exit sign…"
+            aria-label="Retouch note for photographer"
+            maxLength={500}
+            disabled={locked || isPending || !photo.isSelected}
+            title={!photo.isSelected ? "Pick this photo before adding a note" : isPending ? "Saving…" : undefined}
+            onBlur={(e: React.FocusEvent<HTMLInputElement>) => onSaveNote(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            className="min-h-[52px] flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={locked || isPending || !photo.isSelected}
+            className="min-h-[52px] shrink-0"
+            onClick={() => {
+              const el = document.getElementById("fy-select-note") as HTMLInputElement | null;
+              if (el) onSaveNote(el.value);
+            }}
+          >
+            Save note
+          </Button>
+        </div>
+        {!photo.isSelected ? (
+          <p className="text-xs text-muted-foreground">Pick this photo first — notes attach to album picks only.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default SelectEvent;

@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { API_URL } from "../../utils/api";
 import { signOut } from "../../utils/session";
-import { LogoMark } from "../brand/LogoMark";
 import { cn } from "../../lib/utils";
+import { AuthShell } from "./AuthShell";
 
 type Mode = "login" | "register";
 
 const Login_Register = (): React.JSX.Element => {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -85,174 +87,171 @@ const Login_Register = (): React.JSX.Element => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-background text-foreground">
-      <div className="w-full max-w-md space-y-4">
-        {/* Logo */}
-        <div className="text-center pb-2">
-          <Link to="/" className="inline-flex items-center gap-2.5 no-underline text-foreground">
-            <LogoMark className="h-[32px] w-[32px]" />
-            <span className="font-display font-bold text-xl tracking-tight">FYNDR</span>
-          </Link>
-        </div>
+    <AuthShell
+      eyebrow={mode === "login" ? "Welcome back" : "For photographers"}
+      title={mode === "login" ? "Sign in to Fyndr" : "Create your account"}
+      description={
+        mode === "login"
+          ? "Welcome back — manage your events and photos."
+          : "Start sharing event albums with AI face match."
+      }
+    >
+      <Card className="shadow-lg">
+        <CardContent className="space-y-4 p-6">
+          {/* Segmented Mode Switcher */}
+          <div
+            role="tablist"
+            aria-label="Sign in or register"
+            className="grid grid-cols-2 p-1 bg-muted rounded-lg text-sm font-medium"
+          >
+            {(["login", "register"] as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => switchMode(m)}
+                className={cn(
+                  "py-2 rounded-md transition-all min-h-[44px] flex items-center justify-center",
+                  mode === m
+                    ? "bg-background text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m === "login" ? "Sign in" : "Register"}
+              </button>
+            ))}
+          </div>
 
-        <Card className="shadow-lg">
-          <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-xl sm:text-2xl font-bold">
-              {mode === "login" ? "Sign in to Fyndr" : "Create your account"}
-            </CardTitle>
-            <CardDescription>
-              {mode === "login"
-                ? "Welcome back — manage your events and photos."
-                : "Start sharing event albums with AI face match."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Segmented Mode Switcher */}
-            <div className="grid grid-cols-2 p-1 bg-muted rounded-lg text-sm font-medium">
-              <button
-                type="button"
-                onClick={() => switchMode("login")}
-                className={cn(
-                  "py-2 rounded-md transition-all min-h-[40px] flex items-center justify-center",
-                  mode === "login"
-                    ? "bg-background text-foreground shadow-sm font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode("register")}
-                className={cn(
-                  "py-2 rounded-md transition-all min-h-[40px] flex items-center justify-center",
-                  mode === "register"
-                    ? "bg-background text-foreground shadow-sm font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Register
-              </button>
+          {err && (
+            <div
+              role="alert"
+              className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20"
+            >
+              {err}
             </div>
+          )}
+          {ok && (
+            <div
+              role="status"
+              className="rounded-lg p-3 text-sm font-medium border bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-200 border-green-200 dark:border-green-900"
+            >
+              {ok}
+            </div>
+          )}
 
-            {err && (
-              <div className="rounded-lg p-3 text-sm font-medium border bg-destructive/10 text-destructive border-destructive/20 text-center">
-                {err}
-              </div>
-            )}
-            {ok && (
-              <div className="rounded-lg p-3 text-sm font-medium border bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800 text-center">
-                {ok}
-              </div>
-            )}
-
-            {mode === "login" ? (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email address</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="you@studio.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Link
-                      to="/forgetpassword"
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Forgot password?
-                    </Link>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={mode}
+              initial={reduceMotion ? false : { opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -16 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              {mode === "login" ? (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email address</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="you@studio.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
                   </div>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                  />
-                </div>
 
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  loading={loading}
-                  className="w-full min-h-[44px]"
-                >
-                  Sign in →
-                </Button>
-              </form>
-            ) : (
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reg-name">Studio or photographer name</Label>
-                  <Input
-                    id="reg-name"
-                    placeholder="Apex Visuals"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    autoComplete="name"
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Password</Label>
+                      <Link
+                        to="/forgetpassword"
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reg-email">Email address</Label>
-                  <Input
-                    id="reg-email"
-                    type="email"
-                    placeholder="studio@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
-                </div>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    loading={loading}
+                    className="w-full min-h-[44px]"
+                  >
+                    Sign in →
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-name">Studio or photographer name</Label>
+                    <Input
+                      id="reg-name"
+                      placeholder="Apex Visuals"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      autoComplete="name"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reg-password">Password</Label>
-                  <Input
-                    id="reg-password"
-                    type="password"
-                    placeholder="At least 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-email">Email address</Label>
+                    <Input
+                      id="reg-email"
+                      type="email"
+                      placeholder="studio@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
 
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  loading={loading}
-                  className="w-full min-h-[44px]"
-                >
-                  Create account →
-                </Button>
-              </form>
-            )}
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-password">Password</Label>
+                    <Input
+                      id="reg-password"
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                    />
+                  </div>
 
-            <p className="text-xs text-muted-foreground text-center pt-2">
-              Guest looking for photos? Scan the event QR code or visit your event link directly.
-            </p>
-          </CardContent>
-        </Card>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    loading={loading}
+                    className="w-full min-h-[44px]"
+                  >
+                    Create account →
+                  </Button>
+                </form>
+              )}
+            </motion.div>
+          </AnimatePresence>
 
-        <p className="text-xs text-muted-foreground text-center font-mono">
-          © {new Date().getFullYear()} FYNDR • Fast &amp; Private
-        </p>
-      </div>
-    </div>
+          <p className="text-xs text-muted-foreground text-center pt-2">
+            Guest looking for photos? Scan the event QR code or visit your event link directly.
+          </p>
+        </CardContent>
+      </Card>
+    </AuthShell>
   );
 };
 

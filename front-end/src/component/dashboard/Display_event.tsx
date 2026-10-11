@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { API_URL } from "../../utils/api";
 import { Card, CardContent } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
+import { Button, buttonVariants } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { EmptyState } from "../../components/ui/page-kit";
+import { ImagePlus, Loader2 } from "lucide-react";
+import { cn } from "../../lib/utils";
 
 type EventItem = {
   _id: string;
@@ -167,14 +170,16 @@ export default function Display_event({ refresh, onclick }: Props): React.JSX.El
 
   if (events.length === 0) {
     return (
-      <Card className="text-center py-12 px-4">
-        <CardContent className="space-y-3">
-          <h3 className="text-lg font-semibold">No events created yet</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Create your first event album to start uploading photos and distributing guest QR codes.
-          </p>
-        </CardContent>
-      </Card>
+      <EmptyState
+        icon={<ImagePlus className="h-6 w-6 text-muted-foreground" />}
+        title="No events created yet"
+        body="Create your first event album to start uploading photos and distributing guest QR codes."
+        actions={
+          <Link to="/create-event" className={cn(buttonVariants(), "min-h-[44px]")}>
+            Create your first event
+          </Link>
+        }
+      />
     );
   }
 

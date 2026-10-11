@@ -36,7 +36,7 @@ describe("AccountPage Component", () => {
     jest.restoreAllMocks();
   });
 
-  it("renders the account hero section with initials, name, and verified badge", async () => {
+  it("renders the account hero section with name, email, and verified badge", async () => {
     render(
       <BrowserRouter>
         <AccountPage />
@@ -44,8 +44,8 @@ describe("AccountPage Component", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Aria Sterling")).toBeInTheDocument();
-      expect(screen.getByText("aria@sterlingstudios.com")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Aria Sterling" })).toBeInTheDocument();
+      expect(screen.getAllByText("aria@sterlingstudios.com").length).toBeGreaterThan(0);
       expect(screen.getByText("Verified Pro")).toBeInTheDocument();
     });
   });
