@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
+import { LogoMark } from "../brand/LogoMark";
 import "./fy-top-nav.css";
-
-const DARK_TILE = `${process.env.PUBLIC_URL}/logo-mark-dark.svg`;
 
 const LINKS = [
   { name: "Features", to: "/#capabilities" },
@@ -73,10 +72,8 @@ export default function LandingNav(): React.JSX.Element {
       <div className="fy-top-nav-track">
         <div className="fy-top-nav-shell">
           <div className="fy-top-nav-inner">
-            <Link to="/" className="fy-brand">
-              <span className="fy-brand-mark">
-                <img src={DARK_TILE} alt="" aria-hidden="true" />
-              </span>
+            <Link to="/" className="fy-brand" aria-label="Fyndr home">
+              <LogoMark className="fy-brand-mark" />
               <span>FYNDR</span>
             </Link>
             <nav className="fy-top-links" aria-label="Primary navigation">

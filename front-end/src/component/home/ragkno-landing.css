@@ -1729,6 +1729,14 @@
   }
 }
 
+/* Fixed glass nav overlaps anchor targets — offset every nav-linked section. */
+#capabilities,
+#how-it-works,
+#gallery-demo,
+#faq {
+  scroll-margin-top: 96px;
+}
+
 /* Gradient-wave product showcase */
 .chat-demo-section {
   isolation: isolate;

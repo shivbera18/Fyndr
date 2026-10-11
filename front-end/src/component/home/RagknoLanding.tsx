@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
 import DotGrid from "./DotGrid";
@@ -128,7 +128,27 @@ function FinalCta(): React.JSX.Element {
 export default function RagknoLanding(): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [howActive, setHowActive] = useState(0);
+  const location = useLocation();
   useLandingReveal(rootRef);
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = location.hash.replace("#", "");
+    let attempts = 0;
+    let timer: number | null = window.setTimeout(scrollToElement, 100);
+    function scrollToElement(): void {
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (attempts < 5) {
+        attempts += 1;
+        timer = window.setTimeout(scrollToElement, 100);
+      }
+    }
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [location.hash, location.pathname]);
 
   return (
     <div className="home-page ragkno-landing" ref={rootRef}>

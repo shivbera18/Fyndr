@@ -107,9 +107,6 @@
 }
 
 .fy-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 30px;
   height: 30px;
   border: 2px solid rgba(255, 255, 255, 0.85);
@@ -118,11 +115,15 @@
   transition: border-color 0.24s ease;
 }
 
+/* LogoMark renders both theme tiles; force the light tile over the hero. */
 .fy-brand-mark img {
-  width: 18px;
-  height: 18px;
+  display: none;
+}
+
+.fy-brand-mark img:last-child {
   display: block;
-  filter: brightness(0) invert(1);
+  height: 100%;
+  width: 100%;
 }
 
 .fy-top-nav.scrolled .fy-brand {
@@ -134,8 +135,13 @@
   border-color: #111111;
 }
 
+/* Light pill: force the dark tile. */
 .fy-top-nav.scrolled .fy-brand-mark img {
-  filter: brightness(0);
+  display: none;
+}
+
+.fy-top-nav.scrolled .fy-brand-mark img:first-child {
+  display: block;
 }
 
 .fy-top-links {
@@ -194,8 +200,13 @@
   border-color: rgba(255, 255, 255, 0.86);
 }
 
+/* Dark pill: light tile again. */
 .fy-top-nav.nav-on-dark.scrolled .fy-brand-mark img {
-  filter: brightness(0) invert(1);
+  display: none;
+}
+
+.fy-top-nav.nav-on-dark.scrolled .fy-brand-mark img:last-child {
+  display: block;
 }
 
 .fy-top-nav.nav-on-dark.scrolled .fy-btn-secondary {
@@ -420,7 +431,11 @@
   }
 
   .fy-top-nav.mobile-open .fy-brand-mark img {
-    filter: brightness(0);
+    display: none;
+  }
+
+  .fy-top-nav.mobile-open .fy-brand-mark img:first-child {
+    display: block;
   }
 }
 

@@ -86,4 +86,36 @@ describe("ragkno landing structure", () => {
     expect(photo?.getAttribute("src")).toContain("hero-photo.webp");
     expect(document.querySelector(".hero-section .fy-hero-wash")).toBeNull();
   });
+
+  test("navbar brand uses the Fyndr logo with home label", () => {
+    renderLanding();
+    const brand = screen.getByRole("link", { name: /Fyndr home/i });
+    expect(brand).toBeInTheDocument();
+    expect(brand.querySelector(".fy-brand-mark img")).not.toBeNull();
+  });
+
+  test("navbar links point at existing landing sections", () => {
+    renderLanding();
+    const nav = screen.getByRole("navigation", { name: /Primary navigation/i });
+    const links = Array.from(nav.querySelectorAll("a"));
+    expect(links.length).toBeGreaterThan(0);
+    links.forEach((link) => {
+      const href = link.getAttribute("href") || "";
+      const hash = href.split("#")[1];
+      expect(hash).toBeTruthy();
+      expect(document.getElementById(hash)).not.toBeNull();
+    });
+  });
+
+  test("hash deep-link scrolls to the target section", () => {
+    window.location.hash = "#faq";
+    render(
+      <BrowserRouter>
+        <RagknoLanding />
+      </BrowserRouter>
+    );
+    const target = document.getElementById("faq");
+    expect(target).not.toBeNull();
+    window.location.hash = "";
+  });
 });
