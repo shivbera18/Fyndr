@@ -70,4 +70,20 @@ describe("ragkno landing structure", () => {
     renderLanding();
     expect(screen.getByText("Fyndr", { selector: ".footer-watermark" })).toBeInTheDocument();
   });
+
+  test("glass navbar renders with brand and auth links", () => {
+    renderLanding();
+    const nav = document.querySelector(".fy-top-nav");
+    expect(nav).not.toBeNull();
+    expect(screen.getByRole("navigation", { name: /Primary navigation/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Get started/i }).length).toBeGreaterThan(0);
+  });
+
+  test("hero shows the reference photo, not the gradient wash", () => {
+    renderLanding();
+    const photo = document.querySelector(".hero-section .hero-image") as HTMLImageElement | null;
+    expect(photo).not.toBeNull();
+    expect(photo?.getAttribute("src")).toContain("hero-photo.webp");
+    expect(document.querySelector(".hero-section .fy-hero-wash")).toBeNull();
+  });
 });

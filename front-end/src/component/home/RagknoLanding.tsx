@@ -10,6 +10,7 @@ import GalleryDemo from "./GalleryDemo";
 import EventWorkflows from "./EventWorkflows";
 import LandingFaq from "./LandingFaq";
 import LandingFooter from "./LandingFooter";
+import LandingNav from "./LandingNav";
 import useLandingReveal from "./useLandingReveal";
 import "./ragkno-landing.css";
 import "./ragkno-bento.css";
@@ -32,8 +33,12 @@ function Hero(): React.JSX.Element {
   return (
     <>
       <section className="hero-section" data-nav-theme="dark">
-        {/* ponytail: gradient wash instead of the reference hero photo — no images per brief. */}
-        <div className="fy-hero-wash" aria-hidden="true" />
+        <img
+          className="hero-image"
+          src={`${process.env.PUBLIC_URL}/landing/hero-photo.webp`}
+          alt="Open field at golden hour — every guest finds their photos"
+          fetchPriority="high"
+        />
         <div className="hero-overlay" aria-hidden="true" />
         <div className="hero-grid">
           <div className="hero-copy-block">
@@ -102,7 +107,11 @@ function Hero(): React.JSX.Element {
 
 function FinalCta(): React.JSX.Element {
   return (
-    <section className="cta-section" data-nav-theme="light">
+    <section
+      className="cta-section"
+      data-nav-theme="light"
+      style={{ "--cta-image": `url(${process.env.PUBLIC_URL}/landing/cta-texture.webp)` } as React.CSSProperties}
+    >
       <h2>Every guest finds their photos tonight</h2>
       <div className="cta-actions">
         <Link className="btn-primary-solid" to="/login">
@@ -123,6 +132,7 @@ export default function RagknoLanding(): React.JSX.Element {
 
   return (
     <div className="home-page ragkno-landing" ref={rootRef}>
+      <LandingNav />
       <Hero />
       <FyndrCapabilities />
       <HowFyndrWorks active={howActive} onActive={setHowActive} />

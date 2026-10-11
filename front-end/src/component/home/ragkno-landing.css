@@ -80,17 +80,16 @@
   background: #f0ede8;
 }
 
-.fy-hero-wash,
+.hero-image,
 .hero-overlay {
   position: absolute;
   inset: 0;
 }
 
-/* Fyndr: warm dusk gradient instead of the reference landscape photo. */
-.fy-hero-wash {
-  background:
-    radial-gradient(60% 55% at 50% 30%, rgba(255, 255, 255, 0.35), transparent 65%),
-    linear-gradient(160deg, #1a2b4a 0%, #3b2f5e 38%, #b3543f 72%, #e8b04b 100%);
+.hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .hero-overlay {
@@ -1591,10 +1590,12 @@
   justify-content: center;
   text-align: center;
   border-top: 1px solid #ddd;
-  /* Fyndr: gradient wash instead of the reference texture photo. */
   background:
-    radial-gradient(55% 60% at 50% 20%, rgba(255, 255, 255, 0.5), transparent 65%),
-    linear-gradient(150deg, #e8dfc8 0%, #f0e9d6 55%, #dcebf5 100%);
+    linear-gradient(rgba(242, 241, 239, 0.88), rgba(242, 241, 239, 0.88)),
+    var(--cta-image),
+    #f2f1ef;
+  background-size: cover;
+  background-position: center;
 }
 
 .hw-cta {
