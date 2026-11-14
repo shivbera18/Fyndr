@@ -57,7 +57,7 @@ export function startIngestWorker(): void {
   }, 2000);
 }
 
-async function pollOnce(): Promise<void> {
+export async function pollOnce(): Promise<void> {
   const claimed: QueuedClaim[] = [];
   for (let i = 0; i < 2; i++) {
     const j = await claimNext().catch(() => null);
@@ -156,6 +156,21 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
         continue;
       }
     }
+    // Direct stage hashes are client claims: reject corrupt bytes before ML
+    // indexes a vector under this photo id. Remove the stub so re-upload works.
+    const actual = crypto.createHash("sha256").update(buffer).digest("hex");
+    if (actual !== hash.toLowerCase()) {
+      await Job.updateOne(
+        { event_id: eventId, photo_hash: hash },
+        { $set: { status: "failed", lastError: "uploaded bytes do not match claimed sha256" } }
+      );
+      await Photo.deleteOne({ _id: photo._id });
+      await unlinkQuiet(tempPath);
+      const album = typeof photo.folder_name === "string" ? photo.folder_name : "General";
+      await deleteObject(g3Key(eventId, album, photo.name)).catch(() => {});
+      await deleteObject(`${eventId}/${photo.name}`).catch(() => {});
+      continue;
+    }
     items.push({ photo, photoId: String(photo._id), eventId, hash, buffer });
   }
   if (items.length === 0) return;
@@ -246,15 +261,6 @@ async function fetchSingleEmbedding(item: WorkItem): Promise<number[][]> {
 
 async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void> {
   const tempPath = path.join(UPLOAD_DIR, item.photo.name);
-  // ponytail: stage trusts the browser's claimed sha256 — re-hash the actual
-  // bytes before completing, so a wrong claim fails loudly, never dedupes wrong.
-  try {
-    const actual = crypto.createHash("sha256").update(item.buffer).digest("hex");
-    if (actual !== item.hash.toLowerCase()) {
-      await markFailed(item.eventId, item.hash, `hash mismatch (claimed ${item.hash.slice(0, 12)} got ${actual.slice(0, 12)})`).catch(() => {});
-      return;
-    }
-  } catch { /* hashing never blocks ingest; fall through */ }
   try {
     await Photo.updateOne({ _id: item.photo._id }, { embedding: JSON.stringify(embeddings), status: "done" });
   } catch (e: unknown) {
@@ -308,7 +314,7 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
         filename: item.photo.name,
         originalname: item.photo.name,
       }, item.buffer, typeof item.photo.folder_name === "string" ? item.photo.folder_name : "General");
-      mirrored = true;
+      mirrored = !!(await Photo.findOne({ _id: item.photo._id, driveFileId: { $type: "string", $ne: "" } }).select("_id"));
     } catch (e: unknown) {
       logger.warn("[ingest] Drive mirror failed", {
         event_id: item.eventId,

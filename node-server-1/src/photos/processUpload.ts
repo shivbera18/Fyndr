@@ -41,6 +41,10 @@ export async function processUploadedFile(
   const unlinkAsync = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   let hash = '';
   try {
+    if ((await fs.promises.stat(file.path)).size > 50 * 1024 * 1024) {
+      await unlinkAsync(file.path);
+      return { file: file.originalname, error: "file exceeds 50MB upload limit", status: "failed" };
+    }
     // non-blocking streaming hash (avoid fs.readFileSync blocking event loop)
     hash = await new Promise<string>((resolve, reject) => {
       const h = crypto.createHash('sha256');
@@ -92,7 +96,8 @@ export async function processUploadedFile(
     // ponytail: 120s covers 95th-percentile multi-face DSLR photos on 4-core ARM; 60s killed slow batches.
     const response: any = await axios.post(`${FLASK_URL}/get_embedding`, formData, {
       headers: { ...formData.getHeaders() },
-      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 120000
+      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 120000,
+      maxRedirects: 0,
     });
     if (response.data.error) throw new Error(response.data.error);
     if (Array.isArray(response.data.embeddings)) {
@@ -117,16 +122,18 @@ export async function processUploadedFile(
     });
     await photo.save();
     if (!skipQueue) await markDone(event_id, hash).catch(()=>{});
+    let mirrored = false;
     try {
       const bytes = await fs.promises.readFile(file.path);
       if (hasR2()) {
-        await putObjectBytes(g3Key(event_id, folder_name, file.filename), bytes);
+        mirrored = await putObjectBytes(g3Key(event_id, folder_name, file.filename), bytes);
       } else {
         // Direct Drive backup only when G3/R2 is unconfigured (avoids duplicate uploads).
         await syncUploadToDrive(event_id, upload_by, file, bytes, folder_name);
+        mirrored = !!(await Photo.findOne({ _id: photoId, driveFileId: { $type: "string", $ne: "" } }).select("_id"));
       }
     } catch (e) { logger.warn("[upload] storage mirror failed", { event_id, filename: file.filename, error: e instanceof Error ? e.message : String(e) }); }
-    void unlinkAsync(file.path);
+    if (mirrored) await unlinkAsync(file.path);
     return photo;
   } catch (e: any) {
     if (e.code === 11000) {
