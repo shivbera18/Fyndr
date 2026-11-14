@@ -18,8 +18,10 @@ The changes prioritize bounded client working memory over maximum upload concurr
 | High | Upload scheduling | Pause was not checked after asynchronous preparation/staging or before multipart attempts, including zero-delay retries. | Gate each new preparation/transfer/retry; finish the current transfer and its completion acknowledgement. Finish the session if the final photo completes while paused. |
 | High | Session cancellation | Clearing the active controller immediately allowed a new upload to race the old worker's cleanup. Another event could overwrite the singleton session. | Keep ownership until the aborted worker finishes; reject another event's upload while one is active. |
 | High | `middleware/upload.ts` / `/photo` | Interrupted multipart transfers and rejected metadata could leave temporary originals behind. | Disk streaming with backpressure and abort cleanup; clean received files on metadata rejection; settle per-file staging errors independently. |
-| High | Multipart fallback / Mongo queue | A failed direct-upload stub could cause fallback bytes to be discarded; exhausted attempts remained exhausted after explicit retry. | Queued stubs adopt fallback bytes; surface rename failures; reset retry budgets on explicit retries/reuploads. |
+| High | Multipart fallback / Mongo queue | A failed direct-upload stub could discard fallback bytes or an old worker could fail a newer retry. | Atomically replace bytes at stable Photo keys before publishing source ownership; invalidate old database claim leases and fence terminal updates. |
 | High | `getObjectBytes` / ingest worker | Direct-upload bytes were buffered before enforcing a limit and the client's claimed hash was not checked before ML indexing. | Reject declared or streamed objects above 50MiB; destroy response streams; verify actual SHA-256 before ML/FAISS. |
+| High | Concurrent retry cleanup | Destructive failure cleanup could remove bytes acknowledged by another request; changing filenames could orphan originals. | Retain failed sources, keep retry resource keys stable, and preserve validated local ownership against stale direct completion. Only finished photos deduplicate. |
+| Medium | Navigation recovery | Remaining files and terminal errors existed only in the original component. | The singleton owns the remaining queue and terminal outcome; remount restores both, and explicit clearing releases references. |
 | High | `finishItem` / `processUploadedFile` | Drive helpers can return without storing anything, but callers deleted the only local original. | Delete local bytes only after object-store success or a confirmed `Photo.driveFileId`. |
 | Medium | Queue / FTP watcher | Incomplete direct PUTs could repeatedly reclaim the oldest queue slots; FTP started unbounded ingestion promises. | Released jobs yield by update time; FTP permits two active ingestions per process and leaves excess files on disk. |
 | Medium | `getPresignedPut` | Invalid keys bypassed validation when storage was unconfigured. | Validate before the unconfigured-storage return; existing contract tests cover invalid keys. |
@@ -56,7 +58,8 @@ failed and unsent photos remain available for retry.
 - Cancel aborts the active request and prevents new work. It does not undo photos already
   accepted by the server or stop their queued ML jobs.
 - In-app navigation preserves the running upload; returning to the same event reattaches
-  Pause/Resume/Cancel and progress. Another event cannot start a competing singleton queue.
+  Pause/Resume/Cancel, progress, remaining originals, and terminal failure/cancellation status.
+  Starting another event's upload replaces an inactive retained queue; active sessions cannot compete.
 - Refresh, browser termination, or OS suspension can interrupt the in-memory queue.
   There is no durable browser queue or resumable multipart/chunk protocol. Retries send the
   current photo again; server content hashes handle deduplication.
@@ -74,7 +77,7 @@ failed and unsent photos remain available for retry.
 | Worker source buffers | At most two claimed jobs per tick per API process: up to 100MiB of source buffers, plus concatenation, HTTP, ML, and thumbnail overhead. Not a fully streaming ingest worker. |
 | FTP | Two active ingestions per process. Process counts multiply this ceiling. |
 | Server-wide admission | No global upload concurrency/disk-quota ceiling; multiple clients and PM2 workers multiply resource use. The reverse proxy's existing request-size limits remain relevant. |
-| Storage failure | Preserve local originals when mirroring is unconfirmed. Disk monitoring remains necessary; this change does not add a reconciliation service. |
+| Storage failure | Preserve local originals when mirroring is unconfirmed and retain failed retry sources. Disk monitoring remains necessary; this change does not add a reconciliation service or disk quota. |
 
 The earlier documentation's claim that twelve original previews fit below 50MB was incorrect.
 No fixed browser RAM limit is promised: real devices, image codecs, and browser-native buffers vary.
@@ -82,16 +85,20 @@ One worker trades some high-bandwidth throughput for predictable client working 
 
 ## Verification
 
-- Frontend upload, compression, image preparation, and session suites: 62 tests passed
-  across the final affected runs. Covers pause during preparation, paused final completion,
-  sequential preparation, stable counts, cancellation ownership, retries, file limits,
-  retained queue entries, image cleanup, and oversized-image/hash pass-through.
-- Frontend TypeScript check passed. An isolated webpack bundle of the actual uploader compiled.
-- Backend TypeScript build and syntax checks passed. Upload safety/object-read/branching checks
-  passed; existing presign tests passed after validation ordering was corrected.
-- Browser smoke: actual uploader component, synthetic files, isolated acknowledgement server;
-  mobile pause reached `1 of 6`, no subsequent photo started while paused, resume completed
-  all six, and no original image elements were mounted. No horizontal overflow at widths
+- Full frontend suite: 40 suites / 263 tests passed. The final affected test refinements
+  also passed, including isolated execution of the lazy inquiry error path.
+- Optimized frontend production build passed. An isolated webpack bundle of the actual
+  uploader also compiled for browser verification.
+- Backend TypeScript build, syntax checks, and all 55 unit tests passed; the final
+  stable-source/deletion hardening passed all 13 upload-safety cases. A real MongoDB
+  smoke verified source ownership and rejection of obsolete failure leases.
+- Root end-to-end flow and comprehensive backend integration suite passed against an
+  isolated database and real ML runtime. The root test now waits for queued indexing
+  before expecting face matching. Python compilation checks passed.
+- Browser smoke with the actual uploader and an isolated acknowledgement server:
+  pause at `1 of 3`, leave/return, cancel, retry both remaining photos; failure while
+  away, return, recover the error/queue, and retry successfully. No original image
+  elements mounted. Earlier layout checks found no horizontal overflow at widths
   320, 375, 768, 1024, 1440, and 2560.
 - Verification used an isolated VPS checkout because local dependency/runtime startup was
   incomplete. The production checkout and API processes were not deployed or restarted for this review.
