@@ -403,7 +403,7 @@ router.get("/admin/storage/health", async (_req: Request, res: Response) => {
     driveError = (e as Error).message;
   }
 
-  const healthy = g3Status === "healthy" || driveStatus === "healthy";
+  const healthy = (g3Status === "healthy" || driveStatus === "healthy") && g3Status !== "auth_failed" && driveStatus !== "auth_failed";
   res.send({
     healthy,
     g3Status,
