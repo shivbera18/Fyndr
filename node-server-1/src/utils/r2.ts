@@ -159,6 +159,38 @@ export async function deleteObject(key: string): Promise<void> {
     console.warn("[r2] DeleteObject failed for key", key, (err as Error).message);
   }
 }
+export async function probeStorage(key = "_health_probe.tmp"): Promise<{ ok: boolean; error?: string }> {
+  if (!s3) return { ok: false, error: "Storage client unconfigured" };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET || "fyndr-photos",
+        Key: key,
+        Body: Buffer.from("probe"),
+        ContentType: "text/plain",
+      }),
+      { abortSignal: AbortSignal.timeout(10000) }
+    );
+    try {
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET || "fyndr-photos",
+          Key: key,
+        }),
+        { abortSignal: AbortSignal.timeout(10000) }
+      );
+    } catch {
+      // non-fatal probe cleanup
+    }
+    return { ok: true };
+  } catch (err) {
+    const msg = (err as Error)?.message || String(err);
+    console.warn("[r2] Storage probe failed:", msg);
+    return { ok: false, error: msg };
+  }
+}
 
 export function hasR2(): boolean {
   return !!s3;

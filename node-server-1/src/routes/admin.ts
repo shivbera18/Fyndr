@@ -9,6 +9,7 @@ import { Job, retryFailed } from "../queue/mongoQueue";
 import { decryptRefreshToken } from "../utils/driveCrypto";
 import { ADMIN_PASSWORD } from "../config";
 import logger from "../utils/logger";
+import { probeStorage, hasR2 } from "../utils/r2";
 
 // G3 pool admin proxy: the panel owns multi-account Drive linkage
 // (OAuth, weights, balancing). Browser-facing design:
@@ -81,6 +82,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return res.status(401).send({ error: "unauthorized" });
   next();
 }
+router.use(requireAdmin);
 
 router.get("/admin/overview", async (_req: Request, res: Response) => {
   try {
@@ -301,5 +303,117 @@ router.get("/admin/g3/panel-info", async (_req: Request, res: Response) => {
   if (!G3_USER) return res.status(503).send({ error: "G3 not configured (set G3_URL/G3_ADMIN_EMAIL/G3_ADMIN_PASSWORD)" });
   res.send({ url: G3_URL });
 });
+export interface StorageAccount {
+  id: string;
+  email: string;
+  status: string;
+  storageLimit: number;
+  storageUsage: number;
+}
+
+router.get("/admin/storage/health", async (_req: Request, res: Response) => {
+  let g3Status: "healthy" | "auth_failed" | "no_accounts" | "unconfigured" = "unconfigured";
+  let g3Error: string | undefined;
+  let g3Accounts: StorageAccount[] = [];
+
+  if (!G3_USER || !G3_PASS || !hasR2()) {
+    g3Status = "unconfigured";
+  } else {
+    const h = await g3headers();
+    if (!h) {
+      g3Status = "auth_failed";
+      g3Error = "G3 operator login failed";
+    } else {
+      try {
+        const accRes = await g3get<Array<Record<string, unknown>>>(`${G3_URL}/api/accounts`, h);
+        const list = Array.isArray(accRes.data) ? accRes.data : [];
+        g3Accounts = list.map((a) => ({
+          id: String(a.id || a._id || ""),
+          email: String(a.email || ""),
+          status: String(a.status || ""),
+          storageLimit: Number(a.storageLimit ?? a.storage_limit ?? 0),
+          storageUsage: Number(a.storageUsage ?? a.storage_usage ?? 0),
+        }));
+
+        if (g3Accounts.length === 0) {
+          g3Status = "no_accounts";
+        } else {
+          const probe = await probeStorage();
+          if (probe.ok) {
+            g3Status = "healthy";
+          } else {
+            g3Status = "auth_failed";
+            const errStr = probe.error || "";
+            g3Error = errStr.toLowerCase().includes("invalid_grant") || errStr.toLowerCase().includes("oauth")
+              ? "invalid_grant: Google OAuth token expired or revoked. Re-linking required."
+              : (probe.error || "invalid_grant: Google OAuth token expired or revoked. Re-linking required.");
+          }
+        }
+      } catch (e: unknown) {
+        g3Status = "auth_failed";
+        g3Error = (e as Error).message || "Failed to query G3 accounts";
+      }
+    }
+  }
+
+  let driveStatus: "healthy" | "auth_failed" | "no_connections" = "no_connections";
+  let driveError: string | undefined;
+  let driveCount = 0;
+
+  try {
+    const conns = await DriveConnection.find({}).lean();
+    driveCount = conns.length;
+    if (driveCount === 0) {
+      driveStatus = "no_connections";
+    } else {
+      const first = conns[0];
+      try {
+        const token = decryptRefreshToken(first.refreshTokenEnc);
+        const r = await axios.post(
+          "https://oauth2.googleapis.com/token",
+          null,
+          {
+            params: {
+              client_id: process.env.GOOGLE_DRIVE_CLIENT_ID,
+              client_secret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+              refresh_token: token,
+              grant_type: "refresh_token",
+            },
+            timeout: 10000,
+            validateStatus: () => true,
+          }
+        );
+        if (r.status === 200) {
+          driveStatus = "healthy";
+        } else {
+          driveStatus = "auth_failed";
+          const d = r.data as { error?: string; error_description?: string } | undefined;
+          driveError = d?.error === "invalid_grant" || JSON.stringify(d).includes("invalid_grant")
+            ? "invalid_grant: Google Drive token expired. Re-linking required."
+            : (d?.error_description || d?.error || `HTTP ${r.status}`);
+        }
+      } catch (err: unknown) {
+        driveStatus = "auth_failed";
+        driveError = (err as Error).message;
+      }
+    }
+  } catch (e: unknown) {
+    logger.error("Admin drive health check failed", { error: (e as Error).message });
+    driveStatus = "auth_failed";
+    driveError = (e as Error).message;
+  }
+
+  const healthy = g3Status === "healthy" || driveStatus === "healthy";
+  res.send({
+    healthy,
+    g3Status,
+    ...(g3Error ? { g3Error } : {}),
+    g3Accounts,
+    driveStatus,
+    ...(driveError ? { driveError } : {}),
+    driveCount,
+  });
+});
+
 
 export default router;
