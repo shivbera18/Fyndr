@@ -8,7 +8,13 @@ export async function enqueue(event_id: string, photo_hash: string, photo_name?:
     return j;
   } catch (e: unknown) {
     if ((e as { code?: number }).code === 11000) {
-      return Job.findOne({ event_id, photo_hash });
+      // A fresh upload/retry must receive a fresh attempt budget.
+      const revived = await Job.findOneAndUpdate(
+        { event_id, photo_hash, status: "failed" },
+        { $set: { status: "queued", attempts: 0, lastError: null, ...(photo_name ? { photo_name } : {}) } },
+        { new: true }
+      );
+      return revived || Job.findOne({ event_id, photo_hash });
     }
     throw e;
   }
@@ -24,7 +30,8 @@ export function claimNext() {
       attempts: { $lt: 3 },
     },
     { $set: { status: "processing" }, $inc: { attempts: 1 } },
-    { sort: { createdAt: 1 }, new: true }
+    // Released direct PUTs move behind untouched jobs instead of blocking the queue.
+    { sort: { updatedAt: 1, createdAt: 1 }, new: true }
   );
 }
 
@@ -78,9 +85,9 @@ export function listFailed(event_id: string, limit = 50) {
 export function retryFailed(event_id: string, photo_hash?: string) {
   const q = photo_hash ? { event_id, photo_hash } : { event_id, status: "failed" };
   if (photo_hash) {
-    return Job.updateOne(q, { $set: { status: "queued", lastError: null } });
+    return Job.updateOne(q, { $set: { status: "queued", attempts: 0, lastError: null } });
   }
-  return Job.updateMany(q, { $set: { status: "queued", lastError: null } });
+  return Job.updateMany(q, { $set: { status: "queued", attempts: 0, lastError: null } });
 }
 
 export { default as Job } from "../models/Job";
