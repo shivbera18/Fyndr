@@ -82,6 +82,7 @@ def _invalidate_index_cache(event_id):
         _index_cache.pop(str(event_id), None)
 
 def _atomic_np_save(path, arr):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     # open() handle: np.save(path_str) would append ".npy" to our ".tmp" name
     tmp = path + ".tmp"
     with open(tmp, "wb") as f:
@@ -89,6 +90,7 @@ def _atomic_np_save(path, arr):
     os.replace(tmp, path)
 
 def _atomic_write_index(path, index):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     faiss.write_index(index, tmp)
     os.replace(tmp, path)

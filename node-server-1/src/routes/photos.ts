@@ -424,11 +424,13 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
         // ROI counter — analytics must never break downloads, resolve owner first
         let ownerEventId: string | null = null;
         let ownerAlbum = "General";
+        let ownerThumb: string | null = null;
         try {
-          const owner = await Photo.findOne({ name: baseName }).select("event_id folder_name");
+          const owner = await Photo.findOne({ name: baseName }).select("event_id folder_name thumb");
           if (owner && owner.event_id) {
             ownerEventId = String(owner.event_id);
             if (owner.folder_name) ownerAlbum = owner.folder_name;
+            if (owner.thumb) ownerThumb = String(owner.thumb);
             await Event.updateOne({ _id: owner.event_id }, { $inc: { downloadCount: 1 } });
           }
         } catch (e) { logger.warn("[download] owner lookup failed", { file: baseName, error: e instanceof Error ? e.message : String(e) }); }
@@ -449,6 +451,22 @@ router.get('/download/:filename', async (req: Request, res: Response) => {
               res.setHeader("Content-Length", String(final.length));
               return res.send(final);
             }
+          }
+          // Fallback to local 640px thumbnail if original is missing
+          const resolvedThumbsDir = path.resolve(UPLOAD_DIR, "thumbs") + path.sep;
+          const thumbCandidate = ownerThumb || `${baseName}.jpg`;
+          const safeThumb = path.resolve(UPLOAD_DIR, "thumbs", path.basename(thumbCandidate));
+          if (safeThumb.startsWith(resolvedThumbsDir)) {
+            try {
+              await fs.promises.stat(safeThumb);
+              let originalName = baseName;
+              const match = originalName.match(/^\d+-(.+)$/);
+              if (match && match[1]) originalName = match[1];
+              const clean = originalName.replace(/[\r\n"\x00-\x1f\\]/g, "_").slice(0, 255);
+              res.setHeader("Content-Type", "image/jpeg");
+              res.setHeader("Content-Disposition", `inline; filename="${clean}"`);
+              return res.sendFile(safeThumb);
+            } catch { /* absent */ }
           }
           return res.status(404).json({ error: "File not found" });
         }

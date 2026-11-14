@@ -49,6 +49,7 @@ import { cn } from "../../lib/utils";
 type MatchedPhoto = {
   id?: string;
   name: string;
+  thumb?: string;
   similarity?: number;
 };
 
@@ -56,6 +57,7 @@ type PreviewPhoto = {
   url: string;
   name: string;
   sim: number;
+  thumbUrl?: string;
 };
 
 const CameraCaptureWithMask = (): React.JSX.Element => {
@@ -473,9 +475,9 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
     setUseUploadMode(true);
   };
 
-  const openPreview = (url: string, name: string, sim: number): void => {
+  const openPreview = (url: string, name: string, sim: number, thumbUrl?: string): void => {
     setIsZoomed(false);
-    setPreviewPhoto({ url, name, sim });
+    setPreviewPhoto({ url, name, sim, thumbUrl });
     if (eventId) {
       trackEvent(eventId, "photo_view", { photoName: name, similarity: sim });
     }
@@ -870,8 +872,10 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                     {matchedPhotos.map((photo, idx) => {
-                      // ponytail: same G3 fallback as the dashboard grid.
-                      const imgUrl = `${getApiBase()}/download/${encodeURIComponent(photo.name)}`;
+                      const thumbUrl = photo.thumb
+                        ? `${getApiBase()}/uploads/thumbs/${encodeURIComponent(photo.thumb)}`
+                        : `${getApiBase()}/download/${encodeURIComponent(photo.name)}`;
+                      const fullUrl = `${getApiBase()}/download/${encodeURIComponent(photo.name)}`;
                       const simPercent = Math.round((photo.similarity ?? 0.9) * 100);
                       return (
                         <div
@@ -879,11 +883,11 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                           className="group relative aspect-square rounded-xl overflow-hidden bg-muted border border-border"
                         >
                           <img
-                            src={imgUrl}
+                            src={thumbUrl}
                             alt={`Matched item ${idx + 1}`}
                             onError={handleImgError}
                             loading="lazy"
-                            onClick={() => openPreview(imgUrl, photo.name, simPercent)}
+                            onClick={() => openPreview(fullUrl, photo.name, simPercent, thumbUrl)}
                             className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
                           />
                           <Badge
@@ -898,7 +902,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
-                              onClick={() => openPreview(imgUrl, photo.name, simPercent)}
+                              onClick={() => openPreview(fullUrl, photo.name, simPercent, thumbUrl)}
                               className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
                               title="View full photo"
                               aria-label="View full photo"
@@ -907,7 +911,7 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => requestDownload(imgUrl, photo.name)}
+                              onClick={() => requestDownload(fullUrl, photo.name)}
                               className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
                               title="Download photo"
                               aria-label="Download photo"
@@ -1017,7 +1021,14 @@ const CameraCaptureWithMask = (): React.JSX.Element => {
                 <img
                   src={previewPhoto.url}
                   alt="Full preview"
-                  onError={handleImgError}
+                  onError={(e) => {
+                    const t = e.target as HTMLImageElement;
+                    if (previewPhoto.thumbUrl && t.src !== previewPhoto.thumbUrl) {
+                      t.src = previewPhoto.thumbUrl;
+                    } else {
+                      handleImgError(e);
+                    }
+                  }}
                   onClick={() => setIsZoomed((prev) => !prev)}
                   className={cn(
                     "rounded-lg transition-transform",
