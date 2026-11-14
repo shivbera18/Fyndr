@@ -397,7 +397,8 @@ router.get("/admin/storage/health", async (_req: Request, res: Response) => {
     } else {
       let anyFailed = false;
       let failMsg = "";
-      let testedCount = 0;
+      let verifiedCount = 0;
+      let lastServerError = "";
       const sample = conns.slice(0, 5);
       const testPromises = sample.map(async (c) => {
         try {
@@ -416,20 +417,23 @@ router.get("/admin/storage/health", async (_req: Request, res: Response) => {
               validateStatus: () => true,
             }
           );
-          testedCount++;
           if (r.status === 200) {
-            // token verified
+            verifiedCount++;
           } else if (r.status === 400 || r.status === 401) {
             anyFailed = true;
             const d = r.data as { error?: string; error_description?: string } | undefined;
-            failMsg =
-              d?.error === "invalid_grant" || JSON.stringify(d).includes("invalid_grant")
-                ? "invalid_grant: Google Drive token expired. Re-linking required."
-                : (d?.error_description || d?.error || `HTTP ${r.status}`);
+            const isInvalidGrant =
+              d?.error === "invalid_grant" ||
+              (typeof d === "object" && d !== null && JSON.stringify(d).includes("invalid_grant"));
+            failMsg = isInvalidGrant
+              ? "invalid_grant: Google Drive token expired. Re-linking required."
+              : (d?.error_description || d?.error || `HTTP ${r.status}`);
           } else {
+            lastServerError = `Google OAuth endpoint returned HTTP ${r.status}`;
             logger.warn("Drive token validation endpoint non-200", { status: r.status });
           }
         } catch (err: unknown) {
+          lastServerError = (err as Error).message || "Drive connection token request failed";
           logger.warn("Drive connection token test error", { error: (err as Error).message });
         }
       });
@@ -438,11 +442,11 @@ router.get("/admin/storage/health", async (_req: Request, res: Response) => {
       if (anyFailed) {
         driveStatus = "auth_failed";
         driveError = failMsg;
-      } else if (testedCount > 0) {
+      } else if (verifiedCount > 0) {
         driveStatus = "healthy";
-      } else if (driveCount > 0) {
+      } else {
         driveStatus = "unreachable";
-        driveError = "Unable to verify Drive connection tokens";
+        driveError = lastServerError || "Unable to verify Drive connection tokens";
       }
     }
   } catch (e: unknown) {
