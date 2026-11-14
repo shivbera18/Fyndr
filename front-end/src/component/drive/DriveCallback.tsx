@@ -25,11 +25,47 @@ export default function DriveCallback(): React.JSX.Element {
     }
     const code = searchParams.get("code");
     const state = searchParams.get("state");
+    if (!code || !state) {
+      setStatus("error");
+      setMessage("Missing code or state from Google. Try again.");
+      return;
+    }
+
+    // Direct Drive state is a JWT with 3 dot-separated segments.
+    // G3 state is a UUID without dots.
+    const isDirectDrive = state.split(".").length === 3;
+
+    if (!isDirectDrive) {
+      // G3 pool connection initiated from Admin
+      fetch(`${API_URL}/admin/g3/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, state }),
+      })
+        .then(async (r) => {
+          const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+          if (r.ok && d.ok) {
+            setStatus("done");
+            setMessage("Google Drive connected to storage pool! Returning to Admin…");
+            setTimeout(() => navigate("/admin"), 1200);
+          } else {
+            setStatus("error");
+            setMessage(d.error || "G3 storage link failed. Try again from Admin.");
+          }
+        })
+        .catch(() => {
+          setStatus("error");
+          setMessage("Network error reaching the API. Try again.");
+        });
+      return;
+    }
+
+    // Direct photographer Drive connection
     const rawUser = localStorage.getItem("user");
     const userId = rawUser ? (JSON.parse(rawUser)._id as string | undefined) : undefined;
-    if (!code || !state || !userId) {
+    if (!userId) {
       setStatus("error");
-      setMessage("Missing code, state, or login. Reconnect from Settings.");
+      setMessage("Missing login. Reconnect from Settings.");
       return;
     }
     fetch(`${API_URL}/drive/callback`, {
@@ -38,7 +74,7 @@ export default function DriveCallback(): React.JSX.Element {
       body: JSON.stringify({ code, state, user_id: userId }),
     })
       .then(async (r) => {
-        const d = await r.json();
+        const d = (await r.json().catch(() => ({}))) as { connected?: boolean; email?: string; error?: string };
         if (r.ok && d.connected) {
           // Fresh token minted — drop pre-reconnect caches so the new link
           // never reads stale event/album/photo state from the dead session.
