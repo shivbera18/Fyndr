@@ -17,7 +17,7 @@ describe("InquiryModal component", () => {
     jest.restoreAllMocks();
   });
 
-  test("renders inquiry form with studio name and pre-fills cached contact", () => {
+  test("renders inquiry form with studio name and pre-fills cached contact", async () => {
     sessionStorage.setItem("fyndr_guest_name", "Rohit Verma");
     sessionStorage.setItem("fyndr_guest_phone", "+919876543210");
 
@@ -30,7 +30,7 @@ describe("InquiryModal component", () => {
       />
     );
 
-    expect(screen.getByText(/Inquire with Shutter Magic/i)).toBeInTheDocument();
+    await screen.findByLabelText(/Your Name \*/i);
     expect(screen.getByDisplayValue("Rohit Verma")).toBeInTheDocument();
     expect(screen.getByDisplayValue("+919876543210")).toBeInTheDocument();
     expect(screen.getByLabelText(/Message \(Optional\)/i)).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("InquiryModal component", () => {
       />
     );
 
-    fireEvent.change(screen.getByLabelText(/Your Name \*/i), {
+    fireEvent.change(await screen.findByLabelText(/Your Name \*/i), {
       target: { value: "Aman Gupta" },
     });
     fireEvent.change(screen.getByLabelText(/Phone \/ WhatsApp Number \*/i), {

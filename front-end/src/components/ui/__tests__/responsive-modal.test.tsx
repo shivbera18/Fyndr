@@ -11,7 +11,7 @@ describe("ResponsiveModal", () => {
     jest.clearAllMocks();
   });
 
-  it("renders mobile drawer content when isMobile is true", () => {
+  it("renders mobile drawer content when isMobile is true", async () => {
     jest.spyOn(mediaQueryHook, "useMediaQuery").mockReturnValue({
       device: "mobile",
       width: 375,
@@ -32,12 +32,12 @@ describe("ResponsiveModal", () => {
       </ResponsiveModal>
     );
 
-    expect(screen.getByText("Mobile Modal")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Mobile Modal" })).toBeInTheDocument();
     expect(screen.getByText("Mobile description text")).toBeInTheDocument();
     expect(screen.getByText("Mobile Children Content")).toBeInTheDocument();
   });
 
-  it("renders desktop dialog content when isMobile is false", () => {
+  it("renders desktop dialog content when isMobile is false", async () => {
     jest.spyOn(mediaQueryHook, "useMediaQuery").mockReturnValue({
       device: "desktop",
       width: 1280,
@@ -58,7 +58,7 @@ describe("ResponsiveModal", () => {
       </ResponsiveModal>
     );
 
-    expect(screen.getByText("Desktop Modal")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Desktop Modal" })).toBeInTheDocument();
     expect(screen.getByText("Desktop description text")).toBeInTheDocument();
     expect(screen.getByText("Desktop Children Content")).toBeInTheDocument();
   });
