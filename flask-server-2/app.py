@@ -174,11 +174,11 @@ def match_faces():
                 try:
                     doc = mongo.db.photos.find_one({"_id": ObjectId(pid)})
                     if doc:
-                        matches.append({'id': pid, 'name': doc['name'], 'similarity': float(score)})
+                        matches.append({'id': pid, 'name': doc['name'], 'similarity': float(score), 'thumb': doc.get('thumb')})
                     else:
-                        matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
+                        matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score), 'thumb': None})
                 except Exception:
-                    matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score)})
+                    matches.append({'id': pid, 'name': 'unknown', 'similarity': float(score), 'thumb': None})
             bump_selfie_count(event_id)
             return jsonify({'matches': matches}), 200
     except Exception as e:
@@ -222,7 +222,7 @@ def match_faces():
         sims = np.where(norms > 0, dots / (norms * q_norm), 0.0)
         best_sim = float(np.max(sims)) if len(sims) > 0 else 0.0
         if best_sim > threshold:
-            matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': best_sim})
+            matches.append({'id': str(photo['_id']), 'name': photo['name'], 'similarity': best_sim, 'thumb': photo.get('thumb')})
     bump_selfie_count(event_id)
     if matches:
         matches.sort(key=lambda x: x['similarity'], reverse=True)

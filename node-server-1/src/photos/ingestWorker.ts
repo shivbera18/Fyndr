@@ -273,6 +273,7 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
   // When G3/R2 is configured (hasR2), G3 stores original bytes in Google Drive.
   // Direct Drive mirror (syncUploadToDrive) is only invoked as a fallback when
   // object storage is unconfigured to prevent uploading photos twice to Drive.
+  let mirrored = false;
   if (hasR2()) {
     // Direct-uploaded originals already live in G3; skip the re-PUT whenever
     // the local temp is absent (unlinkQuiet no-op) to save a full re-upload.
@@ -286,13 +287,19 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
       try {
         const alb3 = typeof item.photo.folder_name === "string" ? item.photo.folder_name : "General";
         const ok = await putObjectBytes(g3Key(item.eventId, alb3, item.photo.name), item.buffer);
-        if (!ok) logger.warn("[ingest] G3 mirror skipped", { event_id: item.eventId, name: item.photo.name });
+        if (!ok) {
+          logger.warn("[ingest] G3 mirror skipped", { event_id: item.eventId, name: item.photo.name });
+        } else {
+          mirrored = true;
+        }
       } catch (e: unknown) {
         logger.warn("[ingest] G3 mirror failed", {
           event_id: item.eventId,
           error: e instanceof Error ? e.message : String(e),
         });
       }
+    } else {
+      mirrored = true;
     }
   } else {
     try {
@@ -301,6 +308,7 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
         filename: item.photo.name,
         originalname: item.photo.name,
       }, item.buffer, typeof item.photo.folder_name === "string" ? item.photo.folder_name : "General");
+      mirrored = true;
     } catch (e: unknown) {
       logger.warn("[ingest] Drive mirror failed", {
         event_id: item.eventId,
@@ -327,7 +335,10 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
     }
   } catch { /* gallery falls back to original */ }
   await markDone(item.eventId, item.hash).catch(() => {});
-  await unlinkQuiet(tempPath);
+  // ponytail: only unlink temp when remote store confirmed landing; keep local file if mirror failed so photos are never lost.
+  if (mirrored) {
+    await unlinkQuiet(tempPath);
+  }
 }
 
 function unlinkQuiet(p: string): Promise<void> {
