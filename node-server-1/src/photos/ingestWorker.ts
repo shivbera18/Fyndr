@@ -5,7 +5,7 @@ import FormData from "form-data";
 import { FLASK_URL, UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import { claimNext, markDone, markFailed, Job } from "../queue/mongoQueue";
-import { deleteObject, getObjectBytes, g3Key, headObject, putObjectBytes, hasR2 } from "../utils/r2";
+import { getObjectBytes, g3Key, headObject, putObjectBytes, hasR2 } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import { httpClient } from "../utils/http";
 import logger from "../utils/logger";
@@ -13,8 +13,8 @@ import logger from "../utils/logger";
 interface QueuedClaim {
   event_id: string;
   photo_hash: string;
-  // Optional: pre-skipQueue Job rows never set it (schema keeps it optional),
-  // so strict build needs `?` + a typeof guard at the unlink site.
+  lease: string;
+  source?: "local" | "remote";
   photo_name?: string;
 }
 
@@ -33,6 +33,7 @@ interface WorkItem {
   eventId: string;
   hash: string;
   buffer: Buffer;
+  lease: string;
 }
 
 let started = false;
@@ -90,7 +91,6 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
   // claims on it. Young Jobs with both stubs absent go back to queued with
   // attempts untouched (release, don't fail).
   const GRACE_MS = 10 * 60 * 1000;
-  const fresh: QueuedClaim[] = [];
   for (const job of jobs) {
     const hash = String(job.photo_hash);
     const created = (job as { createdAt?: unknown }).createdAt;
@@ -111,38 +111,34 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
       if (!ready) {
         // Still uploading: release the claim without consuming an attempt.
         await Job.updateOne(
-          { event_id: eventId, photo_hash: hash, status: "processing" },
-          { $set: { status: "queued" }, $inc: { attempts: -1 } }
+          { event_id: eventId, photo_hash: hash, status: "processing", lease: job.lease },
+          { $set: { status: "queued", lease: null }, $inc: { attempts: -1 } }
         ).catch(() => {});
         continue;
       }
     }
     if (!photo) {
-      await markFailed(eventId, hash, "photo stub missing").catch(() => {});
-      // Terminal cleanup only when exhausted: retryable attempts own no file
-      // (no stub to name it), so drop the orphan temp via the Job's photo_name.
-      const j = await Job.findOne({ event_id: eventId, photo_hash: hash }).catch(() => null);
-      if (!j || j.status === "failed") {
-        const fname = typeof job.photo_name === "string" && job.photo_name ? job.photo_name : null;
-        if (fname) await unlinkQuiet(path.join(UPLOAD_DIR, path.basename(fname)));
-      }
+      await markFailed(eventId, hash, "photo stub missing", job.lease).catch(() => {});
       continue;
     }
     // Already finished (re-claimed lease after a crash past save): close the
     // Job without touching fs — the winning tick owns temp cleanup.
     if (photo.status === "done" && photo.embedding) {
-      await markDone(eventId, hash).catch(() => {});
+      await markDone(eventId, hash, job.lease).catch(() => {});
       continue;
     }
     const tempPath = path.join(UPLOAD_DIR, photo.name);
     let buffer: Buffer;
     try {
+      if (job.source === "remote" && job.photo_name === photo.name) throw new Error("direct upload owns the remote source");
       buffer = await fs.promises.readFile(tempPath);
     } catch (e: unknown) {
       // Direct browser-to-G3 stubs never touch local disk: pull bytes back
       // from the store so they flow through the identical finish path.
       const alb2 = typeof photo.folder_name === "string" ? photo.folder_name : "General";
-      const remote = (await getObjectBytes(g3Key(eventId, alb2, photo.name))) || (await getObjectBytes(eventId + "/" + photo.name));
+      const remote = job.source === "remote" && job.photo_name === photo.name
+        ? await getObjectBytes(eventId + "/" + photo.name)
+        : (await getObjectBytes(g3Key(eventId, alb2, photo.name))) || (await getObjectBytes(eventId + "/" + photo.name));
       if (remote) {
         buffer = remote;
       } else {
@@ -150,28 +146,24 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
           eventId,
           hash,
           "temp file missing and G3 object absent (" + eventId + "/" + photo.name + "): " +
-            (e instanceof Error ? e.message : String(e))
+            (e instanceof Error ? e.message : String(e)),
+          job.lease
         ).catch(() => {});
-        await unlinkQuiet(tempPath);
         continue;
       }
     }
-    // Direct stage hashes are client claims: reject corrupt bytes before ML
-    // indexes a vector under this photo id. Remove the stub so re-upload works.
+    // Retain failed originals and stubs: a retry may already own this source.
+    // Client-claimed hashes must still be checked before ML sees any bytes.
     const actual = crypto.createHash("sha256").update(buffer).digest("hex");
     if (actual !== hash.toLowerCase()) {
       await Job.updateOne(
-        { event_id: eventId, photo_hash: hash },
-        { $set: { status: "failed", lastError: "uploaded bytes do not match claimed sha256" } }
+        { event_id: eventId, photo_hash: hash, status: "processing", lease: job.lease },
+        { $set: { status: "failed", lastError: "uploaded bytes do not match claimed sha256", lease: null } }
       );
-      await Photo.deleteOne({ _id: photo._id });
-      await unlinkQuiet(tempPath);
-      const album = typeof photo.folder_name === "string" ? photo.folder_name : "General";
-      await deleteObject(g3Key(eventId, album, photo.name)).catch(() => {});
-      await deleteObject(`${eventId}/${photo.name}`).catch(() => {});
       continue;
     }
-    items.push({ photo, photoId: String(photo._id), eventId, hash, buffer });
+    if (!await Job.findOne({ event_id: eventId, photo_hash: hash, status: "processing", lease: job.lease })) continue;
+    items.push({ photo, photoId: String(photo._id), eventId, hash, buffer, lease: job.lease });
   }
   if (items.length === 0) return;
 
@@ -199,6 +191,7 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
       else if (Array.isArray(r.embedding)) embeddings = [r.embedding];
       else failure = "batch result empty";
     } else {
+      if (!await ownsLease(item)) continue;
       try {
         embeddings = await fetchSingleEmbedding(item);
       } catch (e: unknown) {
@@ -206,15 +199,7 @@ async function processEventBatch(eventId: string, jobs: QueuedClaim[]): Promise<
       }
     }
     if (!embeddings) {
-      await markFailed(item.eventId, item.hash, failure || "embedding failed").catch(() => {});
-      // Keep file+stub for retry; only an exhausted Job (failed/missing) gets
-      // terminal cleanup — the stub can never complete without an embedding.
-      const exhausted = await Job.findOne({ event_id: item.eventId, photo_hash: item.hash }).catch(() => null);
-      if (!exhausted || exhausted.status === "failed") {
-        await Photo.deleteOne({ event_id: item.eventId, hash: item.hash }).catch(() => {});
-        await unlinkQuiet(path.join(UPLOAD_DIR, item.photo.name));
-        await deleteObject(`${item.eventId}/${item.photo.name}`).catch(() => {});
-      }
+      await markFailed(item.eventId, item.hash, failure || "embedding failed", item.lease).catch(() => {});
       continue;
     }
     await finishItem(item, embeddings);
@@ -260,21 +245,19 @@ async function fetchSingleEmbedding(item: WorkItem): Promise<number[][]> {
 }
 
 async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void> {
+  if (!await ownsLease(item)) return;
   const tempPath = path.join(UPLOAD_DIR, item.photo.name);
   try {
-    await Photo.updateOne({ _id: item.photo._id }, { embedding: JSON.stringify(embeddings), status: "done" });
+    const saved = await Photo.updateOne(
+      { _id: item.photo._id, name: item.photo.name },
+      { embedding: JSON.stringify(embeddings), status: "done" }
+    );
+    if (!saved.matchedCount) return;
   } catch (e: unknown) {
-    await markFailed(item.eventId, item.hash, e instanceof Error ? e.message : String(e)).catch(() => {});
-    // exhausted (failed/missing) — a transient DB error must not eat the stub.
-    const exhausted = await Job.findOne({ event_id: item.eventId, photo_hash: item.hash }).catch(() => null);
-    if (!exhausted || exhausted.status === "failed") {
-      await Photo.deleteOne({ _id: item.photo._id }).catch(() => {});
-      await unlinkQuiet(tempPath);
-      await deleteObject(`${item.eventId}/${item.photo.name}`).catch(() => {});
-      return;
-    }
+    await markFailed(item.eventId, item.hash, e instanceof Error ? e.message : String(e), item.lease).catch(() => {});
     return;
   }
+  if (!await ownsLease(item)) return;
   // Best-effort mirrors: ingest survives storage outages, still markDone.
   // When G3/R2 is configured (hasR2), G3 stores original bytes in Google Drive.
   // Direct Drive mirror (syncUploadToDrive) is only invoked as a fallback when
@@ -337,14 +320,18 @@ async function finishItem(item: WorkItem, embeddings: number[][]): Promise<void>
       const thumbsDir = path.join(UPLOAD_DIR, "thumbs");
       await fs.promises.mkdir(thumbsDir, { recursive: true });
       await fs.promises.writeFile(path.join(thumbsDir, `${item.photo.name}.jpg`), Buffer.from(resp.data));
-      await Photo.updateOne({ _id: item.photo._id }, { thumb: `${item.photo.name}.jpg` }).catch(() => {});
+      await Photo.updateOne({ _id: item.photo._id, name: item.photo.name }, { thumb: `${item.photo.name}.jpg` }).catch(() => {});
     }
   } catch { /* gallery falls back to original */ }
-  await markDone(item.eventId, item.hash).catch(() => {});
+  const completed = await markDone(item.eventId, item.hash, item.lease).catch(() => null);
   // ponytail: only unlink temp when remote store confirmed landing; keep local file if mirror failed so photos are never lost.
-  if (mirrored) {
+  if (mirrored && completed?.matchedCount) {
     await unlinkQuiet(tempPath);
   }
+}
+
+function ownsLease(item: WorkItem) {
+  return Job.findOne({ event_id: item.eventId, photo_hash: item.hash, status: "processing", lease: item.lease });
 }
 
 function unlinkQuiet(p: string): Promise<void> {

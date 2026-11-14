@@ -5,7 +5,6 @@ import fs from "fs";
 import FormData from "form-data";
 import { FLASK_URL } from "../config";
 import Photo from "../models/Photo";
-import { enqueue, markDone, markFailed } from "../queue/mongoQueue";
 import { g3Key, putObjectBytes, hasR2 } from "../utils/r2";
 import { syncUploadToDrive } from "../utils/driveStore";
 import logger from "../utils/logger";
@@ -27,16 +26,12 @@ export function removeFaissVector(event_id: string, photo_id: string, timeout = 
   return axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id }, { timeout });
 }
 
-// Shared single-file ingest: stream-hash -> Photo/queue dedupe -> ML embedding
-// -> Photo doc. Sole caller is the camera-to-cloud FTP watcher, which passes
-// skipQueue (FTP failures surface via ftp.failed + live events, never /queue/*).
+// FTP-only ingest; failures surface via ftp.failed and live events, not /queue/*.
 export async function processUploadedFile(
   file: UploadFile,
-  ctx: UploadContext,
-  opts?: { skipQueue?: boolean }
+  ctx: UploadContext
 ): Promise<unknown> {
   const { event_id, upload_by, folder_name } = ctx;
-  const skipQueue = opts?.skipQueue === true;
   // ponytail: fs.promises frees the event loop while large uploads stream + delete; sync unlink blocks it.
   const unlinkAsync = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   let hash = '';
@@ -73,16 +68,6 @@ export async function processUploadedFile(
     }
   } catch(_){}
 
-  if (!skipQueue) {
-    const q: unknown = await enqueue(event_id, hash, file.filename);
-    const qStatus = typeof q === "object" && q !== null && "status" in q ? String(q.status) : null;
-    if (qStatus === 'done') {
-      void unlinkAsync(file.path);
-      const existing = await Photo.findOne({ event_id, hash });
-      const photoHash = typeof q === "object" && q !== null && "photo_hash" in q ? String(q.photo_hash) : hash;
-      return existing || { file: file.originalname, hash, status: 'duplicate', photo_id: photoHash };
-    }
-  }
 
   // Pre-generate photoId so we can index FAISS in single ML call
   const photoId = new mongoose.Types.ObjectId();
@@ -106,7 +91,6 @@ export async function processUploadedFile(
       embeddings = [response.data.embedding];
     }
   } catch (e: any) {
-    if (!skipQueue) await markFailed(event_id, hash, e.message).catch(()=>{});
     void unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }
@@ -121,7 +105,6 @@ export async function processUploadedFile(
       folder_name,
     });
     await photo.save();
-    if (!skipQueue) await markDone(event_id, hash).catch(()=>{});
     let mirrored = false;
     try {
       const bytes = await fs.promises.readFile(file.path);
@@ -141,12 +124,10 @@ export async function processUploadedFile(
       void unlinkAsync(file.path);
       try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
       const dup = await Photo.findOne({ event_id, hash });
-      if (!skipQueue) await markDone(event_id, hash).catch(()=>{});
       return dup || { file: file.originalname, hash, error: 'duplicate', status: 'duplicate' };
     }
     // on generic save failure, clean orphan FAISS vector AND the multer file
     try { await axios.post(`${FLASK_URL}/faiss_remove`, { event_id, photo_id: photoId.toString() }, { timeout: 3000 }); } catch(_){}
-    if (!skipQueue) await markFailed(event_id, hash, e.message).catch(()=>{});
     void unlinkAsync(file.path);
     return { file: file.originalname, hash, error: e.message, status: 'failed' };
   }

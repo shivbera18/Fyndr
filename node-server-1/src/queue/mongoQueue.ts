@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import Job from "../models/Job";
 
 // idempotency per-event: same {event_id, hash} → no duplicate
@@ -11,7 +12,7 @@ export async function enqueue(event_id: string, photo_hash: string, photo_name?:
       // A fresh upload/retry must receive a fresh attempt budget.
       const revived = await Job.findOneAndUpdate(
         { event_id, photo_hash, status: "failed" },
-        { $set: { status: "queued", attempts: 0, lastError: null, ...(photo_name ? { photo_name } : {}) } },
+        { $set: { status: "queued", attempts: 0, lastError: null, lease: null, ...(photo_name ? { photo_name } : {}) } },
         { new: true }
       );
       return revived || Job.findOne({ event_id, photo_hash });
@@ -29,40 +30,36 @@ export function claimNext() {
       $or: [{ status: "queued" }, { status: "processing", updatedAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) } }],
       attempts: { $lt: 3 },
     },
-    { $set: { status: "processing" }, $inc: { attempts: 1 } },
+    { $set: { status: "processing", lease: crypto.randomUUID() }, $inc: { attempts: 1 } },
     // Released direct PUTs move behind untouched jobs instead of blocking the queue.
     { sort: { updatedAt: 1, createdAt: 1 }, new: true }
   );
 }
 
-export function markDone(event_id: string, photo_hash?: string) {
-  // backward compat: markDone(hash) single-arg
-  if (photo_hash === undefined) {
-    photo_hash = event_id;
-    return Job.updateOne({ photo_hash }, { $set: { status: "done" } });
-  }
-  return Job.updateOne({ event_id, photo_hash }, { $set: { status: "done" } });
+export function markDone(event_id: string, photo_hash: string, lease: string) {
+  return Job.updateOne(
+    { event_id, photo_hash, status: "processing", lease },
+    { $set: { status: "done", lease: null } }
+  );
 }
 
-export function markFailed(event_id: string, photo_hash?: string, err?: string) {
-  // support both signatures: markFailed(hash, err) and markFailed(event_id, hash, err)
-  let eid: string | null = event_id;
-  let phash = photo_hash;
-  let message = err;
-  if (message === undefined && typeof phash === "string" && event_id) {
-    message = phash;
-    phash = event_id;
-    eid = null;
-  }
-  const q = eid ? { event_id: eid, photo_hash: phash } : { photo_hash: phash };
-  return (async () => {
-    const j = await Job.findOne(q);
-    if (!j) return;
-    const shouldRetry = (j.attempts ?? 0) < 3;
-    await Job.updateOne(q, {
-      $set: { status: shouldRetry ? "queued" : "failed", lastError: String(message).slice(0, 500) },
-    });
-  })();
+export async function markFailed(event_id: string, photo_hash: string, err: string, lease: string) {
+  const q = { event_id, photo_hash, status: "processing", lease };
+  const j = await Job.findOne(q);
+  if (!j) return;
+  await Job.updateOne(q, {
+    $set: { status: (j.attempts ?? 0) < 3 ? "queued" : "failed", lastError: String(err).slice(0, 500), lease: null },
+  });
+}
+
+// A completed PUT or adopted multipart file owns the next attempt. Invalidating
+// the old lease prevents a worker holding previous bytes from failing this retry.
+export function retryUpload(event_id: string, photo_hash: string, photo_name: string, source: "local" | "remote") {
+  return Job.updateOne(
+    { event_id, photo_hash },
+    { $set: { status: "queued", attempts: 0, lastError: null, lease: null, photo_name, source } },
+    { upsert: true }
+  );
 }
 
 export type QueueStats = { queued: number; processing: number; done: number; failed: number; total: number };
@@ -83,11 +80,9 @@ export function listFailed(event_id: string, limit = 50) {
 }
 
 export function retryFailed(event_id: string, photo_hash?: string) {
-  const q = photo_hash ? { event_id, photo_hash } : { event_id, status: "failed" };
-  if (photo_hash) {
-    return Job.updateOne(q, { $set: { status: "queued", attempts: 0, lastError: null } });
-  }
-  return Job.updateMany(q, { $set: { status: "queued", attempts: 0, lastError: null } });
+  const q = { event_id, status: "failed", ...(photo_hash ? { photo_hash } : {}) };
+  const update = { $set: { status: "queued", attempts: 0, lastError: null, lease: null } };
+  return photo_hash ? Job.updateOne(q, update) : Job.updateMany(q, update);
 }
 
 export { default as Job } from "../models/Job";

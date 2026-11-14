@@ -134,8 +134,7 @@ async function ingestFile(srcPath: string, username: string, filename: string, b
   try {
     result = await processUploadedFile(
       { path: dest, filename: diskName, originalname: filename },
-      { event_id: eventId, folder_name: "General" },
-      { skipQueue: true }
+      { event_id: eventId, folder_name: "General" }
     );
   } catch (e: unknown) {
     result = { status: "failed", error: e instanceof Error ? e.message : String(e) };
