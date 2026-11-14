@@ -271,7 +271,7 @@ test("direct and multipart retries survive an older worker's terminal failure", 
         const port = (server.address() as AddressInfo).port;
         const request = (route: string, body: Buffer, headers: http.OutgoingHttpHeaders, method = "POST") =>
           new Promise<{ status: number | undefined; body: Record<string, unknown> }>((resolve, reject) => {
-            const req = http.request({ host: "127.0.0.1", port, path: route, method, headers }, res => {
+            const req = http.request({ host: "127.0.0.1", port, path: route, method, headers: { ...headers, "Content-Length": body.length } }, res => {
               const chunks: Buffer[] = [];
               res.on("data", (chunk: Buffer) => chunks.push(chunk));
               res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }));
