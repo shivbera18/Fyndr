@@ -82,6 +82,35 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return res.status(401).send({ error: "unauthorized" });
   next();
 }
+router.post("/admin/g3/callback", async (req: Request, res: Response) => {
+  const { code, state } = req.body as { code?: string; state?: string };
+  if (!code || !state) return res.status(400).send({ error: "code and state required" });
+  const h = await g3headers();
+  if (!h) return res.status(503).send({ error: "G3 not configured" });
+
+  try {
+    const cookieHeader = `${h.Cookie || ""}; g3_oauth_state=${encodeURIComponent(state)}`;
+    const r = await axios.get(
+      `${G3_URL}/api/accounts/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+      {
+        headers: { Cookie: cookieHeader },
+        timeout: 20000,
+        maxRedirects: 0,
+        validateStatus: () => true,
+      }
+    );
+    const loc = r.headers.location || "";
+    if (r.status === 302 && loc.includes("error")) {
+      logger.error("G3 callback exchange failed", { location: loc });
+      return res.status(502).send({ error: `G3 OAuth exchange error: ${loc}` });
+    }
+    res.send({ ok: true, message: "Google Drive connected to G3 pool successfully" });
+  } catch (e: unknown) {
+    logger.error("Admin G3 callback proxy failed", { error: (e as Error).message });
+    res.status(502).send({ error: "Failed to forward OAuth callback to G3" });
+  }
+});
+
 router.use(requireAdmin);
 
 router.get("/admin/overview", async (_req: Request, res: Response) => {
