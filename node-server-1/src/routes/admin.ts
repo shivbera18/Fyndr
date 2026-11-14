@@ -111,7 +111,7 @@ router.post("/admin/g3/callback", async (req: Request, res: Response) => {
   }
 });
 
-router.use(requireAdmin);
+router.use("/admin", requireAdmin);
 
 router.get("/admin/overview", async (_req: Request, res: Response) => {
   try {

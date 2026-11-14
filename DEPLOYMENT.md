@@ -94,6 +94,9 @@ mongorestore --archive=/tmp/fyndr-2026-08-27.archive
 
 ## 5. Health
 
+Guest access regression: `cd node-server-1 && npm run build && node --test dist/routes/__tests__/analytics.test.js`.
+Admin authentication must stay scoped to `/admin`; guest analytics/PIN endpoints must remain public.
+
 ```bash
 curl http://127.0.0.1:5000/metrics | grep fyndr
 curl http://127.0.0.1:5001/faiss_stats?event_id=test
