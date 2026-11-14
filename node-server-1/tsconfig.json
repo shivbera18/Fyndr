@@ -12,7 +12,8 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "types": ["node", "express", "cors", "multer", "jsonwebtoken", "nodemailer", "archiver"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
