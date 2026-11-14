@@ -1,6 +1,8 @@
 import crypto from "crypto";
+import fs from "fs";
 import multer from "multer";
 import path from "path";
+import { pipeline, type Readable } from "stream";
 import { EVENT_PROFILE_DIR, UPLOAD_DIR } from "../config";
 export const IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"];
 
@@ -17,19 +19,47 @@ function imageFilter(
 }
 
 function diskUpload(dir: string) {
-  const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      cb(null, dir);
+  const requests = new WeakMap<Express.Request, Set<{ path: string; stream: Readable }>>();
+  const storage: multer.StorageEngine = {
+    _handleFile(req, file, cb) {
+      let pending = requests.get(req);
+      if (!pending) {
+        pending = new Set();
+        requests.set(req, pending);
+        const files = pending;
+        const abort = () => {
+          for (const item of files) {
+            item.stream.destroy(new Error("Upload aborted"));
+            void fs.promises.unlink(item.path).catch(() => {});
+          }
+        };
+        req.once("aborted", abort);
+        req.once("close", () => req.off("aborted", abort));
+      }
+      const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80) || "photo";
+      const filename = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}-${safe}`;
+      const filePath = path.join(dir, filename);
+      pending.add({ path: filePath, stream: file.stream });
+      let size = 0;
+      file.stream.on("data", (chunk: Buffer) => { size += chunk.length; });
+      const output = fs.createWriteStream(filePath, { flags: "wx" });
+      pipeline(file.stream, output, (error) => {
+        if (error || req.aborted) {
+          // pipeline closes the writer first, including on Windows, before unlink.
+          void fs.promises.unlink(filePath).catch(() => {}).then(() => cb(error || new Error("Upload aborted")));
+          return;
+        }
+        cb(null, { destination: dir, filename, path: filePath, size });
+      });
+      if (req.aborted) file.stream.destroy(new Error("Upload aborted"));
     },
-    filename: (_req, file, cb) => {
-      const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
-      // ponytail: 100-file batches land in the same ms — random suffix stops overwrites.
-      cb(null, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${safe}`); // Unique filename
+    _removeFile(_req, file, cb) {
+      fs.unlink(file.path, cb);
     },
-  });
+  };
   return multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB size limit
+    limits: { fileSize: 50 * 1024 * 1024, files: 100, fields: 32, parts: 132 },
     fileFilter: imageFilter,
   });
 }

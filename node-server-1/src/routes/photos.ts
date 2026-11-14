@@ -58,16 +58,24 @@ async function stagePhoto(
         await existingPhoto.save();
       }
       if (existingPhoto.status === "queued") {
-        const orphans = await stagedBytesPresent(event_id, existingPhoto.name).catch(() => false);
-        if (!orphans) {
-          await fs.promises.rename(file.path, path.join(UPLOAD_DIR, existingPhoto.name)).catch(() => {});
+        await enqueue(event_id, hash, existingPhoto.name);
+        const present = await stagedBytesPresent(event_id, existingPhoto.name);
+        if (present !== true) {
+          await fs.promises.rename(file.path, path.join(UPLOAD_DIR, existingPhoto.name));
+          await Job.updateOne(
+            { event_id, photo_hash: hash, status: "failed" },
+            { $set: { status: "queued", attempts: 0, lastError: null } }
+          );
           return existingPhoto;
         }
       }
       await unlinkQuiet(file.path);
       return existingPhoto;
     }
-  } catch { /* fall through to queue */ }
+  } catch (error: unknown) {
+    await unlinkQuiet(file.path);
+    return { file: file.originalname, hash, error: errMsg(error), status: "failed" };
+  }
 
   let queued: { status: string; photo_hash: string } | null = null;
   try {
@@ -115,8 +123,9 @@ function errMsg(e: unknown): string {
 
 router.post('/photo', upload.array('name', 100), async (req: Request, res: Response) => {
     const endTimer = uploadDuration.startTimer();
+    const files = (req.files as Express.Multer.File[] | undefined) || [];
+    let stagingStarted = false;
     try {
-        const files = (req.files as Express.Multer.File[] | undefined) || [];
         const body: unknown = req.body;
         const event_id: unknown = body && typeof body === "object" && "event_id" in body ? body.event_id : undefined;
         const upload_by: unknown = body && typeof body === "object" && "upload_by" in body ? body.upload_by : undefined;
@@ -139,20 +148,29 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         // ponytail: stage-1 only — hash + queued stub acks in seconds; ingestWorker owns ML/storage.
         const limit = pLimit(6);
 
+        stagingStarted = true;
         const results: unknown[] = await Promise.all(
-            files.map(file => limit((): Promise<unknown> => stagePhoto(file, { event_id, upload_by, folder_name })))
+            files.map(file => limit(async (): Promise<unknown> => {
+                try {
+                    return await stagePhoto(file, { event_id, upload_by, folder_name });
+                } catch (error: unknown) {
+                    await fs.promises.unlink(file.path).catch(() => {});
+                    return { file: file.originalname, status: "failed", error: errMsg(error) };
+                }
+            }))
         );
 
         const failed = results.filter((r) => typeof r === "object" && r !== null && "error" in r);
-        endTimer();
         // 207 Multi-Status if partial failures, 422 if all failed, 202 queued stubs otherwise
         if (failed.length > 0 && failed.length < results.length) return res.status(207).send(results);
         if (failed.length === results.length) return res.status(422).send(results);
         res.status(202).send(results);
     } catch (error: any) {
         logger.error('[photo] upload error', error);
-        endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
+    } finally {
+        if (!stagingStarted) await Promise.all(files.map(file => fs.promises.unlink(file.path).catch(() => {})));
+        endTimer();
     }
 });
 // Direct browser-to-G3: verify bytes, stage a queued stub, mint a PUT URL
@@ -209,6 +227,7 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
     // (interrupted PUT) → re-mint the SAME key so the retry overwrites.
     const dup = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
     if (dup) {
+      if (dup.status !== "done") await enqueue(event_id, hex, dup.name);
       if (dup.folder_name !== folder_name) {
         dup.folder_name = folder_name;
         await dup.save().catch(() => {});
@@ -300,7 +319,7 @@ router.post("/photo/complete", async (req: Request, res: Response) => {
     if (photo.hash && typeof photo.hash === "string") {
       await Job.updateOne(
         { event_id: b.event_id, photo_hash: photo.hash, status: "failed" },
-        { $set: { status: "queued", lastError: null } }
+        { $set: { status: "queued", attempts: 0, lastError: null } }
       ).catch(() => {});
     }
     return res.status(200).send({ ok: true });
