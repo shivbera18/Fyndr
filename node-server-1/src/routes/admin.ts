@@ -416,4 +416,59 @@ router.get("/admin/storage/health", async (_req: Request, res: Response) => {
 });
 
 
+router.post("/admin/storage/revoke-all", async (_req: Request, res: Response) => {
+  try {
+    const conns = await DriveConnection.find({});
+    const driveRevokePromises = conns.map(async (c) => {
+      try {
+        const token = decryptRefreshToken(c.refreshTokenEnc);
+        await axios.post("https://oauth2.googleapis.com/revoke", null, {
+          params: { token },
+          timeout: 10000,
+          validateStatus: () => true,
+        });
+      } catch (e: unknown) {
+        logger.warn("Drive token revoke failed (ignoring)", { error: (e as Error).message });
+      }
+    });
+    await Promise.allSettled(driveRevokePromises);
+    const deleteDriveRes = await DriveConnection.deleteMany({});
+    const revokedDriveConnections = deleteDriveRes.deletedCount ?? conns.length;
+
+    let revokedG3Accounts = 0;
+    const h = await g3headers();
+    if (h) {
+      try {
+        const accRes = await g3get<Array<{ id?: string; _id?: string }>>(`${G3_URL}/api/accounts`, h);
+        const accounts = Array.isArray(accRes.data) ? accRes.data : [];
+        const g3DeletePromises = accounts.map(async (acc) => {
+          const id = String(acc.id || acc._id || "");
+          if (id && G3_ID.test(id)) {
+            await axios.delete(`${G3_URL}/api/accounts/${id}`, {
+              headers: h,
+              timeout: 15000,
+              validateStatus: () => true,
+            });
+          }
+        });
+        await Promise.allSettled(g3DeletePromises);
+        revokedG3Accounts = accounts.length;
+      } catch (e: unknown) {
+        logger.warn("G3 accounts fetch for revoke failed", { error: (e as Error).message });
+      }
+      g3cookie = "";
+      g3cookieAt = 0;
+    }
+
+    res.send({
+      ok: true,
+      revokedDriveConnections,
+      revokedG3Accounts,
+      message: "All Google Drive credentials revoked and purged. Re-authentication required.",
+    });
+  } catch (e: unknown) {
+    logger.error("Admin storage revoke-all failed", { error: (e as Error).message });
+    res.status(500).send({ error: "Failed to revoke storage credentials" });
+  }
+});
 export default router;
