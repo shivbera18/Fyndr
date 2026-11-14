@@ -5,6 +5,7 @@ import { Card } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
+import { AlertTriangle, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 
 const KEY = "fyndr-admin-key";
 type Tab = "overview" | "users" | "drive" | "g3" | "queue";
@@ -15,6 +16,21 @@ interface FailedJob { _id: string; event_id: string; photo_hash?: string; photo_
 interface G3Account {
   id: string; email: string; status: string; weight: number;
   storageLimit: number; storageUsage: number; g3Usage?: number; createdAt?: string;
+}
+interface StorageHealth {
+  healthy: boolean;
+  g3Status: "healthy" | "auth_failed" | "no_accounts" | "unconfigured";
+  g3Error?: string;
+  g3Accounts: Array<{
+    id: string;
+    email: string;
+    status: string;
+    storageLimit: number;
+    storageUsage: number;
+  }>;
+  driveStatus: "healthy" | "auth_failed" | "no_connections";
+  driveError?: string;
+  driveCount: number;
 }
 
 export default function AdminPage() {
@@ -27,6 +43,9 @@ export default function AdminPage() {
   const [failed, setFailed] = useState<FailedJob[]>([]);
   const [g3, setG3] = useState<{ accounts: G3Account[]; balancing: string | null; unconfigured: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [revoking, setRevoking] = useState(false);
 
   const load = useCallback(async (t: Tab, k?: string) => {
     if (t === "g3") {
@@ -55,13 +74,55 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const loadStorageHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/storage/health`, {
+        headers: { "x-admin-key": sessionStorage.getItem(KEY) ?? "" },
+      });
+      if (r.ok) {
+        const data = (await r.json()) as StorageHealth;
+        setStorageHealth(data);
+      }
+    } catch {
+      // health check probe error
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
+
+  const revokeAll = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to revoke and delete all Google Drive auth keys? This will revoke access on Google's servers, delete all stored tokens, and force a fresh login."
+    );
+    if (!confirmed) return;
+    setRevoking(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/storage/revoke-all`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const res = (await r.json()) as { message?: string };
+      toast.success(res.message || "All keys revoked and removed");
+      await loadStorageHealth();
+      if (tab === "g3") await loadG3();
+      if (tab === "drive") await load("drive");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Revoke failed");
+    } finally {
+      setRevoking(false);
+    }
+  };
 
   const login = (e: React.FormEvent) => {
     e.preventDefault();
     sessionStorage.setItem(KEY, key);
     setAuthed(true);
     void load("overview", key);
+    void loadStorageHealth();
   };
 
   const switchTab = (t: Tab) => {
@@ -85,6 +146,7 @@ export default function AdminPage() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       toast.success("Disconnected");
       await load("drive");
+      void loadStorageHealth();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Disconnect failed");
     }
@@ -126,6 +188,7 @@ export default function AdminPage() {
       const j = await r.json();
       const list = Array.isArray(j.accounts) ? j.accounts : j.accounts?.accounts ?? [];
       setG3({ accounts: list, balancing: j.balancing?.strategy ?? null, unconfigured: false });
+      void loadStorageHealth();
     } catch (e) {
       setG3Error(e instanceof Error ? e.message : "G3 pool load failed");
     } finally {
@@ -213,9 +276,12 @@ export default function AdminPage() {
     }
   };
   useEffect(() => {
-    if (authed) void load("overview");
+    if (authed) {
+      void load("overview");
+      void loadStorageHealth();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authed]);
 
   if (!authed) {
     return (
@@ -233,6 +299,101 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-5xl p-4">
+      {/* Storage Health Alert Banner */}
+      {storageHealth && (
+        <div className="mb-4">
+          {(storageHealth.g3Status === "auth_failed" || storageHealth.driveStatus === "auth_failed") ? (
+            <Card className="border-red-500/50 bg-red-500/10 p-4 text-red-900 dark:text-red-200">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+                  <div>
+                    <div className="font-semibold text-red-600 dark:text-red-400">
+                      Google Drive Authentication Failure (invalid_grant)
+                    </div>
+                    <p className="mt-1 text-xs opacity-90">
+                      Google rejected stored credentials. New uploads will not be mirrored to Google Drive (local VPS storage is preserving uploads). You must revoke the expired credentials and re-authenticate.
+                    </p>
+                    {storageHealth.g3Error && (
+                      <p className="mt-1 font-mono text-[11px] opacity-75">
+                        G3: {storageHealth.g3Error}
+                      </p>
+                    )}
+                    {storageHealth.driveError && (
+                      <p className="mt-0.5 font-mono text-[11px] opacity-75">
+                        Drive: {storageHealth.driveError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="min-h-[44px]"
+                    disabled={revoking}
+                    onClick={() => void revokeAll()}
+                  >
+                    {revoking ? "Revoking…" : "Revoke & Remove All Keys"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="min-h-[44px]"
+                    onClick={() => void g3Connect()}
+                  >
+                    Re-link Google Account
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ) : storageHealth.g3Status === "no_accounts" && storageHealth.driveStatus === "no_connections" ? (
+            <Card className="border-amber-500/50 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <div className="font-semibold text-amber-700 dark:text-amber-300">
+                      No Google Drive Storage Connected
+                    </div>
+                    <p className="mt-1 text-xs opacity-90">
+                      Fyndr is currently storing all photos only on the local VPS disk. Connect a Google account to enable cloud storage.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="min-h-[44px] shrink-0"
+                  onClick={() => void g3Connect()}
+                >
+                  Connect Google Account
+                </Button>
+              </div>
+            </Card>
+          ) : storageHealth.healthy ? (
+            <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-medium">Google Drive: Active &amp; Verified</span>
+                <span className="text-muted-foreground">
+                  ({storageHealth.g3Accounts.length} pool account{storageHealth.g3Accounts.length === 1 ? "" : "s"})
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 min-h-[36px] px-2 text-xs"
+                disabled={healthLoading}
+                onClick={() => void loadStorageHealth()}
+              >
+                <RefreshCw className={`mr-1 h-3.5 w-3.5 ${healthLoading ? "animate-spin" : ""}`} />
+                Verify
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
       <div className="mb-4 flex gap-2">
         {(["overview", "users", "drive", "g3", "queue"] as Tab[]).map((t) => (
           <Button key={t} variant={tab === t ? "primary" : "secondary"} onClick={() => switchTab(t)} className="min-h-[44px]">
@@ -267,17 +428,51 @@ export default function AdminPage() {
         </Card>
       )}
       {tab === "drive" && (
-        <Card className="divide-y p-0">
-          {conns.map((c) => (
-            <div key={c.userId} className="flex items-center gap-2 p-3 text-sm">
-              <span className="font-medium">{c.email ?? c.userId}</span>
-              <span className="text-muted-foreground">{c.folderId ?? ""}</span>
-              <Button size="sm" variant="destructive" className="ml-auto min-h-[44px]" onClick={() => void disconnect(c.userId)}>
-                Disconnect
+        <div className="flex flex-col gap-3">
+          <Card className="border-border/60 bg-muted/30 p-4 text-xs">
+            <div className="font-semibold text-foreground">Preventing Google OAuth Token Expiry (7-Day Limit)</div>
+            <p className="mt-1 text-muted-foreground">
+              Google Cloud projects in &ldquo;Testing&rdquo; status automatically revoke refresh tokens after 7 days, causing <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">invalid_grant</code> errors.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              <strong>Action required:</strong> In Google Cloud Console &rarr; APIs &amp; Services &rarr; OAuth consent screen &rarr; set Publishing status to <strong>&ldquo;In Production&rdquo;</strong> to make tokens permanent.
+            </p>
+          </Card>
+          <Card className="divide-y p-0">
+            {conns.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground">No direct Drive connections found.</div>
+            ) : (
+              conns.map((c) => (
+                <div key={c.userId} className="flex items-center gap-2 p-3 text-sm">
+                  <span className="font-medium">{c.email ?? c.userId}</span>
+                  <span className="text-muted-foreground">{c.folderId ?? ""}</span>
+                  <Button size="sm" variant="destructive" className="ml-auto min-h-[44px]" onClick={() => void disconnect(c.userId)}>
+                    Disconnect
+                  </Button>
+                </div>
+              ))
+            )}
+          </Card>
+          <Card className="border-destructive/40 bg-destructive/5 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-destructive">Danger Zone: Revoke &amp; Purge All Auth Keys</div>
+                <p className="text-xs text-muted-foreground">
+                  Revokes tokens with Google&apos;s OAuth servers and wipes all stored credentials from the local database. Forces a fresh login.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="min-h-[44px] shrink-0"
+                disabled={revoking}
+                onClick={() => void revokeAll()}
+              >
+                {revoking ? "Revoking…" : "Revoke & Remove All Auth Keys"}
               </Button>
             </div>
-          ))}
-        </Card>
+          </Card>
+        </div>
       )}
       {tab === "g3" && (
         <div className="flex flex-col gap-3">
@@ -337,6 +532,34 @@ export default function AdminPage() {
           <Card className="p-4 text-xs text-muted-foreground">
             Full panel (buckets, keys, file manager) opens directly on the G3 origin — reach it via SSH tunnel
             (`ssh -L 8787:127.0.0.1:8787 fyndr`, then the Open button URL works from your laptop).
+          </Card>
+          <Card className="border-border/60 bg-muted/30 p-4 text-xs">
+            <div className="font-semibold text-foreground">Preventing Google OAuth Token Expiry (7-Day Limit)</div>
+            <p className="mt-1 text-muted-foreground">
+              Google Cloud projects in &ldquo;Testing&rdquo; status automatically revoke refresh tokens after 7 days, causing <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">invalid_grant</code> errors.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              <strong>Action required:</strong> In Google Cloud Console &rarr; APIs &amp; Services &rarr; OAuth consent screen &rarr; set Publishing status to <strong>&ldquo;In Production&rdquo;</strong> to make tokens permanent.
+            </p>
+          </Card>
+          <Card className="border-destructive/40 bg-destructive/5 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-destructive">Danger Zone: Revoke &amp; Purge All Auth Keys</div>
+                <p className="text-xs text-muted-foreground">
+                  Revokes tokens with Google&apos;s OAuth servers and wipes all stored credentials from the local database. Forces a fresh login.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="min-h-[44px] shrink-0"
+                disabled={revoking}
+                onClick={() => void revokeAll()}
+              >
+                {revoking ? "Revoking…" : "Revoke & Remove All Auth Keys"}
+              </Button>
+            </div>
           </Card>
         </div>
       )}
