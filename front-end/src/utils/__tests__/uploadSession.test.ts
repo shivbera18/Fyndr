@@ -16,12 +16,16 @@ describe("uploadSession singleton", () => {
     __resetUploadSessionForTests();
   });
 
-  test("start returns a stable controller for same event+shape, fresh for new event", () => {
+  test("keeps the active session until its worker ends", () => {
     const first = startSession("evt_A", 4, 1);
     expect(startSession("evt_A", 4, 1)).toBe(first);
-    const second = startSession("evt_B", 4, 1);
-    expect(second).not.toBe(first);
-    expect(getSnapshot().eventId).toBe("evt_B");
+    expect(() => startSession("evt_B", 4, 1)).toThrow(/already running/);
+    cancelSession();
+    expect(first.signal.aborted).toBe(true);
+    expect(getSnapshot().active).toBe(true);
+    expect(() => startSession("evt_B", 4, 1)).toThrow(/already running/);
+    endSession("evt_A");
+    expect(startSession("evt_B", 4, 1)).not.toBe(first);
   });
 
   test("attach replays current snapshot and detaches cleanly", () => {
@@ -55,9 +59,10 @@ describe("uploadSession singleton", () => {
     resumeSession();
     expect(isPaused()).toBe(false);
     cancelSession();
-    expect(getSnapshot().active).toBe(false);
+    expect(getSnapshot().active).toBe(true);
     expect(getSnapshot().paused).toBe(false);
     detach();
     expect(states).toEqual([false, true, false, false]);
+    endSession("evt_A");
   });
 });

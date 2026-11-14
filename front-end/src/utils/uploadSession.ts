@@ -7,7 +7,6 @@ export type UploadSessionSnapshot = {
   eventId: string | null;
   active: boolean;
   totalFiles: number;
-  fractions: number[];
   progress: number;
   batchCurrent: number;
   batchTotal: number;
@@ -21,7 +20,7 @@ export type UploadSessionListener = (snapshot: UploadSessionSnapshot) => void;
 type SessionState = {
   eventId: string | null;
   abort: AbortController | null;
-  fractions: number[];
+  totalFiles: number;
   progress: number;
   batchCurrent: number;
   batchTotal: number;
@@ -33,7 +32,7 @@ type SessionState = {
 const state: SessionState = {
   eventId: null,
   abort: null,
-  fractions: [],
+  totalFiles: 0,
   progress: 0,
   batchCurrent: 0,
   batchTotal: 0,
@@ -48,8 +47,7 @@ export function getSnapshot(): UploadSessionSnapshot {
   return {
     eventId: state.eventId,
     active: state.abort !== null,
-    totalFiles: state.fractions.length,
-    fractions: [...state.fractions],
+    totalFiles: state.totalFiles,
     progress: state.progress,
     batchCurrent: state.batchCurrent,
     batchTotal: state.batchTotal,
@@ -79,12 +77,13 @@ export function isPaused(): boolean {
 export function startSession(eventId: string, totalFiles: number, batchTotal: number): AbortController {
   // ponytail: session-id guard — StrictMode double-mount replays startSession
   // with the same totals; only reset when the event or shape actually changes.
-  if (state.abort !== null && state.eventId === eventId && state.fractions.length === totalFiles) {
+  if (state.abort !== null && state.eventId === eventId && state.totalFiles === totalFiles) {
     return state.abort;
   }
+  if (state.abort !== null) throw new Error("An upload is already running.");
   state.eventId = eventId;
   state.abort = new AbortController();
-  state.fractions = Array.from({ length: totalFiles }, () => 0);
+  state.totalFiles = totalFiles;
   state.progress = 0;
   state.batchCurrent = 0;
   state.batchTotal = batchTotal;
@@ -96,7 +95,6 @@ export function startSession(eventId: string, totalFiles: number, batchTotal: nu
 }
 
 export function reportProgress(update: {
-  fractions?: number[];
   progress?: number;
   batchCurrent?: number;
   uploadedCount?: number;
@@ -105,7 +103,6 @@ export function reportProgress(update: {
   // ponytail: stale closures (prior event's orphaned upload) must not clobber
   // the current session — callers pass their event_id, mismatches are dropped.
   if (eventId !== undefined && eventId !== state.eventId) return;
-  if (update.fractions !== undefined) state.fractions = [...update.fractions];
   if (update.progress !== undefined) state.progress = update.progress;
   if (update.batchCurrent !== undefined) state.batchCurrent = update.batchCurrent;
   if (update.uploadedCount !== undefined) state.uploadedCount = update.uploadedCount;
@@ -115,7 +112,6 @@ export function reportProgress(update: {
 
 export function cancelSession(): void {
   state.abort?.abort();
-  state.abort = null;
   state.paused = false;
   emit();
 }
@@ -140,7 +136,7 @@ export function resumeSession(): void {
 export function __resetUploadSessionForTests(): void {
   state.eventId = null;
   state.abort = null;
-  state.fractions = [];
+  state.totalFiles = 0;
   state.progress = 0;
   state.batchCurrent = 0;
   state.batchTotal = 0;
