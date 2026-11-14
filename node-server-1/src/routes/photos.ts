@@ -57,15 +57,12 @@ async function stagePhoto(
         await existingPhoto.save();
       }
       if (existingPhoto.status !== "done") {
-        const adopted = await Photo.findOneAndUpdate(
-          { _id: existingPhoto._id, name: existingPhoto.name, status: { $ne: "done" } },
-          { $set: { name: file.filename, folder_name } },
-          { new: true }
-        );
-        if (!adopted) return stagePhoto(file, ctx);
+        // Stable keys keep both the replaced original and any remote sibling
+        // owned by this Photo; a retry must not leave abandoned generations.
+        await fs.promises.rename(file.path, path.join(UPLOAD_DIR, existingPhoto.name));
         transferred = true;
-        await retryUpload(event_id, hash, adopted.name, "local");
-        return adopted;
+        await retryUpload(event_id, hash, existingPhoto.name, "local");
+        return existingPhoto;
       }
       await unlinkQuiet(file.path);
       return existingPhoto;

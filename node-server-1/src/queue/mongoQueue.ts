@@ -55,9 +55,17 @@ export async function markFailed(event_id: string, photo_hash: string, err: stri
 // A completed PUT or adopted multipart file owns the next attempt. Invalidating
 // the old lease prevents a worker holding previous bytes from failing this retry.
 export function retryUpload(event_id: string, photo_hash: string, photo_name: string, source: "local" | "remote") {
+  const fields = { status: "queued", attempts: 0, lastError: null, lease: null, photo_name, source };
   return Job.updateOne(
     { event_id, photo_hash },
-    { $set: { status: "queued", attempts: 0, lastError: null, lease: null, photo_name, source } },
+    source === "local" ? { $set: fields } : [{ $set: {
+      ...fields,
+      // A late direct completion cannot displace server-validated local bytes.
+      source: { $cond: [
+        { $and: [{ $eq: ["$source", "local"] }, { $eq: ["$photo_name", photo_name] }] },
+        "local", "remote",
+      ] },
+    } }],
     { upsert: true }
   );
 }

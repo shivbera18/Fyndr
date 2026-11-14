@@ -23,9 +23,9 @@ import { pollOnce } from "../ingestWorker";
 import * as drive from "../../utils/driveStore";
 
 // These model mocks expose only the operations each test observes, not Mongoose's query overloads.
-const photoModel = Photo as unknown as Record<"findOne" | "findOneAndUpdate" | "updateOne" | "deleteOne", (...args: unknown[]) => unknown>;
+const photoModel = Photo as unknown as Record<"findOne" | "findOneAndDelete" | "updateOne" | "deleteOne", (...args: unknown[]) => unknown>;
 const photoPrototype = Photo.prototype as unknown as { save: () => Promise<void> };
-const jobs = Job as unknown as Record<"create" | "findOne" | "findOneAndUpdate" | "updateOne" | "updateMany", (...args: unknown[]) => unknown>;
+const jobs = Job as unknown as Record<"create" | "findOne" | "findOneAndUpdate" | "updateOne" | "updateMany" | "deleteOne", (...args: unknown[]) => unknown>;
 const claims = queue as unknown as { claimNext: () => Promise<unknown> };
 
 async function eventually(check: () => Promise<boolean>): Promise<void> {
@@ -214,29 +214,38 @@ test("direct and multipart retries survive an older worker's terminal failure", 
           return { ...job };
         });
         t.mock.method(jobs, "findOne", async (filter: Record<string, unknown>) => matches(job, filter) ? { ...job } : null);
-        t.mock.method(jobs, "updateOne", async (filter: Record<string, unknown>, update: { $set: Record<string, unknown> }) => {
-          const terminal = update.$set.status === "failed" && !paused;
+        t.mock.method(jobs, "updateOne", async (filter: Record<string, unknown>, update: { $set: Record<string, unknown> } | Array<{ $set: Record<string, unknown> }>) => {
+          const fields = { ...(Array.isArray(update) ? update[0].$set : update.$set) };
+          if (Array.isArray(update)) {
+            assert.deepEqual(fields.source, { $cond: [
+              { $and: [{ $eq: ["$source", "local"] }, { $eq: ["$photo_name", filename] }] },
+              "local", "remote",
+            ] });
+            fields.source = job.source === "local" && job.photo_name === fields.photo_name ? "local" : "remote";
+          }
+          const terminal = fields.status === "failed" && !paused;
           if (terminal) {
             paused = true;
             if (publication === "before") { reached(); await resumed; }
           }
           const matchedCount = matches(job, filter) ? 1 : 0;
-          if (matchedCount) Object.assign(job, update.$set);
+          if (matchedCount) Object.assign(job, fields);
           if (terminal && publication === "after") { reached(); await resumed; }
           return { matchedCount };
         });
         t.mock.method(photoModel, "findOne", async (filter: Record<string, unknown>) => matches(photo, filter) ? { ...photo } : null);
-        t.mock.method(photoModel, "findOneAndUpdate", async (filter: Record<string, unknown>, update: { $set: Record<string, unknown> }) => {
-          if (!matches(photo, filter)) return null;
-          Object.assign(photo, update.$set);
-          return { ...photo };
-        });
         t.mock.method(photoModel, "updateOne", async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
           const matchedCount = matches(photo, filter) ? 1 : 0;
           if (matchedCount) Object.assign(photo, update);
           return { matchedCount };
         });
         const removed = t.mock.method(photoModel, "deleteOne", async () => { throw new Error("must retain acknowledged photo"); });
+        const deletedPhoto = t.mock.method(photoModel, "findOneAndDelete", async (filter: Record<string, unknown>) => {
+          assert.equal(String(filter._id), photoId);
+          return { ...photo };
+        });
+        const deletedJob = t.mock.method(jobs, "deleteOne", async () => ({}));
+        t.mock.method(drive, "syncDeletePhotoFromDrive", async () => {});
         t.mock.method(Event, "findById", () => ({ select: async () => ({ folders: [] }) }));
         t.mock.method(r2, "headObject", async () => {
           if (via === "multipart") { reachedComplete(); await completeResumed; }
@@ -244,10 +253,12 @@ test("direct and multipart retries survive an older worker's terminal failure", 
         });
         t.mock.method(r2, "getObjectBytes", async () => remote);
         t.mock.method(r2, "getPresignedPut", async () => "https://store.test/retry");
-        const deletedBytes = t.mock.method(r2, "deleteObject", async () => { throw new Error("must retain retry bytes"); });
+        const objects = new Set([`${eventId}/${filename}`, r2.g3Key(eventId, "General", filename)]);
+        const deletedBytes = t.mock.method(r2, "deleteObject", async (key: string) => { objects.delete(key); });
         t.mock.method(r2, "hasR2", () => true);
         t.mock.method(r2, "putObjectBytes", async () => false);
         const ml = t.mock.method(httpClient, "post", async (url: string) => {
+          if (url.endsWith("/faiss_remove")) return { data: {} };
           if (url.endsWith("/thumbnail")) throw new Error("no thumbnail");
           assert.ok(url.endsWith("/get_embeddings"));
           return { data: { results: [{ embeddings: [] }] } };
@@ -258,9 +269,9 @@ test("direct and multipart retries survive an older worker's terminal failure", 
         const server = http.createServer(app);
         await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
         const port = (server.address() as AddressInfo).port;
-        const request = (route: string, body: Buffer, headers: http.OutgoingHttpHeaders) =>
+        const request = (route: string, body: Buffer, headers: http.OutgoingHttpHeaders, method = "POST") =>
           new Promise<{ status: number | undefined; body: Record<string, unknown> }>((resolve, reject) => {
-            const req = http.request({ host: "127.0.0.1", port, path: route, method: "POST", headers }, res => {
+            const req = http.request({ host: "127.0.0.1", port, path: route, method, headers }, res => {
               const chunks: Buffer[] = [];
               res.on("data", (chunk: Buffer) => chunks.push(chunk));
               res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }));
@@ -286,8 +297,8 @@ test("direct and multipart retries survive an older worker's terminal failure", 
             assert.equal(complete.status, 200);
             assert.equal(complete.body.ok, true);
           } else {
-            // A different API process read the old photo before adoption and
-            // only publishes its completion after multipart owns the new name.
+            // A different API process read the photo before multipart adopted
+            // valid bytes; its late completion must preserve local ownership.
             const staleComplete = json("/photo/complete", { event_id: eventId, photo_id: photoId });
             await completeBlocked;
             const form = new FormData();
@@ -295,11 +306,12 @@ test("direct and multipart retries survive an older worker's terminal failure", 
             form.append("name", valid, { filename, contentType: "image/jpeg" });
             const upload = await request("/photo", form.getBuffer(), form.getHeaders());
             assert.equal(upload.status, 202);
-            assert.notEqual(photo.name, filename, "adoption must own a new immutable local filename");
+            assert.equal(photo.name, filename, "adoption must keep the original resource key");
+            assert.deepEqual((await fs.readdir(UPLOAD_DIR)).filter(name => name.endsWith(filename)), [filename]);
             releaseComplete();
             assert.equal((await staleComplete).body.ok, true);
             assert.equal(job.photo_name, filename);
-            assert.equal(job.source, "remote");
+            assert.equal(job.source, "local", "stale direct completion must not replace validated local ownership");
           }
           assert.equal(job.status, "queued");
           assert.equal(job.lease, null);
@@ -316,6 +328,19 @@ test("direct and multipart retries survive an older worker's terminal failure", 
           assert.equal(photo.status, "done");
           assert.equal(job.status, "done");
           assert.equal(ml.mock.calls.filter(call => String(call.arguments[0]).endsWith("/get_embeddings")).length, 1);
+          // Success retains only resources still named by the Photo. Explicit
+          // deletion must remove the original and both remote siblings, not
+          // rely on teardown to hide abandoned upload generations.
+          assert.equal(photo.name, filename);
+          assert.equal(job.photo_name, filename);
+          assert.deepEqual((await fs.readdir(UPLOAD_DIR)).filter(name => name.endsWith(filename)), [filename]);
+          const deletion = await request("/delete-image", Buffer.from(JSON.stringify({ _id: photoId })), { "Content-Type": "application/json" }, "DELETE");
+          assert.equal(deletion.status, 200);
+          assert.equal(deletion.body.success, true);
+          await eventually(async () => objects.size === 0 && !(await fs.readdir(UPLOAD_DIR)).some(name => name.endsWith(filename)));
+          assert.equal(deletedPhoto.mock.callCount(), 1);
+          assert.equal(deletedJob.mock.callCount(), 1);
+          assert.equal(deletedBytes.mock.callCount(), 2);
         } finally {
           release();
           releaseComplete();
@@ -323,7 +348,6 @@ test("direct and multipart retries survive an older worker's terminal failure", 
           server.closeAllConnections();
           await new Promise<void>(resolve => server.close(() => resolve()));
           await fs.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
-          await fs.unlink(path.join(UPLOAD_DIR, String(photo.name))).catch(() => {});
         }
       });
     }
