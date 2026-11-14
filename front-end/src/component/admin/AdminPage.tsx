@@ -19,7 +19,7 @@ interface G3Account {
 }
 interface StorageHealth {
   healthy: boolean;
-  g3Status: "healthy" | "auth_failed" | "no_accounts" | "unconfigured";
+  g3Status: "healthy" | "auth_failed" | "no_accounts" | "unconfigured" | "unreachable";
   g3Error?: string;
   g3Accounts: Array<{
     id: string;
@@ -28,7 +28,7 @@ interface StorageHealth {
     storageLimit: number;
     storageUsage: number;
   }>;
-  driveStatus: "healthy" | "auth_failed" | "no_connections";
+  driveStatus: "healthy" | "auth_failed" | "no_connections" | "unreachable";
   driveError?: string;
   driveCount: number;
 }
@@ -121,8 +121,6 @@ export default function AdminPage() {
     e.preventDefault();
     sessionStorage.setItem(KEY, key);
     setAuthed(true);
-    void load("overview", key);
-    void loadStorageHealth();
   };
 
   const switchTab = (t: Tab) => {
@@ -347,7 +345,7 @@ export default function AdminPage() {
                 </div>
               </div>
             </Card>
-          ) : storageHealth.g3Status === "no_accounts" && storageHealth.driveStatus === "no_connections" ? (
+          ) : (storageHealth.g3Status === "no_accounts" || storageHealth.g3Status === "unconfigured") && storageHealth.driveStatus === "no_connections" ? (
             <Card className="border-amber-500/50 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -383,7 +381,7 @@ export default function AdminPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 min-h-[36px] px-2 text-xs"
+                className="min-h-[44px] min-w-[44px] px-3 text-xs"
                 disabled={healthLoading}
                 onClick={() => void loadStorageHealth()}
               >
