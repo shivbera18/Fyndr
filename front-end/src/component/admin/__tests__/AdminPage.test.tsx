@@ -106,4 +106,56 @@ describe("AdminPage Storage Health and Revoke UI", () => {
       expect(screen.getByText("Google Drive: Active & Verified")).toBeInTheDocument();
     });
   });
+
+  it("displays amber banner when g3 is unconfigured and drive has no connections (VPS local disk mode)", async () => {
+    sessionStorage.setItem("fyndr-admin-key", "test-pass");
+
+    const mockHealth = {
+      healthy: false,
+      g3Status: "unconfigured",
+      g3Accounts: [],
+      driveStatus: "no_connections",
+      driveCount: 0,
+    };
+
+    jest.spyOn(global, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes("/admin/storage/health")) {
+        return Promise.resolve(new Response(JSON.stringify(mockHealth), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+    });
+
+    render(<AdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No Google Drive Storage Connected")).toBeInTheDocument();
+    });
+  });
+
+  it("ensures Verify button adheres to the min 44x44px tap target contract", async () => {
+    sessionStorage.setItem("fyndr-admin-key", "test-pass");
+
+    const mockHealth = {
+      healthy: true,
+      g3Status: "healthy",
+      g3Accounts: [{ id: "acc_1", email: "test@gmail.com", status: "connected", storageLimit: 100, storageUsage: 10 }],
+      driveStatus: "healthy",
+      driveCount: 1,
+    };
+
+    jest.spyOn(global, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes("/admin/storage/health")) {
+        return Promise.resolve(new Response(JSON.stringify(mockHealth), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+    });
+
+    render(<AdminPage />);
+
+    const verifyBtn = await screen.findByRole("button", { name: /Verify/i });
+    expect(verifyBtn.className).toMatch(/min-h-\[44px\]/);
+    expect(verifyBtn.className).toMatch(/min-w-\[44px\]/);
+  });
 });
