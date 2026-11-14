@@ -38,6 +38,28 @@ mongod 8.0.31 systemctl
 firewalld 3000/5000/5001 open
 ```
 
+**Legacy upload index migration (once):** older databases can still have a global
+unique `fyndrjobs.photo_hash_1` index. It rejects the same photo in different events,
+even though the current schema uses per-event uniqueness. After the current schema's
+compound index exists, remove only that obsolete global unique index:
+
+```bash
+mongosh mongodb://127.0.0.1:27017/photo_sharing_db --eval '
+const jobs = db.getCollection("fyndrjobs");
+const indexes = jobs.getIndexes();
+const perEvent = indexes.find(i => i.unique === true &&
+  Object.keys(i.key).length === 2 && i.key.event_id === 1 && i.key.photo_hash === 1);
+if (!perEvent) throw new Error("Missing per-event unique index; migration stopped");
+const legacy = indexes.find(i => i.unique === true &&
+  Object.keys(i.key).length === 1 && i.key.photo_hash === 1);
+if (legacy) jobs.dropIndex(legacy.name);
+'
+```
+
+The guard preserves per-event deduplication; this does not delete photo/job records.
+Repeating it is safe when the legacy index is absent. Verify staging/completion with
+a photo already present in another event, not only with a brand-new photo hash.
+
 **Deploy new code:**
 ```bash
 ssh fyndr
