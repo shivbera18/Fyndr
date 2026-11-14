@@ -199,23 +199,25 @@ export default function AdminPage() {
   // Google redirects back to a host their browser reaches.
   const g3Connect = async () => {
     try {
-      const login = await fetch(`${API_URL}/admin/g3/login-passthrough`, {
-        method: "POST",
+      setLoading(true);
+      const res = await fetch(`${API_URL}/admin/g3/connect-url`, {
         headers: { "x-admin-key": sessionStorage.getItem(KEY) ?? "" },
       });
-      if (login.status === 503) {
+      if (res.status === 503) {
         toast.error("G3 not configured on the API (G3_URL/G3_ADMIN_EMAIL/G3_ADMIN_PASSWORD)");
         return;
       }
-      if (!login.ok) throw new Error(`G3 login HTTP ${login.status}`);
-      const info = await fetch(`${API_URL}/admin/g3/panel-info`, { headers: { "x-admin-key": sessionStorage.getItem(KEY) ?? "" } });
-      const j = await info.json().catch(() => null);
-      const base = j && typeof j === "object" && "url" in j ? String(j.url) : null;
-      if (!base) throw new Error("no G3 panel URL");
-      window.open(`${base.replace(/\/$/, "")}/api/accounts/connect`, "_blank", "noopener");
-      toast.success("Log in via the G3 tab if asked, approve Google, then Refresh pool");
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(err?.error || `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as { url?: string };
+      if (!data.url) throw new Error("No connect URL returned by G3");
+      window.location.href = data.url;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Connect failed");
+    } finally {
+      setLoading(false);
     }
   };
 
