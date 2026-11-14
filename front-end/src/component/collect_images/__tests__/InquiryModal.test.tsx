@@ -31,6 +31,7 @@ describe("InquiryModal component", () => {
     );
 
     await screen.findByLabelText(/Your Name \*/i);
+    expect(screen.getByText(/Inquire with Shutter Magic/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("Rohit Verma")).toBeInTheDocument();
     expect(screen.getByDisplayValue("+919876543210")).toBeInTheDocument();
     expect(screen.getByLabelText(/Message \(Optional\)/i)).toBeInTheDocument();
@@ -99,7 +100,7 @@ describe("InquiryModal component", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Send Inquiry →/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Send Inquiry →/i }));
 
     expect(
       await screen.findByText(/Too many inquiries sent for this event right now/i)

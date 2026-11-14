@@ -36,7 +36,10 @@ describe('PWA UI Components', () => {
         />
       );
 
-      fireEvent.click(await screen.findByRole('button', { name: /Got It!/i }));
+      const dismiss = await screen.findByRole('button', { name: /Got It!/i });
+      expect(screen.getByText(/Add to Home Screen/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Install App/i })).not.toBeInTheDocument();
+      fireEvent.click(dismiss);
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });

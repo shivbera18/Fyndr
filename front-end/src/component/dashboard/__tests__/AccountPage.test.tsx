@@ -47,6 +47,7 @@ describe("AccountPage Component", () => {
       const account = within(screen.getByRole("main"));
       expect(account.getByRole("heading", { level: 1, name: "Aria Sterling" })).toBeInTheDocument();
       expect(account.getByText("aria@sterlingstudios.com")).toBeInTheDocument();
+      expect(account.getByTitle("Verified Account")).toBeInTheDocument();
     });
   });
 
