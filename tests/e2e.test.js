@@ -8,6 +8,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
+const { setTimeout: delay } = require('node:timers/promises');
 
 const API = process.env.API_URL || 'http://127.0.0.1:5000';
 const ML = process.env.ML_URL || 'http://127.0.0.1:5001';
@@ -40,6 +41,16 @@ async function run() {
   fd.append('upload_by', userId);
   r = await axios.post(`${API}/photo`, fd, { headers: fd.getHeaders(), maxContentLength: Infinity, maxBodyLength: Infinity });
   assert(Array.isArray(r.data) && r.data.length > 0);
+
+  // Upload acknowledges queued bytes; matching must wait for indexing to finish.
+  const deadline = Date.now() + 90000;
+  for (;;) {
+    const { data } = await axios.get(`${API}/queue/stats?event_id=${eventId}`);
+    assert.strictEqual(data.failed, 0, 'photo indexing failed');
+    if (data.done >= r.data.length && data.queued === 0 && data.processing === 0) break;
+    assert(Date.now() < deadline, 'photo indexing did not finish');
+    await delay(250);
+  }
 
   console.log('[e2e] metrics');
   r = await axios.get(`${API}/metrics`);

@@ -1,139 +1,126 @@
-# Large Photo Upload: Memory Architecture & Batched Queuing (Fyndr)
+# Upload architecture and memory review
 
-> Status: **Implemented & Verified** · PR: **#135** · Date: 2026-09-14
+## Scope
 
----
+Reviewed the browser queue, image preparation, hashing, direct PUT and multipart paths,
+pause/resume/cancel, navigation, disk staging, Mongo jobs, ingest workers, and FTP ingress.
+The changes prioritize bounded client working memory over maximum upload concurrency.
 
-## 1. Problem Statement
+## Findings and fixes
 
-When wedding and event photographers attempted to upload large albums (multi-gigabytes, ranging from 200 to 2,000+ high-resolution camera photos), the application exhibited:
-- Severe UI freeze and unresponsiveness during photo selection.
-- Continuous browser memory growth resulting in a hard renderer crash ("Aw, Snap! Error code: Out of Memory" or "Site has crashed").
-- Monolithic request failures where an upload of several gigabytes failed near completion with unhandled server errors (500) and zero resume capability.
+| Severity | Location | Finding | Applied fix |
+|---|---|---|---|
+| High | `Upload_Img.tsx` | Three workers could retain three 75MiB multipart batches plus prepared blobs; prepared blobs accumulated across the album. | One photo per request, one worker; release prepared blobs after each successful file and on terminal cleanup. |
+| High | `Upload_Img.tsx` preview tiles | Twelve original-resolution image decodes are not a small RAM bound. A 6000×4000 RGBA surface alone is about 92MiB. | Filename/icon tiles, no original image decoding or object URLs. At most twelve visible file tiles. |
+| High | `clientImage.ts` | Recompression decoded arbitrary-resolution originals and allocated a second canvas surface. | Inspect at most 64KiB of JPEG headers first; only recompress known JPEGs up to 4,194,304 pixels and an 8192px edge. Other inputs retain original bytes. Close bitmaps and zero canvas dimensions. |
+| Medium | `fileHasher.sha256Hex` | Web Crypto requires an entire file-sized ArrayBuffer, even for 50MiB originals. | Above 8MiB, use multipart instead; the server hashes its disk stream. Smaller prepared files can use direct PUT. |
+| Medium | `handleUpload` / `uploadSession.ts` | The UI displayed completed batches, so one active batch stayed at zero. Replacing per-file fractions with per-batch fractions also changed the inferred total file count. | Show acknowledged photos out of a stable total; cap progress at 99% until acknowledgement. Store totals separately and remove redundant fraction copies from session snapshots. |
+| High | Upload scheduling | Pause was not checked after asynchronous preparation/staging or before multipart attempts, including zero-delay retries. | Gate each new preparation/transfer/retry; finish the current transfer and its completion acknowledgement. Finish the session if the final photo completes while paused. |
+| High | Session cancellation | Clearing the active controller immediately allowed a new upload to race the old worker's cleanup. Another event could overwrite the singleton session. | Keep ownership until the aborted worker finishes; reject another event's upload while one is active. |
+| High | `middleware/upload.ts` / `/photo` | Interrupted multipart transfers and rejected metadata could leave temporary originals behind. | Disk streaming with backpressure and abort cleanup; clean received files on metadata rejection; settle per-file staging errors independently. |
+| High | Multipart fallback / Mongo queue | A failed direct-upload stub could discard fallback bytes or an old worker could fail a newer retry. | Atomically replace bytes at stable Photo keys before publishing source ownership; invalidate old database claim leases and fence terminal updates. |
+| High | `getObjectBytes` / ingest worker | Direct-upload bytes were buffered before enforcing a limit and the client's claimed hash was not checked before ML indexing. | Reject declared or streamed objects above 50MiB; destroy response streams; verify actual SHA-256 before ML/FAISS. |
+| High | Concurrent retry cleanup | Destructive failure cleanup could remove bytes acknowledged by another request; changing filenames could orphan originals. | Retain failed sources, keep retry resource keys stable, and preserve validated local ownership against stale direct completion. Only finished photos deduplicate. |
+| Medium | Navigation recovery | Remaining files and terminal errors existed only in the original component. | The singleton owns the remaining queue and terminal outcome; remount restores both, and explicit clearing releases references. |
+| High | `finishItem` / `processUploadedFile` | Drive helpers can return without storing anything, but callers deleted the only local original. | Delete local bytes only after object-store success or a confirmed `Photo.driveFileId`. |
+| Medium | Queue / FTP watcher | Incomplete direct PUTs could repeatedly reclaim the oldest queue slots; FTP started unbounded ingestion promises. | Released jobs yield by update time; FTP permits two active ingestions per process and leaves excess files on disk. |
+| Medium | `getPresignedPut` | Invalid keys bypassed validation when storage was unconfigured. | Validate before the unconfigured-storage return; existing contract tests cover invalid keys. |
 
----
+## Data flow
 
-## 2. Root Cause Analysis
-
-Two independent investigations (`ClientMemoryScout` and `BackendQueueReviewer`) verified the exact bottlenecks across the client rendering engine, network transport, and server ingest layers:
-
-### 2.1 Uncompressed Bitmap RAM Explosion (Primary Crash Cause)
-- In the original implementation (`Upload_Img.tsx:47`), selecting files immediately invoked `URL.createObjectURL(file)` on every single image and stored the blob URL in React state.
-- The UI rendered an unvirtualized CSS grid mounting an `<img>` tag for every selected image.
-- **Browser Rasterization Mechanics:** Web browsers (Chromium Skia, WebKit, Gecko) do not display compressed JPEG/WebP files directly in memory; they decode them into uncompressed 32-bit RGBA pixel bitmaps in RAM:
-  $$\text{Memory per Image} = \text{Width} \times \text{Height} \times 4\text{ bytes}$$
-  For standard 24–48 megapixel DSLR photos:
-  $$6000 \times 4000 \times 4\text{ bytes} \approx 96\text{ MB per image in RAM}$$
-- Rendering 200–500 photos in the DOM required **19.2 GB to 48 GB** of uncompressed bitmap memory.
-- Standard 64-bit Chromium browser tabs are enforced with a 2 GB to 4 GB virtual memory limit. Exceeding this heap/raster limit instantly triggers an OS-level OOM renderer termination (`STATUS_BREAKPOINT` or `RESULT_CODE_KILLED_BAD_MESSAGE`).
-
-### 2.2 Monolithic Multi-Gigabyte `FormData` Buffering
-- The previous upload handler appended all selected files into a single monolithic `FormData` object and dispatched one massive `axios.post('/photo', formData)` call.
-- Buffering gigabytes into browser V8 heap and Blink IPC buffers caused severe memory pressure and main-thread stalling.
-- Single monolithic requests breached reverse-proxy constraints (Cloudflare 100MB body limit HTTP 413, proxy 100s timeouts HTTP 524) with zero fault tolerance: a single dropped packet aborted the entire transfer.
-
-### 2.3 Backend Multer 100-File Array Limit
-- In `node-server-1/src/routes/photos.ts:21`, Multer was configured with `upload.array('name', 100)`.
-- When an album exceeded 100 photos, Multer rejected the 101st file with `MulterError: LIMIT_UNEXPECTED_FILE`.
-- The unhandled exception fell through to Express error middleware, returning an opaque HTTP 500 "Internal server error" while leaking unreferenced disk files in `uploads/`.
-
----
-
-## 3. Architecture & Implementation
-
-The solution implements memory-safe bounded previews, a chunked batch upload queue, robust error recovery, and server-side error mapping with zero external dependencies.
-
-```
-[User Selects 500 Photos (5 GB)]
-            │
-            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Bounded Preview Engine                    │
-│   • Previews generated only for first MAX_PREVIEWS (12)      │
-│   • 488 photos queued with preview: "" (RAM protected)      │
-│   • Active bitmap memory capped to < 50 MB                  │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 Chunked Batched Upload Queue                │
-│   • Batches of UPLOAD_BATCH_SIZE = 15 photos (~75-150 MB)   │
-│   • Sequential dispatch via Axios + AbortController         │
-│   • Overall progress interpolation across all batches       │
-└─────────────┬───────────────────────────────┬───────────────┘
-              │ Batch 1 (15)                  │ Batch 2 (15)...
-              ▼                               ▼
-┌───────────────────────────┐   ┌───────────────────────────┐
-│     POST /photo (HTTP)    │   │     POST /photo (HTTP)    │
-│  Multer (<= 100 files OK) │   │  Multer (<= 100 files OK) │
-└─────────────┬─────────────┘   └─────────────┬─────────────┘
-              │ 200 OK                        │ 200 OK
-              ▼                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 Incremental Memory Cleanup                  │
-│   • URL.revokeObjectURL on completed batch items            │
-│   • Succeeded items removed from queue state                │
-│   • Failed batch retains remaining files for 1-click retry  │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[File selection: file handles and metadata] --> B[Filename tiles: no image decode]
+    B --> C[One active photo]
+    C --> D[Optional bounded JPEG preparation]
+    D --> E{Prepared bytes at most 8MiB and Web Crypto available?}
+    E -->|Yes| F[Hash then POST /photo/stage]
+    F --> G{Direct storage available?}
+    G -->|Yes| H[PUT one object then POST /photo/complete]
+    E -->|No| I[POST /photo: one multipart photo]
+    G -->|No or transfer fails| I
+    I --> J[Stream to disk and stream-hash]
+    J --> K[Photo stub and Mongo job]
+    H --> K
+    K --> L[Worker: validate bytes, ML, thumbnails, storage]
+    L --> M[Delete local original only after confirmed remote storage]
 ```
 
-### 3.1 Bounded Previews (`MAX_PREVIEWS = 12`)
-- Object URLs are created **only** for `index < MAX_PREVIEWS` (first 12 files).
-- Remaining files maintain `preview: ""` and render inside a lightweight badge card:
-  `"+488 more queued (RAM protected)"`.
-- When photos are removed or uploaded, newly promoted items in the top 12 lazily generate previews, maintaining an invariant of $\le 12$ active object URLs in memory regardless of whether 10 or 10,000 photos are selected.
+An upload acknowledgement means bytes were accepted and indexing was queued, not that ML
+or every remote mirror has finished. Completed photos leave the browser queue immediately;
+failed and unsent photos remain available for retry.
 
-### 3.2 Chunked Batched Upload Queue (`UPLOAD_BATCH_SIZE = 15`)
-- Files are partitioned into sequential chunks of 15 photos (`UPLOAD_BATCH_SIZE = 15`), safely below Multer's 100-file threshold and well within standard HTTP proxy body limits.
-- Real-time overall progress calculation:
-  $$\text{Progress} = \min\left(99, \left\lfloor \frac{\text{uploadedCount} + (\text{batchLoaded} / \text{batchTotal}) \times \text{batchLength}}{\text{totalFilesCount}} \times 100 \right\rfloor\right)$$
-- Upon batch completion:
-  - Active preview URLs for the completed batch are revoked via `URL.revokeObjectURL`.
-  - Completed items are removed from `selectedFiles` React state.
-  - If a network failure occurs on batch $k$, photos from batches $1 \dots k-1$ remain securely saved in the database, while the remaining files stay queued in the UI for immediate retry without requiring the photographer to re-select files.
+## Pause, cancellation, and navigation contract
 
-### 3.3 Cancellation & Lifecycle Safety
-- `AbortController` is integrated into Axios requests.
-- Invoking `cancelUpload()` aborts the active network request and terminates the loop via `CanceledError`, preventing false success execution.
-- Loading state and controller nullification are strictly managed inside the async `finally` block to avoid race conditions.
-- On component unmount, all active object URLs are revoked and pending requests are aborted.
+- Pause prevents new photos and transfer attempts from starting. One already-running
+  transfer may finish; its completion acknowledgement is allowed so accepted bytes are not stranded.
+- Resume continues the same in-memory queue. Retry backoff stops advancing while paused.
+- Cancel aborts the active request and prevents new work. It does not undo photos already
+  accepted by the server or stop their queued ML jobs.
+- In-app navigation preserves the running upload; returning to the same event reattaches
+  Pause/Resume/Cancel, progress, remaining originals, and terminal failure/cancellation status.
+  Starting another event's upload replaces an inactive retained queue; active sessions cannot compete.
+- Refresh, browser termination, or OS suspension can interrupt the in-memory queue.
+  There is no durable browser queue or resumable multipart/chunk protocol. Retries send the
+  current photo again; server content hashes handle deduplication.
 
-### 3.4 Backend Multer Error Mapping (`node-server-1/src/app.ts`)
-- Express global error middleware intercepts `multer.MulterError` instances.
-- Replaces generic 500 errors with structured HTTP 400 Bad Request responses containing clear guidance:
-  ```json
-  {
-    "error": "Too many files in a single batch (max 100). Please upload in smaller batches.",
-    "message": "Too many files in a single batch (max 100). Please upload in smaller batches."
-  }
-  ```
+## Resource bounds and tradeoffs
 
----
+| Resource | Current bound or behavior |
+|---|---|
+| Browser transfers | One active photo, maximum 50MiB input. Browser networking buffers remain implementation-dependent. |
+| Browser hashing | Whole-file hashing only up to 8MiB of prepared bytes. |
+| Browser image surfaces | Optional recompression only up to 4MP: approximately 16MiB per RGBA surface, plus browser decoder/encoder overhead. No preview surfaces. |
+| Album bookkeeping | File handles and metadata still scale with selected file count; this is not a total constant-RAM guarantee. Prepared image bytes do not accumulate across successful files. |
+| Photo quality | Large, unsupported, or uncertain images upload unchanged. Eligible JPEGs retain quality 0.97 without downscaling; the original-quality setting still bypasses recompression. |
+| Multipart ingress | Disk-backed streaming; at most 100 files, 32 fields, 132 parts, and 50MiB per file. The dashboard sends one file per request. Other callers can still stage up to 5,000MiB in one request. |
+| Worker source buffers | At most two claimed jobs per tick per API process: up to 100MiB of source buffers, plus concatenation, HTTP, ML, and thumbnail overhead. Not a fully streaming ingest worker. |
+| FTP | Two active ingestions per process. Process counts multiply this ceiling. |
+| Server-wide admission | No global upload concurrency/disk-quota ceiling; multiple clients and PM2 workers multiply resource use. The reverse proxy's existing request-size limits remain relevant. |
+| Storage failure | Preserve local originals when mirroring is unconfirmed and retain failed retry sources. Disk monitoring remains necessary; this change does not add a reconciliation service or disk quota. |
 
-## 4. Vercel CI Build Resolution
+The earlier documentation's claim that twelve original previews fit below 50MB was incorrect.
+No fixed browser RAM limit is promised: real devices, image codecs, and browser-native buffers vary.
+One worker trades some high-bandwidth throughput for predictable client working memory.
 
-The Vercel deployment pipeline previously failed under `CI=true` due to two issues:
-1. **ESLint `no-loop-func` Violation:** In `Upload_Img.tsx`, declaring `onUploadProgress` inside the batch loop closed over the mutable `let uploadedCount` variable. Resolved by scoping block-level constants (`baseUploaded = uploadedCount`, `currentBatchSize = currentBatch.length`).
-2. **TypeScript Property Omission:** In `InEventLeads.test.tsx`, the `InEvent` component was instantiated without the mandatory `ownerId` prop introduced in prior schema hardening. Resolved by supplying `ownerId="usr_owner_leads"`.
+## Verification
 
-With these fixes, `npx tsc --noEmit` and `CI=true react-scripts build` pass with zero warnings and zero errors, and Vercel builds report **PASS**.
+- Full frontend suite: 40 suites / 263 tests passed. The final affected test refinements
+  also passed, including isolated execution of the lazy inquiry error path.
+- Optimized frontend production build passed. An isolated webpack bundle of the actual
+  uploader also compiled for browser verification.
+- Backend TypeScript build, syntax checks, and all 55 unit tests passed; the final
+  stable-source/deletion hardening passed all 13 upload-safety cases. A real MongoDB
+  smoke verified source ownership and rejection of obsolete failure leases.
+- Root end-to-end flow and comprehensive backend integration suite passed against an
+  isolated database and real ML runtime. The root test now waits for queued indexing
+  before expecting face matching. Python compilation checks passed.
+- Browser smoke with the actual uploader and an isolated acknowledgement server:
+  pause at `1 of 3`, leave/return, cancel, retry both remaining photos; failure while
+  away, return, recover the error/queue, and retry successfully. No original image
+  elements mounted. Earlier layout checks found no horizontal overflow at widths
+  320, 375, 768, 1024, 1440, and 2560.
+- Verification used an isolated VPS checkout because local dependency/runtime startup was
+  incomplete. The production checkout and API processes were not deployed or restarted for this review.
+- CRA/Babel, Browserslist, React test `act`, and Node deprecation warnings remain outside this upload fix.
+- No physical low-RAM phone or browser-native peak-RSS measurement was available. These checks
+  verify resource bounds and behavior, not an exact mobile memory usage figure.
 
----
+Run the focused checks:
 
-## 5. Verification & Test Coverage
+```bash
+cd front-end
+npm test -- --watchAll=false --runInBand --runTestsByPath \
+  src/component/dashboard/__tests__/Upload_Img.test.tsx \
+  src/component/dashboard/__tests__/Upload_Img.compress.test.tsx \
+  src/component/dashboard/__tests__/clientImage.test.ts \
+  src/utils/__tests__/uploadSession.test.ts
+npx tsc --noEmit
+cd ../node-server-1
+npm run build
+node --test dist/photos/__tests__/uploadSafety.test.js \
+  dist/photos/__tests__/objectReadLimit.test.js \
+  dist/photos/__tests__/directPresign.test.js \
+  dist/photos/__tests__/uploadBranching.test.js
+```
 
-### Automated Test Suite (`Upload_Img.test.tsx`)
-1. **Preview Clamping:** Verifies that selecting 30 photos creates exactly 12 object URLs (`MAX_PREVIEWS`) and renders the RAM protection indicator.
-2. **Object URL Revocation on Removal:** Asserts `URL.revokeObjectURL` is invoked when individual files are removed.
-3. **Full Queue Clear:** Verifies `clearAll()` revokes all active URLs and empties state.
-4. **Batch Execution:** Asserts that 35 files dispatch in 3 distinct sequential HTTP requests of sizes 15, 15, and 5.
-5. **Partial Batch Failure Retention:** Verifies that when batch 2 fails after batch 1 succeeds, the 10 un-uploaded photos remain queued for retry.
-6. **Cancellation Handling:** Tests that `cancelUpload()` aborts the active request without reporting false success.
-7. **Multi-Status 207 Handling:** Confirms HTTP 207 partial failure is caught and surfaced as a batch failure.
-
-### Test Results
-- `Upload_Img.test.tsx`: **8 passed, 8 total** (100%)
-- `InEvent.qr.test.tsx`: **12 passed, 12 total** (100%)
-- Backend Build (`node-server-1`): **0 errors**
-- Frontend Typecheck (`tsc --noEmit`): **0 errors**
-- Vercel Deployment Check: **PASS**

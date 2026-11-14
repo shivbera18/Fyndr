@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import { API_URL } from "../../../utils/api";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches, overallUploadPct } from "../Upload_Img";
@@ -66,10 +66,10 @@ describe("Upload_Img component memory safety and batching", () => {
     });
   };
 
-  test("renders upload dropzone with memory-safe description", () => {
+  test("renders the bounded upload description", () => {
     render(<Upload_Img event_id="evt_test_1" />);
     expect(screen.getByText("Upload event photos")).toBeInTheDocument();
-    expect(screen.getByText(/Batched memory-safe uploads for large albums/i)).toBeInTheDocument();
+    expect(screen.getByText(/One photo at a time to limit upload memory/i)).toBeInTheDocument();
   });
 
   const createSizedFiles = (sizes: number[]): File[] => {
@@ -121,53 +121,43 @@ describe("Upload_Img component memory safety and batching", () => {
     resolvePost({ status: 200, data: [] });
   });
 
-  test("clamps active object URL previews to MAX_PREVIEWS when many files are selected", () => {
+  test("lists a bounded set of filenames without decoding original images", () => {
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
-
-    // Simulate selecting 30 photos (more than MAX_PREVIEWS = 12)
-    const files = createDummyFiles(30);
-    fireEvent.change(input, { target: { files } });
-
+    fireEvent.change(input, { target: { files: createDummyFiles(30) } });
     expect(screen.getByText(/30 photos queued/i)).toBeInTheDocument();
-    // Verify only MAX_PREVIEWS (12) object URLs were created
-    expect(createdUrls.length).toBe(MAX_PREVIEWS);
-    // Verify remaining count indicator
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(MAX_PREVIEWS);
     expect(screen.getByText(`+${30 - MAX_PREVIEWS}`)).toBeInTheDocument();
-    expect(screen.getByText(/RAM protected/i)).toBeInTheDocument();
   });
 
-  test("revokes object URL when a file is removed", () => {
+  test("removes a selected file from the queue", () => {
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
 
     const files = createDummyFiles(5);
     fireEvent.change(input, { target: { files } });
 
-    expect(createdUrls.length).toBe(5);
     expect(screen.getByText(/5 photos queued/i)).toBeInTheDocument();
 
     const removeBtn = screen.getByRole("button", { name: `Remove ${files[0].name}` });
     fireEvent.click(removeBtn);
 
     expect(screen.getByText(/4 photos queued/i)).toBeInTheDocument();
-    expect(revokedUrls.length).toBe(1);
   });
 
-  test("clearAll revokes all created preview URLs and empties queue", () => {
+  test("clearAll empties the queue", () => {
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
 
     const files = createDummyFiles(10);
     fireEvent.change(input, { target: { files } });
 
-    expect(createdUrls.length).toBe(10);
 
     const clearBtn = screen.getByRole("button", { name: "Clear all" });
     fireEvent.click(clearBtn);
 
     expect(screen.queryByText(/photos queued/i)).not.toBeInTheDocument();
-    expect(revokedUrls.length).toBe(10);
   });
 
   test("throttles progress commits during an in-flight batch", async () => {
@@ -189,15 +179,15 @@ describe("Upload_Img component memory safety and batching", () => {
 
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
-    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
-    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    fireEvent.change(input, { target: { files: createDummyFiles(1) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 1 photo/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Uploading \(25%\)/i })).toBeInTheDocument();
     });
 
     resolvePost({ status: 200, data: [] });
-    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Successfully uploaded 1 photo/i)).toBeInTheDocument();
   });
 
   test("full per-batch fractions cap at 99 until the success banner", async () => {
@@ -212,15 +202,15 @@ describe("Upload_Img component memory safety and batching", () => {
     );
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
-    fireEvent.change(input, { target: { files: createDummyFiles(4) } });
-    fireEvent.click(screen.getByRole("button", { name: /Upload 4 photos/i }));
+    fireEvent.change(input, { target: { files: createDummyFiles(1) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 1 photo/i }));
     // Bytes fully reported but server not yet answered: bar must sit at 99, never 100.
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Uploading \(99%\)/i })).toBeInTheDocument();
     });
     expect(screen.queryByText(/Successfully uploaded/i)).not.toBeInTheDocument();
     resolvePost({ status: 200, data: [] });
-    expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Successfully uploaded 1 photo/i)).toBeInTheDocument();
   });
   test("multi-batch upload reaches 100 exactly once, at success", async () => {
     mockedAxios.post.mockResolvedValue({ status: 200, data: [] });
@@ -240,13 +230,12 @@ describe("Upload_Img component memory safety and batching", () => {
     expect(firstHundred).toBeGreaterThan(0);
     expect(seen.slice(0, firstHundred).every((p) => p <= 99)).toBe(true);
   });
-  test("uploads in safe batches of UPLOAD_BATCH_SIZE (15) and notifies refresh", async () => {
+  test("uploads one photo per request and notifies refresh", async () => {
     const dRefMock = jest.fn();
     mockedAxios.post.mockResolvedValue({ status: 200, data: [] });
     const { container } = render(<Upload_Img event_id="evt_test_1" d_ref={dRefMock} />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
 
-    // 35 files => 3 batches (15, 15, 5)
     const files = createDummyFiles(35);
     fireEvent.change(input, { target: { files } });
 
@@ -271,21 +260,19 @@ describe("Upload_Img component memory safety and batching", () => {
       code: "ERR_BAD_REQUEST",
       response: { status: 422, data: { message: "All files in batch failed validation" } },
     });
-    // ponytail: sha256=null forces multer fallback; fail the LARGER batch so
-    // the surviving batch (10) uploads first regardless of pool order.
+    let uploads = 0;
     mockedAxios.post.mockImplementation((url: string, body?: unknown) => {
       if (url === `${API_URL}/photo/stage`) {
         return Promise.resolve({ status: 200, data: { via: "local", photo: null, key: null, uploadUrl: null } });
       }
-      const files = body instanceof FormData ? body.getAll("name") : [];
-      if (files.length > 10) return Promise.reject(axiosError);
+      uploads += 1;
+      if (uploads === 11) return Promise.reject(axiosError);
       return Promise.resolve({ status: 200, data: [] });
     });
     mockedAxios.isAxiosError.mockImplementation((err: unknown): boolean => err === axiosError);
     const { container } = render(<Upload_Img event_id="evt_test_1" />);
     const input = container.querySelector("input[type='file']") as HTMLInputElement;
 
-    // 25 files => Batch 1 (15), Batch 2 (10)
     const files = createDummyFiles(25);
     fireEvent.change(input, { target: { files } });
 
@@ -403,11 +390,115 @@ describe("Upload_Img component memory safety and batching", () => {
     await screen.findByRole("button", { name: /Uploading \(0%\)/i });
     first.unmount();
     render(<Upload_Img event_id="evt_test_1" />);
-    // Empty queue after navigation, but the adopted session still offers controls.
+    expect(screen.getByText(/4 photos queued/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Cancel upload/i })).toBeInTheDocument();
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+  });
+
+  test("paused remount can cancel and retry its remaining files without reselection", async () => {
+    const first = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    first.unmount();
+    const second = render(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.getByText(/2 photos queued/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Cancel upload/i }));
+    const retry = await screen.findByRole("button", { name: /Upload 2 photos/i });
+    await waitFor(() => expect(retry).toBeEnabled());
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+    second.unmount();
+    render(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByText(/Upload cancelled/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(getUploadSessionSnapshot().remainingFiles).toEqual([]);
+  });
+
+  test.each([false, true])("recovers a failure while away (return after failure: %s)", async returnAfterFailure => {
+    // TS 4.9/browser targets do not provide Promise.withResolvers.
+    let fail!: (reason: Error) => void;
+    const pending = new Promise((_, reject) => { fail = reject; });
+    mockedAxios.post.mockResolvedValueOnce({ status: 200, data: [] }).mockImplementationOnce(() => pending);
+    const first = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(3) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 3 photos/i }));
+    await waitFor(() => expect(mockedAxios.post).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(/2 photos queued/i)).toBeInTheDocument();
+    first.unmount();
+    if (!returnAfterFailure) render(<Upload_Img event_id="evt_A" />);
+    await act(async () => { fail(new Error("invalid photo")); });
+    if (returnAfterFailure) render(<Upload_Img event_id="evt_A" />);
+    expect(await screen.findByText(/Uploaded 1 of 3 photos\. Batch failed: invalid photo/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 2 photos/i })).toBeEnabled();
+    expect(getUploadSessionSnapshot().remainingFiles.every(item => item.prepared === undefined)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    const uploadedNames = mockedAxios.post.mock.calls.map(([, body]) => ((body as FormData).get("name") as File).name);
+    expect(uploadedNames).toEqual(["photo-1.jpg", "photo-2.jpg", "photo-2.jpg", "photo-3.jpg"]);
+  });
+
+  test("Clear all releases a recovered retry queue across remounts", async () => {
+    mockedAxios.post.mockRejectedValueOnce(new Error("invalid photo"));
+    const first = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await screen.findByText(/Upload failed: invalid photo/i);
+    first.unmount();
+    const second = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(getUploadSessionSnapshot().remainingFiles).toEqual([]);
+    second.unmount();
+    render(<Upload_Img event_id="evt_A" />);
+    expect(screen.queryByText(/invalid photo|photos queued/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 0 photos/i })).toBeDisabled();
+  });
+
+  test("same component event changes isolate draft, controls and old worker completion", async () => {
+    let finish!: (value: unknown) => void;
+    mockedAxios.post.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const view = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(view.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await waitFor(() => expect(mockedAxios.post).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    view.rerender(<Upload_Img event_id="evt_B" />);
+    expect(screen.queryByRole("button", { name: /Resume|Cancel upload/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 0 photos/i })).toBeDisabled();
+    fireEvent.change(view.container.querySelector("input[type='file']")!, {
+      target: { files: [new File(["other"], "other.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 1 photo/i }));
+    expect(screen.getByText(/An upload is already running/i)).toBeInTheDocument();
+    await act(async () => { finish({ status: 200, data: [] }); });
+    expect(screen.getByText("other.jpg")).toBeInTheDocument();
+    expect(screen.queryByText(/Successfully uploaded/i)).not.toBeInTheDocument();
+    expect(getUploadSessionSnapshot()).toMatchObject({ eventId: "evt_A", paused: true, uploadedCount: 1 });
+    view.rerender(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.getByText(/1 photo queued/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.post.mock.calls.every(([, body]) => (body as FormData).get("event_id") === "evt_A")).toBe(true);
+  });
+
+  test("same component restores a failed event queue without leaking it to another event", async () => {
+    mockedAxios.post.mockRejectedValueOnce(new Error("invalid photo"));
+    const view = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(view.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await screen.findByText(/Upload failed: invalid photo/i);
+    view.rerender(<Upload_Img event_id="evt_B" />);
+    expect(screen.queryByText(/invalid photo|photos queued/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 0 photos/i })).toBeDisabled();
+    view.rerender(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByText(/Upload failed: invalid photo/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
   });
   test("beforeunload warns only while an upload is active", async () => {
     const addSpy = jest.spyOn(window, "addEventListener");
@@ -467,9 +558,9 @@ describe("Upload_Img component memory safety and batching", () => {
   test("splits DSLR-size photos by byte budget, not just count", () => {
     const elevenMB = 11.5 * 1024 * 1024;
     const files = createSizedFiles(Array.from({ length: 15 }, () => elevenMB));
-    const items = files.map((file, i) => ({ file, preview: "", id: `byte-${i}` }));
+    const items = files.map((file, i) => ({ file, id: `byte-${i}` }));
     const batches = buildByteBudgetedBatches(items);
-    // 15 x 11.5MB = ~172MB must NOT ship as one POST under the 75MB budget
+    // Each request stays below the per-file limit, independently of album size.
     expect(batches.length).toBeGreaterThan(1);
     batches.forEach((b) => {
       expect(b.length).toBeLessThanOrEqual(UPLOAD_BATCH_SIZE);
@@ -504,7 +595,7 @@ describe("Upload_Img component memory safety and batching", () => {
 
     await waitFor(() => {
       const multer = mockedAxios.post.mock.calls.filter(([u]) => u === `${API_URL}/photo`);
-      expect(multer.length).toBe(2);
+      expect(multer.length).toBe(6);
     });
     expect(await screen.findByText(/Successfully uploaded 5 photos/i)).toBeInTheDocument();
   });
@@ -637,6 +728,7 @@ describe("Upload_Img component memory safety and batching", () => {
     const files = ["p1.jpg", "p2.jpg"].map((n, i) => new File([`pause-${i}`], n, { type: "image/jpeg" }));
     fireEvent.change(input, { target: { files } });
     fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await waitFor(() => expect(puts).toBe(1));
     fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
     // In-flight PUT runs to completion; nothing new starts while paused.
     await new Promise((resolve) => { window.setTimeout(resolve, 600); });
@@ -689,6 +781,11 @@ describe("Upload_Img component memory safety and batching", () => {
     });
     const hex = await UploadModule.fileHasher.sha256Hex(new File(["hi"], "hi.jpg", { type: "image/jpeg" }));
     expect(hex).toBe("8f43434600ab0102");
+    const large = createSizedFiles([50 * 1024 * 1024])[0];
+    const read = jest.fn();
+    Object.defineProperty(large, "arrayBuffer", { value: read });
+    expect(await UploadModule.fileHasher.sha256Hex(large)).toBeNull();
+    expect(read).not.toHaveBeenCalled();
   });
 
   test("overallUploadPct caps at 99 even when every batch is complete", () => {

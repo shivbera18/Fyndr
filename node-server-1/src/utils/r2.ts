@@ -3,6 +3,7 @@
 // (same graceful degradation as the original require-in-try).
 import type { S3Client } from "@aws-sdk/client-s3";
 import type * as S3SDK from "@aws-sdk/client-s3";
+import { Readable } from "stream";
 
 let s3: S3Client | null = null;
 try {
@@ -62,8 +63,8 @@ function isPrivateEndpoint(ep?: string): boolean {
 }
 
 export async function getPresignedPut(key: string, contentType = "image/jpeg"): Promise<string | null> {
-  if (!s3 && !s3Public) return null;
   if (!key || typeof key !== "string" || key.includes("..") || key.length > 512) throw new Error("invalid key");
+  if (!s3 && !s3Public) return null;
   const { PutObjectCommand } = require("@aws-sdk/client-s3");
   const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
   const cmd = new PutObjectCommand({
@@ -83,17 +84,29 @@ export async function getPresignedPut(key: string, contentType = "image/jpeg"): 
 export async function getObjectBytes(key: string): Promise<Buffer | null> {
   if (!s3 || !key || typeof key !== "string") return null;
   try {
-    const { GetObjectCommand } = require("@aws-sdk/client-s3");
-    // ponytail: lazy require is untyped, so send() returns the SDK union — any keeps the Body read compiling.
-    // 50MB cap mirrors the stage/multer limits; a bigger object is corrupt, not a photo.
-    const res: any = await s3.send(
+    const { GetObjectCommand } = require("@aws-sdk/client-s3") as typeof S3SDK;
+    // Enforce the cap before buffering, including stores without Content-Length.
+    const maxBytes = 50 * 1024 * 1024;
+    const res = await s3.send(
       new GetObjectCommand({ Bucket: process.env.R2_BUCKET || "fyndr-photos", Key: key }),
       { abortSignal: AbortSignal.timeout(30000) }
     );
-    if (!res || !res.Body || typeof res.Body.transformToByteArray !== "function") return null;
-    const bytes = await res.Body.transformToByteArray();
-    if (!bytes || bytes.length > 50 * 1024 * 1024) return null;
-    return Buffer.from(bytes);
+    const body = res?.Body;
+    if (!(body instanceof Readable)) return null;
+    try {
+      if (typeof res.ContentLength === "number" && res.ContentLength > maxBytes) return null;
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of body) {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        size += bytes.length;
+        if (size > maxBytes) return null;
+        chunks.push(bytes);
+      }
+      return Buffer.concat(chunks, size);
+    } finally {
+      body.destroy?.();
+    }
   } catch (err) {
     console.warn("[r2] GetObject failed for key", key, (err as Error).message);
     return null;

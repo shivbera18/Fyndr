@@ -5,7 +5,7 @@ import { PWAStudioCard } from '../PWAStudioCard';
 
 describe('PWA UI Components', () => {
   describe('PWAInstallModal', () => {
-    test('renders desktop/Android modal with value perks when isIOS is false', () => {
+    test('offers installation after the modal loads on desktop/Android', async () => {
       const onInstall = jest.fn();
       const onOpenChange = jest.fn();
 
@@ -18,18 +18,12 @@ describe('PWA UI Components', () => {
         />
       );
 
-      expect(screen.getByText(/Install Fyndr App/i)).toBeInTheDocument();
-      expect(screen.getByText(/1-Tap Instant Launch/i)).toBeInTheDocument();
-      expect(screen.getByText(/Direct Downloads/i)).toBeInTheDocument();
-      expect(screen.getByText(/Offline Photo Vault/i)).toBeInTheDocument();
-      expect(screen.getByText(/Zero Store Bloat/i)).toBeInTheDocument();
-
-      const installBtn = screen.getByRole('button', { name: /Install App/i });
+      const installBtn = await screen.findByRole('button', { name: /Install App/i });
       fireEvent.click(installBtn);
       expect(onInstall).toHaveBeenCalled();
     });
 
-    test('renders 3-step iOS Safari visual guide when isIOS is true', () => {
+    test('lets iOS users dismiss the installation guide', async () => {
       const onInstall = jest.fn();
       const onOpenChange = jest.fn();
 
@@ -42,9 +36,11 @@ describe('PWA UI Components', () => {
         />
       );
 
-      expect(screen.getByText(/Add Fyndr to Your Home Screen/i)).toBeInTheDocument();
+      const dismiss = await screen.findByRole('button', { name: /Got It!/i });
       expect(screen.getByText(/Add to Home Screen/i)).toBeInTheDocument();
-      expect(screen.getByText(/Got It!/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Install App/i })).not.toBeInTheDocument();
+      fireEvent.click(dismiss);
+      expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
 

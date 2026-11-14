@@ -7,7 +7,7 @@ import pLimit from "p-limit";
 import { UPLOAD_DIR } from "../config";
 import Photo from "../models/Photo";
 import Event from "../models/Event";
-import { Job, enqueue, markFailed } from "../queue/mongoQueue";
+import { Job, enqueue, retryUpload } from "../queue/mongoQueue";
 import { uploadDuration } from "../metrics";
 import logger from "../utils/logger";
 import { deleteObject, getObjectBytes, getPresignedPut, g3Key, headObject } from "../utils/r2";
@@ -32,6 +32,7 @@ async function stagePhoto(
   // transfers ownership to the ingest worker.
   const unlinkQuiet = (p: string): Promise<void> => fs.promises.unlink(p).catch(() => {});
   let hash = "";
+  let transferred = false;
   try {
     hash = await new Promise<string>((resolve, reject) => {
       const h = crypto.createHash("sha256");
@@ -45,10 +46,8 @@ async function stagePhoto(
     return { file: file.originalname, error: "hash failed: " + errMsg(e), status: "failed" };
   }
 
-  // Per-event idempotency: check Photo first (fast path). A queued stub
-  // without bytes anywhere (interrupted direct PUT) adopts this upload's
-  // temp instead of discarding the only bytes — else the stub is
-  // unrecoverable through either path.
+  // Unfinished stubs adopt these hash-checked bytes before publishing a retry.
+  // Failed originals remain in place, so presence alone is never dedup proof.
   try {
     const existingPhoto = await Photo.findOne({ event_id, hash });
     if (existingPhoto) {
@@ -57,30 +56,27 @@ async function stagePhoto(
         existingPhoto.folder_name = folder_name;
         await existingPhoto.save();
       }
-      if (existingPhoto.status === "queued") {
-        const orphans = await stagedBytesPresent(event_id, existingPhoto.name).catch(() => false);
-        if (!orphans) {
-          await fs.promises.rename(file.path, path.join(UPLOAD_DIR, existingPhoto.name)).catch(() => {});
-          return existingPhoto;
-        }
+      if (existingPhoto.status !== "done") {
+        // Stable keys keep both the replaced original and any remote sibling
+        // owned by this Photo; a retry must not leave abandoned generations.
+        await fs.promises.rename(file.path, path.join(UPLOAD_DIR, existingPhoto.name));
+        transferred = true;
+        await retryUpload(event_id, hash, existingPhoto.name, "local");
+        return existingPhoto;
       }
       await unlinkQuiet(file.path);
       return existingPhoto;
     }
-  } catch { /* fall through to queue */ }
+  } catch (error: unknown) {
+    if (!transferred) await unlinkQuiet(file.path);
+    return { file: file.originalname, hash, error: errMsg(error), status: "failed" };
+  }
 
-  let queued: { status: string; photo_hash: string } | null = null;
   try {
-    const j = await enqueue(event_id, hash, file.filename);
-    if (j) queued = { status: String(j.status), photo_hash: String(j.photo_hash) };
+    await enqueue(event_id, hash, file.filename);
   } catch (e: unknown) {
     await unlinkQuiet(file.path);
     return { file: file.originalname, hash, error: errMsg(e), status: "failed" };
-  }
-  if (queued && queued.status === "done") {
-    const existing = await Photo.findOne({ event_id, hash }).catch(() => null);
-    await unlinkQuiet(file.path);
-    return existing || { file: file.originalname, hash, status: "duplicate", photo_id: queued.photo_hash };
   }
 
   const photoId = new mongoose.Types.ObjectId();
@@ -95,16 +91,17 @@ async function stagePhoto(
       status: "queued",
     });
     await stub.save();
+    transferred = true;
+    await retryUpload(event_id, hash, file.filename, "local");
     return stub;
   } catch (e: unknown) {
     if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
-      const dup = await Photo.findOne({ event_id, hash }).catch(() => null);
-      await unlinkQuiet(file.path);
-      return dup || { file: file.originalname, hash, status: "duplicate" };
+      // The winner may be an unfinished direct stub; adopt rather than drop
+      // the only valid bytes. The common path also handles finished duplicates.
+      return stagePhoto(file, ctx);
     }
     const msg = errMsg(e);
-    await markFailed(event_id, hash, msg).catch(() => {});
-    await unlinkQuiet(file.path);
+    if (!transferred) await unlinkQuiet(file.path);
     return { file: file.originalname, hash, error: msg, status: "failed" };
   }
 }
@@ -115,8 +112,9 @@ function errMsg(e: unknown): string {
 
 router.post('/photo', upload.array('name', 100), async (req: Request, res: Response) => {
     const endTimer = uploadDuration.startTimer();
+    const files = (req.files as Express.Multer.File[] | undefined) || [];
+    let stagingStarted = false;
     try {
-        const files = (req.files as Express.Multer.File[] | undefined) || [];
         const body: unknown = req.body;
         const event_id: unknown = body && typeof body === "object" && "event_id" in body ? body.event_id : undefined;
         const upload_by: unknown = body && typeof body === "object" && "upload_by" in body ? body.upload_by : undefined;
@@ -139,20 +137,29 @@ router.post('/photo', upload.array('name', 100), async (req: Request, res: Respo
         // ponytail: stage-1 only — hash + queued stub acks in seconds; ingestWorker owns ML/storage.
         const limit = pLimit(6);
 
+        stagingStarted = true;
         const results: unknown[] = await Promise.all(
-            files.map(file => limit((): Promise<unknown> => stagePhoto(file, { event_id, upload_by, folder_name })))
+            files.map(file => limit(async (): Promise<unknown> => {
+                try {
+                    return await stagePhoto(file, { event_id, upload_by, folder_name });
+                } catch (error: unknown) {
+                    await fs.promises.unlink(file.path).catch(() => {});
+                    return { file: file.originalname, status: "failed", error: errMsg(error) };
+                }
+            }))
         );
 
         const failed = results.filter((r) => typeof r === "object" && r !== null && "error" in r);
-        endTimer();
         // 207 Multi-Status if partial failures, 422 if all failed, 202 queued stubs otherwise
         if (failed.length > 0 && failed.length < results.length) return res.status(207).send(results);
         if (failed.length === results.length) return res.status(422).send(results);
         res.status(202).send(results);
     } catch (error: any) {
         logger.error('[photo] upload error', error);
-        endTimer();
         res.status(500).json({ result: 'An error occurred while uploading images', error: error.message });
+    } finally {
+        if (!stagingStarted) await Promise.all(files.map(file => fs.promises.unlink(file.path).catch(() => {})));
+        endTimer();
     }
 });
 // Direct browser-to-G3: verify bytes, stage a queued stub, mint a PUT URL
@@ -173,16 +180,6 @@ async function resolveStageFolder(eventId: string, wantRaw: unknown): Promise<{ 
   const canonical = valid.find((n) => n.toLowerCase() === want.toLowerCase());
   if (!canonical) return { error: `unknown folder_name. Valid: ${valid.join(", ")}` };
   return { folder: canonical };
-}
-// Tri-state: true = bytes present (local temp or object store), false =
-// absent in both, null = store check errored (outage) — callers must not
-// treat null as absent.
-async function stagedBytesPresent(eventId: string, name: string): Promise<boolean | null> {
-  try {
-    await fs.promises.stat(path.join(UPLOAD_DIR, name));
-    return true;
-  } catch { /* fall through to object store */ }
-  return headObject(`${eventId}/${name}`);
 }
 router.post("/photo/stage", async (req: Request, res: Response) => {
   try {
@@ -205,16 +202,15 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
     if (rf.error || !rf.folder) return res.status(400).send({ error: rf.error });
     const folder_name = rf.folder;
     const hex = hash.toLowerCase();
-    // Duplicate with bytes → done, no upload. Queued stub without bytes
-    // (interrupted PUT) → re-mint the SAME key so the retry overwrites.
+    // Only finished photos deduplicate. An unfinished source may be corrupt;
+    // always require another PUT rather than acknowledging mere byte presence.
     const dup = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
     if (dup) {
       if (dup.folder_name !== folder_name) {
         dup.folder_name = folder_name;
         await dup.save().catch(() => {});
       }
-      const bytes = await stagedBytesPresent(event_id, dup.name);
-      if (dup.status === "done" || bytes === true) {
+      if (dup.status === "done") {
         return res.status(200).send({ duplicate: true, photo: dup });
       }
       const url = await getPresignedPut(`${event_id}/${dup.name}`, contentType).catch(() => null);
@@ -238,7 +234,7 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
       const statusVal = jobDoc && typeof jobDoc === "object" && "status" in jobDoc ? jobDoc.status : undefined;
       if (statusVal === "done") {
         const existing = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
-        if (existing && (existing.status === "done" || (await stagedBytesPresent(event_id, existing.name)) === true)) {
+        if (existing && existing.status === "done") {
           return res.status(200).send({ duplicate: true, photo: existing });
         }
         if (existing) {
@@ -258,7 +254,7 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
     } catch (e: unknown) {
       if (typeof e === "object" && e !== null && "code" in e && e.code === 11000) {
         const d = await Photo.findOne({ event_id, hash: hex }).catch(() => null);
-        if (d && (d.status === "done" || (await stagedBytesPresent(event_id, d.name)) === true)) {
+        if (d && d.status === "done") {
           return res.status(200).send({ duplicate: true, photo: d });
         }
         if (d) {
@@ -269,10 +265,6 @@ router.post("/photo/stage", async (req: Request, res: Response) => {
         return res.status(200).send({ duplicate: true, photo: d });
       }
       const msg = errMsg(e);
-      await markFailed(event_id, hex, msg).catch(() => {});
-      // ponytail: enqueue ran before stub.save — non-dup failure leaves an
-      // orphan Job pointing at nothing; drop it so it never burns claims.
-      await Job.deleteOne({ event_id, photo_hash: hex }).catch(() => {});
       return res.status(422).send({ error: msg });
     }
     return res.status(200).send({ photo: stub, key, uploadUrl, via: "r2", expiresIn: 3600 });
@@ -297,11 +289,8 @@ router.post("/photo/complete", async (req: Request, res: Response) => {
     if (present === null)
       return res.status(503).send({ ok: false, reason: "store-unavailable" });
     if (!present) return res.status(200).send({ ok: false, reason: "object-missing" });
-    if (photo.hash && typeof photo.hash === "string") {
-      await Job.updateOne(
-        { event_id: b.event_id, photo_hash: photo.hash, status: "failed" },
-        { $set: { status: "queued", lastError: null } }
-      ).catch(() => {});
+    if (photo.status !== "done" && photo.hash && typeof photo.hash === "string") {
+      await retryUpload(b.event_id, photo.hash, photo.name, "remote");
     }
     return res.status(200).send({ ok: true });
   } catch (e: unknown) {

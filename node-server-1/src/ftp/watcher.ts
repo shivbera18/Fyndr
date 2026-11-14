@@ -134,8 +134,7 @@ async function ingestFile(srcPath: string, username: string, filename: string, b
   try {
     result = await processUploadedFile(
       { path: dest, filename: diskName, originalname: filename },
-      { event_id: eventId, folder_name: "General" },
-      { skipQueue: true }
+      { event_id: eventId, folder_name: "General" }
     );
   } catch (e: unknown) {
     result = { status: "failed", error: e instanceof Error ? e.message : String(e) };
@@ -162,6 +161,10 @@ async function sweep(root: string): Promise<void> {
         seen.delete(fp);
         continue;
       }
+      // Leave excess files on disk for the next sweep; do not queue photo bytes
+      // or start unbounded ML requests when a camera drops a whole card.
+      if (inflight.size >= 2) return;
+      if (inflight.has(fp)) continue; // another sweep may have claimed it during stat
       if (Date.now() - st.mtimeMs < MIN_AGE_MS || seen.get(fp) !== st.size) {
         seen.set(fp, st.size);
         continue;

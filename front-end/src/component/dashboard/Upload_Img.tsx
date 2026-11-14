@@ -9,18 +9,17 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, isPaused as isUploadPaused, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, startSession as startUploadSession } from "../../utils/uploadSession";
+import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, isPaused as isUploadPaused, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, setRemainingFiles, startSession as startUploadSession, SelectedFile } from "../../utils/uploadSession";
 
-// ponytail: Limit active DOM previews to 12. Decoding 100s of RAW/JPEG bitmaps in the DOM
-// consumes gigabytes of uncompressed RAM and crashes mobile/desktop browser tabs.
+// ponytail: filename tiles avoid full-resolution <img> decodes; even a small
+// compressed photo can expand into hundreds of MB of pixels.
 export const MAX_PREVIEWS = 12;
 
-// ponytail: count-only batches of 15 DSLR photos (~172MB) die on 100MB proxy caps with
-// unretryable ERR_NETWORK. Cap every POST by BYTES so any album uploads on hotel WiFi.
-export const UPLOAD_BATCH_SIZE = 15;
-// ponytail: 3 in-flight batch POSTs saturate the uplink without pinning every server slot; raise only with p95 evidence.
-export const UPLOAD_BATCH_CONCURRENCY = 3;
-export const UPLOAD_BATCH_BYTE_BUDGET = 75 * 1024 * 1024;
+// ponytail: one file/request and one worker bound preparation/hash/FormData
+// memory independently of album size. Raise only with low-RAM measurements.
+export const UPLOAD_BATCH_SIZE = 1;
+export const UPLOAD_BATCH_CONCURRENCY = 1;
+export const UPLOAD_BATCH_BYTE_BUDGET = 50 * 1024 * 1024;
 export const UPLOAD_MAX_ATTEMPTS = 4;
 export const UPLOAD_RETRY_DELAYS_MS = [0, 1500, 3000, 6000];
 export function buildByteBudgetedBatches(files: SelectedFile[]): SelectedFile[][] {
@@ -78,6 +77,9 @@ export function uploadDelayMs(failedAttempt: number): number {
 // Namespace object so tests can stub hashing (jsdom lacks crypto.subtle).
 export const fileHasher = {
   sha256Hex: async (file: Blob): Promise<string | null> => {
+    // ponytail: Web Crypto requires a whole-file ArrayBuffer. Large originals
+    // use multipart instead; the server hashes its disk stream without this copy.
+    if (file.size > 8 * 1024 * 1024) return null;
     try {
       // ponytail: globalThis works in browsers + jsdom alike.
       const subtle = globalThis.crypto?.subtle;
@@ -113,15 +115,6 @@ async function preparedFor(item: SelectedFile): Promise<{ blob: Blob; compressed
   return item.prepared;
 }
 
-export type SelectedFile = {
-  file: File;
-  preview: string;
-  id: string;
-  // ponytail: compressed blob memoized per file so retries reuse bytes;
-  // hash/stage/PUT all use the prepared bytes (server re-hashes actuals).
-  prepared?: { blob: Blob; compressed: boolean };
-};
-
 type Props = {
   event_id: string;
   d_ref?: () => void;
@@ -140,31 +133,23 @@ const formatFileSize = (bytes: number) => {
 
 type PreviewTileProps = {
   id: string;
-  previewUrl: string;
   fileName: string;
   size: number;
   onRemove: (id: string) => void;
   disabled: boolean;
 };
 
-const PreviewTile = React.memo(function PreviewTile({ id, previewUrl, fileName, size, onRemove, disabled }: PreviewTileProps) {
+const PreviewTile = React.memo(function PreviewTile({ id, fileName, size, onRemove, disabled }: PreviewTileProps) {
   return (
     <div
       className="group relative aspect-square rounded-lg overflow-hidden border border-border bg-muted"
       title={fileName}
     >
-      {previewUrl ? (
-        <img
-          src={previewUrl}
-          alt={fileName}
-          loading="lazy"
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground p-1 text-center truncate">
-          {fileName}
-        </div>
-      )}
+      <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground p-2 text-center break-all">
+        <ImagePlus className="h-6 w-6 shrink-0" aria-hidden="true" />
+        <span className="line-clamp-2">{fileName}</span>
+        <span>{formatFileSize(size)}</span>
+      </div>
       <button
         type="button"
         disabled={disabled}
@@ -174,7 +159,7 @@ const PreviewTile = React.memo(function PreviewTile({ id, previewUrl, fileName, 
         }}
         title={`Remove ${fileName} (${formatFileSize(size)})`}
         aria-label={`Remove ${fileName}`}
-        className="absolute top-1 right-1 h-7 w-7 rounded-full bg-black/70 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity disabled:pointer-events-none"
+        className="absolute top-0 right-0 h-11 w-11 rounded-full bg-background/90 text-foreground flex items-center justify-center focus-visible:outline focus-visible:outline-2"
       >
         <X className="h-4 w-4" />
       </button>
@@ -184,17 +169,16 @@ const PreviewTile = React.memo(function PreviewTile({ id, previewUrl, fileName, 
 
 export default function Upload_Img({ event_id, d_ref, folder_name }: Props): React.JSX.Element {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const selectedFilesRef = useRef(selectedFiles);
+  selectedFilesRef.current = selectedFiles;
+  const eventIdRef = useRef(event_id);
+  eventIdRef.current = event_id;
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [progress, setProgress] = useState(0);
   const [batchInfo, setBatchInfo] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [paused, setPaused] = useState(false);
-
-  const filesRef = useRef<SelectedFile[]>([]);
-  filesRef.current = selectedFiles;
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const lastProgressCommitRef = useRef(0);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const USER_ID = (user._id || null) as string | null;
@@ -213,18 +197,12 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     }
     const list = raw.filter((f) => f.size <= MAX_FILE_SIZE);
     if (list.length === 0) return;
-    setSelectedFiles((prev) => {
-      const currentCount = prev.length;
-      const mapped: SelectedFile[] = list.map((file, idx) => {
-        const isWithinPreviewLimit = currentCount + idx < MAX_PREVIEWS;
-        return {
-          file,
-          preview: isWithinPreviewLimit ? URL.createObjectURL(file) : "",
-          id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
-        };
-      });
-      return [...prev, ...mapped];
-    });
+    const next = [...selectedFilesRef.current, ...list.map((file) => ({
+      file,
+      id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+    }))];
+    setSelectedFiles(next);
+    setRemainingFiles(event_id, next);
     setUploadStatus(null);
   };
 
@@ -236,65 +214,37 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   };
 
   const removeFile = useCallback((id: string) => {
-    setSelectedFiles((prev) => {
-      const target = prev.find((f) => f.id === id);
-      if (target && target.preview) {
-        URL.revokeObjectURL(target.preview);
-      }
-      const updated = prev.filter((f) => f.id !== id);
-      return updated.map((item, idx) => {
-        if (idx < MAX_PREVIEWS && !item.preview) {
-          return { ...item, preview: URL.createObjectURL(item.file) };
-        }
-        return item;
-      });
-    });
-  }, []);
+    const next = selectedFilesRef.current.filter(file => file.id !== id);
+    setSelectedFiles(next);
+    setRemainingFiles(event_id, next);
+  }, [event_id]);
 
   const clearAll = useCallback(() => {
-    selectedFiles.forEach((f) => {
-      if (f.preview) URL.revokeObjectURL(f.preview);
-    });
     setSelectedFiles([]);
+    setRemainingFiles(event_id, []);
     setUploadStatus(null);
     setProgress(0);
     setBatchInfo(null);
-  }, [selectedFiles]);
+  }, [event_id]);
 
-  // ponytail: uploads survive in-app navigation — unmount revokes only preview
-  // URLs; the session abort stays alive. Remount for the same event re-attaches
-  // progress listeners; a mismatched event_id ignores the orphan session.
-  // ponytail: adoptedRef latches once this mount observes the active session —
-  // terminal (inactive) emits then still land here to clear loading/show status,
-  // but a fresh mount never replays stale banners with an empty queue.
-  const adoptedRef = useRef(false);
+  // The session owns the retry queue; this view may change events or unmount.
   useEffect(() => {
-    adoptedRef.current = false;
-    const snapshot = getUploadSnapshot();
-    if (snapshot.active && snapshot.eventId === event_id) {
-      adoptedRef.current = true;
-      setLoading(true);
-      setProgress(snapshot.progress);
-      setBatchInfo(snapshot.batchTotal > 0 ? { current: snapshot.batchCurrent, total: snapshot.batchTotal } : null);
-      setUploadStatus(snapshot.status);
-      setPaused(snapshot.paused);
-    }
-    const detach = attachUploadSession((next) => {
+    setSelectedFiles([]);
+    setLoading(false);
+    setProgress(0);
+    setBatchInfo(null);
+    setUploadStatus(null);
+    setPaused(false);
+    setIsDragging(false);
+    return attachUploadSession((next) => {
       if (next.eventId !== event_id) return;
-      if (next.active) adoptedRef.current = true;
-      if (!next.active && !adoptedRef.current) return;
+      setSelectedFiles(next.remainingFiles);
       setLoading(next.active);
       setProgress(next.progress);
-      setBatchInfo(next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
+      setBatchInfo(next.active && next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
       setUploadStatus(next.status);
       setPaused(next.paused);
     });
-    return () => {
-      filesRef.current.forEach((f) => {
-        if (f.preview) URL.revokeObjectURL(f.preview);
-      });
-      detach();
-    };
   }, [event_id]);
   // ponytail: in-app navigation is safe (session survives remount), so only
   // a full reload/close needs a warning — in-memory queue restarts there.
@@ -332,8 +282,6 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
 
   const cancelUpload = () => {
     cancelUploadSession();
-    abortControllerRef.current = null;
-    setLoading(false);
     setPaused(false);
     setUploadStatus({ kind: "error", text: "Upload cancelled by user." });
   };
@@ -346,28 +294,180 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     setPaused(false);
   };
 
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0 || !event_id || loading) return;
+  const handleUpload = () => {
+    if (selectedFilesRef.current.length === 0 || !event_id || loading) return;
+    if (getUploadSnapshot().active) {
+      setUploadStatus({ kind: "error", text: "An upload is already running. Return to that event to pause or cancel it." });
+      return;
+    }
 
-    setLoading(true);
-    setUploadStatus(null);
-    lastProgressCommitRef.current = 0;
-    setProgress(0);
+    const totalFilesCount = selectedFilesRef.current.length;
+    const totalBatches = totalFilesCount;
+    const abortController = startUploadSession(event_id, selectedFilesRef.current, totalBatches);
+    void runUpload(event_id, folder_name, USER_ID, totalFilesCount, abortController, eventIdRef, d_ref);
+  };
 
-    const allFiles = [...selectedFiles];
-    const totalFilesCount = allFiles.length;
-    const batches = buildByteBudgetedBatches(allFiles);
-    const totalBatches = batches.length;
-    const abortController = startUploadSession(event_id, totalFilesCount, totalBatches);
-    abortControllerRef.current = abortController;
+  const previewItems = selectedFiles.slice(0, MAX_PREVIEWS);
+  const remainingCount = selectedFiles.length - previewItems.length;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle className="text-lg font-semibold">Upload event photos</CardTitle>
+        <Badge variant="brand">Auto AI indexing</Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <label
+          htmlFor="album-file-input"
+          onDragOver={loading ? undefined : handleDragOver}
+          onDragLeave={loading ? undefined : handleDragLeave}
+          onDrop={handleDrop}
+          aria-disabled={loading}
+          className={cn(
+            "flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 min-h-[140px] cursor-pointer transition-colors text-center",
+            loading && "opacity-60 cursor-not-allowed",
+            isDragging
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-primary/50 bg-muted/20 hover:bg-muted/40"
+          )}
+        >
+          <input
+            id="album-file-input"
+            type="file"
+            multiple
+            accept="image/*"
+            className="sr-only"
+            disabled={loading}
+            onChange={handleFileChange}
+          />
+          <ImagePlus className="h-8 w-8 text-muted-foreground/60 mb-2" />
+          <strong className="text-sm font-medium text-foreground">
+            {loading ? "Uploading — please wait, drop is paused" : isDragging ? "Drop photos here to queue" : "Click to select photos or drag & drop here"}
+          </strong>
+          <span className="text-xs text-muted-foreground mt-1">
+            Supports JPG, PNG, WEBP — One photo at a time to limit upload memory
+          </span>
+        </label>
+
+        {selectedFiles.length > 0 && (
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">
+                {selectedFiles.length} photo{selectedFiles.length > 1 ? "s" : ""} queued ({formatFileSize(totalSize)})
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={clearAll} disabled={loading} className="h-8 text-xs">
+                  Clear all
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {previewItems.map((item) => (
+                <PreviewTile
+                  key={item.id}
+                  id={item.id}
+                  fileName={item.file.name}
+                  size={item.file.size}
+                  onRemove={removeFile}
+                  disabled={loading}
+                />
+              ))}
+
+              {remainingCount > 0 && (
+                <div className="aspect-square rounded-lg border border-dashed border-border bg-muted/40 p-3 flex flex-col items-center justify-center text-center">
+                  <span className="text-sm font-semibold text-foreground">+{remainingCount}</span>
+                  <span className="text-xs text-muted-foreground mt-0.5">more queued</span>
+                  <span className="text-[10px] text-muted-foreground/70 mt-1">
+                    (RAM protected)
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {uploadStatus && (
+          <div className="space-y-2 pt-2">
+            <div
+              className={`rounded-lg p-3 text-sm font-medium border ${
+                uploadStatus.kind === "success"
+                  ? "bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800"
+                  : "bg-destructive/10 text-destructive border-destructive/20"
+              }`}
+            >
+              {uploadStatus.text}
+            </div>
+          </div>
+        )}
+
+        {loading && (
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {paused
+                  ? `Paused (${getUploadSnapshot().uploadedCount} of ${getUploadSnapshot().totalFiles}, ${progress}%)`
+                  : batchInfo
+                    ? `Uploaded ${getUploadSnapshot().uploadedCount} of ${getUploadSnapshot().totalFiles} photos (${progress}%)`
+                    : `Uploading (${progress}%)`}
+              </span>
+              <span>One photo at a time</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{paused ? "Paused — the current photo may finish; no new photo will start." : "Pause stops new photos; the current transfer is allowed to finish."}</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={paused ? resumeUpload : pauseUpload} title={paused ? "Resume the upload queue" : "Pause after the current file finishes — in-flight bytes run to completion"} className="h-8 text-xs min-h-[44px]">
+                {paused ? "Resume" : "Pause"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive min-h-[44px]">
+                Cancel upload
+              </Button>
+            </div>
+            <div role="progressbar" aria-label="Photo upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-2 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300 rounded-full"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <Button
+          type="button"
+          onClick={handleUpload}
+          disabled={loading || selectedFiles.length === 0}
+          loading={loading}
+          className="w-full sm:w-auto min-h-[44px] flex items-center gap-2"
+        >
+          <Upload className="h-4 w-4" />
+          {loading
+            ? `Uploading (${progress}%)…`
+            : `Upload ${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"} (${formatFileSize(totalSize)}) →`}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Keep the worker outside React so it cannot retain an unmounted view's state.
+async function runUpload(
+  event_id: string,
+  folder_name: string | undefined,
+  USER_ID: string | null,
+  totalFilesCount: number,
+  abortController: AbortController,
+  eventIdRef: React.MutableRefObject<string>,
+  d_ref: Props["d_ref"],
+): Promise<void> {
+  const totalBatches = totalFilesCount;
+  const lastProgressCommitRef = { current: 0 };
     let uploadedCount = 0;
-    // ponytail: shared across concurrent batches — caption only when every file compressed.
+    // Caption only when every fallback file was compressed.
     let hadFallback = false;
     let allCompressed = true;
 
     try {
       // ponytail: aggregate progress via fractions so concurrent batches share one ref-throttled bar.
-      const batchFractions: number[] = batches.map(() => 0);
+      const batchFractions: number[] = Array(totalBatches).fill(0);
       let nextBatchIdx = 0;
       let completedBatches = 0;
       let batchFailed = false;
@@ -380,14 +480,14 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
           lastProgressCommitRef.current = now;
           const pct = overallUploadPct(batchFractions, totalFilesCount);
-          setProgress(pct);
-          reportUploadProgress({ fractions: batchFractions, progress: pct }, event_id);
+          reportUploadProgress({ progress: pct }, event_id);
         }
       };
 
       // ponytail: pause gates scheduling, never bytes — in-flight PUT/POST run
       // to completion; nothing new starts while paused. Abort wins immediately.
       const waitWhilePaused = async () => {
+        if (abortController.signal.aborted) throw new Error("CanceledError");
         while (isUploadPaused()) {
           if (abortController.signal.aborted) throw new Error("CanceledError");
           const signal = abortController.signal;
@@ -407,6 +507,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             signal.addEventListener("abort", onAbort, { once: true });
           });
         }
+        if (abortController.signal.aborted) throw new Error("CanceledError");
       };
       const uploadBatch = async (batchIdx: number): Promise<void> => {
         if (abortController.signal.aborted) {
@@ -415,16 +516,18 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         // ponytail: no start-of-batch counter — batchIdx order races under
         // concurrency and a sibling failure could paint a count for a batch that never ran.
 
-        const currentBatch = batches[batchIdx];
+        const currentBatch = getUploadSnapshot().remainingFiles.slice(0, UPLOAD_BATCH_SIZE);
 
         // Direct browser-to-G3 per file; falls back to legacy multipart POST
         // when the store is unconfigured, hashing is unavailable, or a stage
         // call answers local. Same retry/cancel/progress scaffolding below.
         const uploadOneDirect = async (item: SelectedFile, slot: number): Promise<boolean> => {
           const { blob, compressed } = await preparedFor(item);
+          await waitWhilePaused();
           const type = compressed ? "image/jpeg" : item.file.type;
           const hash = await fileHasher.sha256Hex(blob);
           if (!hash) return false;
+          await waitWhilePaused();
           let stage: {
             duplicate?: boolean; photo?: { _id?: string }; key?: string | null;
             uploadUrl?: string | null; via?: string;
@@ -466,6 +569,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           if (!stage || stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
           const photoId = stage.photo && typeof stage.photo._id === "string" ? stage.photo._id : null;
           if (!photoId) return false;
+          await waitWhilePaused();
           await axios.put(stage.uploadUrl, blob, {
             headers: { "Content-Type": type || "image/jpeg" },
             signal: abortController.signal,
@@ -518,31 +622,20 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         if (needFallback.length === 0) {
           if (abortController.signal.aborted) throw new Error("CanceledError");
           if (batchFailed) throw firstError ?? new Error("CanceledError");
-          setUploadStatus(null);
+          reportUploadProgress({ status: null }, event_id);
           uploadedCount += currentBatch.length;
           batchFractions[batchIdx] = currentBatch.length;
           completedBatches += 1;
-          setBatchInfo({ current: Math.min(completedBatches, totalBatches), total: totalBatches });
-          setSelectedFiles((prev) => {
-            const uploadedIds = new Set(currentBatch.map((b) => b.id));
-            prev.forEach((item) => {
-              if (uploadedIds.has(item.id) && item.preview) URL.revokeObjectURL(item.preview);
-            });
-            const remaining = prev.filter((item) => !uploadedIds.has(item.id));
-            return remaining.map((item, idx) => {
-              if (idx < MAX_PREVIEWS && !item.preview) return { ...item, preview: URL.createObjectURL(item.file) };
-              return item;
-            });
-          });
+          currentBatch.forEach(item => { delete item.prepared; });
           const overallPct = overallUploadPct(batchFractions, totalFilesCount);
           lastProgressCommitRef.current = Date.now();
-          setProgress(overallPct);
-          reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
+          reportUploadProgress({ progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, remainingFiles: getUploadSnapshot().remainingFiles.slice(currentBatch.length) }, event_id);
           return;
         }
         let attempt = 0;
         // ponytail: compress once per file (memoized); server originalname
         // stays the photographer's filename, dedup hash is content-based.
+        await waitWhilePaused();
         const preparedFallback = await Promise.all(needFallback.map((item) => preparedFor(item)));
         if (preparedFallback.length > 0) {
           hadFallback = true;
@@ -550,6 +643,7 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         }
         for (;;) {
           attempt += 1;
+          await waitWhilePaused();
           try {
             const formData = new FormData();
             needFallback.forEach((item, i) => {
@@ -595,11 +689,13 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             if (!isRetryableUploadError(attemptErr) || attempt >= UPLOAD_MAX_ATTEMPTS) {
               throw attemptErr;
             }
-            setBatchInfo({ current: Math.min(completedBatches + 1, totalBatches), total: totalBatches });
-            setUploadStatus({
-              kind: "error",
-              text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
-            });
+            reportUploadProgress({
+              batchCurrent: Math.min(completedBatches + 1, totalBatches),
+              status: {
+                kind: "error",
+                text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
+              },
+            }, event_id);
             // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
             const waitMs = uploadDelayMs(attempt);
             // ponytail: pause freezes the retry countdown — sleep in capped slices so
@@ -637,39 +733,22 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         if (batchFailed) {
           throw firstError ?? new Error("CanceledError");
         }
-        setUploadStatus(null);
+        reportUploadProgress({ status: null }, event_id);
         uploadedCount += currentBatch.length;
         batchFractions[batchIdx] = currentBatch.length;
         completedBatches += 1;
-        setBatchInfo({ current: Math.min(completedBatches, totalBatches), total: totalBatches });
-        setSelectedFiles((prev) => {
-          const uploadedIds = new Set(currentBatch.map((b) => b.id));
-          prev.forEach((item) => {
-            if (uploadedIds.has(item.id) && item.preview) {
-              URL.revokeObjectURL(item.preview);
-            }
-          });
-          const remaining = prev.filter((item) => !uploadedIds.has(item.id));
-          return remaining.map((item, idx) => {
-            if (idx < MAX_PREVIEWS && !item.preview) {
-              return { ...item, preview: URL.createObjectURL(item.file) };
-            }
-            return item;
-          });
-        });
+        currentBatch.forEach(item => { delete item.prepared; });
         const overallPct = overallUploadPct(batchFractions, totalFilesCount);
         lastProgressCommitRef.current = Date.now();
-        setProgress(overallPct);
-        reportUploadProgress({ fractions: batchFractions, progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
+        reportUploadProgress({ progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, remainingFiles: getUploadSnapshot().remainingFiles.slice(currentBatch.length) }, event_id);
       };
 
-      // ponytail: 3-slot pool over the same per-batch body — serial awaits left the uplink idle behind one slow batch.
+      // A single worker keeps decoded images, hashes, and request bodies bounded.
       const worker = async (): Promise<void> => {
         for (;;) {
-          if (batchFailed) return;
+          if (batchFailed || nextBatchIdx >= totalBatches) return;
           await waitWhilePaused();
           const batchIdx = nextBatchIdx;
-          if (batchIdx >= totalBatches) return;
           nextBatchIdx += 1;
           try {
             await uploadBatch(batchIdx);
@@ -687,14 +766,10 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
         kind: "success" as const,
         text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback && allCompressed ? " Optimized for fast upload, original quality." : ""}`,
       };
-      setUploadStatus(successStatus);
-      setProgress(100);
-      reportUploadProgress({ fractions: batchFractions, progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus }, event_id);
-      endUploadSession(event_id);
-       setBatchInfo(null);
-       if (d_ref) {
-         setTimeout(() => d_ref(), 800);
-       }
+      reportUploadProgress({ progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus }, event_id);
+      if (d_ref) {
+        setTimeout(() => { if (eventIdRef.current === event_id) d_ref(); }, 800);
+      }
     } catch (err: unknown) {
       if (
         abortController.signal.aborted ||
@@ -705,7 +780,6 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
           kind: "error" as const,
           text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
         };
-        setUploadStatus(cancelledStatus);
         reportUploadProgress({ uploadedCount, status: cancelledStatus }, event_id);
       } else {
         let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
@@ -727,153 +801,9 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
             ? `Uploaded ${uploadedCount} of ${totalFilesCount} photos. Batch failed: ${message}. Click Upload to retry remaining photos.`
             : `Upload failed: ${message}. Please try again.`,
         };
-        setUploadStatus(failedStatus);
         reportUploadProgress({ uploadedCount, status: failedStatus }, event_id);
       }
     } finally {
-      setLoading(false);
-      abortControllerRef.current = null;
-      if (getUploadSnapshot().active) endUploadSession(event_id);
+      endUploadSession(event_id);
     }
-  };
-
-  const previewItems = selectedFiles.slice(0, MAX_PREVIEWS);
-  const remainingCount = selectedFiles.length - previewItems.length;
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-lg font-semibold">Upload event photos</CardTitle>
-        <Badge variant="brand">Auto AI indexing</Badge>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <label
-          htmlFor="album-file-input"
-          onDragOver={loading ? undefined : handleDragOver}
-          onDragLeave={loading ? undefined : handleDragLeave}
-          onDrop={handleDrop}
-          aria-disabled={loading}
-          className={cn(
-            "flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 min-h-[140px] cursor-pointer transition-colors text-center",
-            loading && "opacity-60 cursor-not-allowed",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50 bg-muted/20 hover:bg-muted/40"
-          )}
-        >
-          <input
-            id="album-file-input"
-            type="file"
-            multiple
-            accept="image/*"
-            className="sr-only"
-            disabled={loading}
-            onChange={handleFileChange}
-          />
-          <ImagePlus className="h-8 w-8 text-muted-foreground/60 mb-2" />
-          <strong className="text-sm font-medium text-foreground">
-            {loading ? "Uploading — please wait, drop is paused" : isDragging ? "Drop photos here to queue" : "Click to select photos or drag & drop here"}
-          </strong>
-          <span className="text-xs text-muted-foreground mt-1">
-            Supports JPG, PNG, WEBP — Batched memory-safe uploads for large albums (GBs supported)
-          </span>
-        </label>
-
-        {selectedFiles.length > 0 && (
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">
-                {selectedFiles.length} photo{selectedFiles.length > 1 ? "s" : ""} queued ({formatFileSize(totalSize)})
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={clearAll} disabled={loading} className="h-8 text-xs">
-                  Clear all
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-              {previewItems.map((item) => (
-                <PreviewTile
-                  key={item.id}
-                  id={item.id}
-                  previewUrl={item.preview}
-                  fileName={item.file.name}
-                  size={item.file.size}
-                  onRemove={removeFile}
-                  disabled={loading}
-                />
-              ))}
-
-              {remainingCount > 0 && (
-                <div className="aspect-square rounded-lg border border-dashed border-border bg-muted/40 p-3 flex flex-col items-center justify-center text-center">
-                  <span className="text-sm font-semibold text-foreground">+{remainingCount}</span>
-                  <span className="text-xs text-muted-foreground mt-0.5">more queued</span>
-                  <span className="text-[10px] text-muted-foreground/70 mt-1">
-                    (RAM protected)
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {uploadStatus && (
-          <div className="space-y-2 pt-2">
-            <div
-              className={`rounded-lg p-3 text-sm font-medium border ${
-                uploadStatus.kind === "success"
-                  ? "bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800"
-                  : "bg-destructive/10 text-destructive border-destructive/20"
-              }`}
-            >
-              {uploadStatus.text}
-            </div>
-          </div>
-        )}
-
-        {loading && (
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {paused
-                  ? `Paused (${getUploadSnapshot().uploadedCount} of ${getUploadSnapshot().totalFiles}, ${progress}%)`
-                  : batchInfo
-                    ? `Batch ${batchInfo.current} of ${batchInfo.total} (${progress}%)`
-                    : `Uploading (${progress}%)`}
-              </span>
-              <span>Memory-safe stream</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={paused ? resumeUpload : pauseUpload} title={paused ? "Resume the upload queue" : "Pause after the current file finishes — in-flight bytes run to completion"} className="h-8 text-xs min-h-[44px]">
-                {paused ? "Resume" : "Pause"}
-              </Button>
-              <Button variant="outline" size="sm" onClick={cancelUpload} className="h-8 text-xs text-destructive hover:text-destructive min-h-[44px]">
-                Cancel upload
-              </Button>
-            </div>
-            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300 rounded-full"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        <Button
-          type="button"
-          onClick={handleUpload}
-          disabled={loading || selectedFiles.length === 0}
-          loading={loading}
-          className="w-full sm:w-auto min-h-[44px] flex items-center gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          {loading
-            ? `Uploading (${progress}%)…`
-            : `Upload ${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"} (${formatFileSize(totalSize)}) →`}
-        </Button>
-      </CardContent>
-    </Card>
-  );
 }

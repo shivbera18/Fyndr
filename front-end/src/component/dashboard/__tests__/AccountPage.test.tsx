@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { BrowserRouter } from "react-router-dom";
 import AccountPage from "../AccountPage";
@@ -36,7 +36,7 @@ describe("AccountPage Component", () => {
     jest.restoreAllMocks();
   });
 
-  it("renders the account hero section with initials, name, and verified badge", async () => {
+  it("renders the signed-in identity in the account content", async () => {
     render(
       <BrowserRouter>
         <AccountPage />
@@ -44,9 +44,10 @@ describe("AccountPage Component", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Aria Sterling")).toBeInTheDocument();
-      expect(screen.getByText("aria@sterlingstudios.com")).toBeInTheDocument();
-      expect(screen.getByText("Verified Pro")).toBeInTheDocument();
+      const account = within(screen.getByRole("main"));
+      expect(account.getByRole("heading", { level: 1, name: "Aria Sterling" })).toBeInTheDocument();
+      expect(account.getByText("aria@sterlingstudios.com")).toBeInTheDocument();
+      expect(account.getByTitle("Verified Account")).toBeInTheDocument();
     });
   });
 

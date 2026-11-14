@@ -5,6 +5,7 @@ const jobSchema = new mongoose.Schema(
     event_id: { type: String, required: true, index: true },
     photo_hash: { type: String, required: true },
     photo_name: String,
+    source: { type: String, enum: ["local", "remote"] },
     status: {
       type: String,
       enum: ["queued", "processing", "done", "failed"],
@@ -12,6 +13,7 @@ const jobSchema = new mongoose.Schema(
       index: true,
     },
     attempts: { type: Number, default: 0 },
+    lease: String,
     lastError: String,
   },
   { timestamps: true }
