@@ -453,6 +453,25 @@ export default function AdminPage() {
               ))
             )}
           </Card>
+          <Card className="border-destructive/40 bg-destructive/5 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-destructive">Danger Zone: Revoke &amp; Purge All Auth Keys</div>
+                <p className="text-xs text-muted-foreground">
+                  Revokes tokens with Google&apos;s OAuth servers and wipes all stored credentials from the local database. Forces a fresh login.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="min-h-[44px] shrink-0"
+                disabled={revoking}
+                onClick={() => void revokeAll()}
+              >
+                {revoking ? "Revoking…" : "Revoke & Remove All Auth Keys"}
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
       {tab === "g3" && (
@@ -522,6 +541,25 @@ export default function AdminPage() {
             <p className="mt-1 text-muted-foreground">
               <strong>Action required:</strong> In Google Cloud Console &rarr; APIs &amp; Services &rarr; OAuth consent screen &rarr; set Publishing status to <strong>&ldquo;In Production&rdquo;</strong> to make tokens permanent.
             </p>
+          </Card>
+          <Card className="border-destructive/40 bg-destructive/5 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-destructive">Danger Zone: Revoke &amp; Purge All Auth Keys</div>
+                <p className="text-xs text-muted-foreground">
+                  Revokes tokens with Google&apos;s OAuth servers and wipes all stored credentials from the local database. Forces a fresh login.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="min-h-[44px] shrink-0"
+                disabled={revoking}
+                onClick={() => void revokeAll()}
+              >
+                {revoking ? "Revoking…" : "Revoke & Remove All Auth Keys"}
+              </Button>
+            </div>
           </Card>
         </div>
       )}
