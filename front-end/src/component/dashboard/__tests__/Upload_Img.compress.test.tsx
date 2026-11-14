@@ -157,4 +157,34 @@ describe("Upload_Img compression wiring", () => {
     await act(async () => { finishPut({ status: 200 }); });
     expect(await screen.findByText(/Successfully uploaded 1 photo/i)).toBeInTheDocument();
   });
+
+  test("cancel after remount releases prepared bytes and retries only remaining originals", async () => {
+    // TS 4.9/browser targets do not provide Promise.withResolvers.
+    let finishPreparation!: (value: clientImage.PreparedImage) => void;
+    (clientImage.prepareUploadImage as jest.Mock).mockImplementationOnce(() => new Promise(resolve => {
+      finishPreparation = resolve;
+    }));
+    const first = render(<Upload_Img event_id="evt_test_1" />);
+    const original = new File(["original"], "original.jpg", { type: "image/jpeg" });
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: [original] } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 1 photo/i }));
+    await waitFor(() => expect(clientImage.prepareUploadImage).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    first.unmount();
+    render(<Upload_Img event_id="evt_test_1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Cancel upload/i }));
+    await act(async () => {
+      finishPreparation({ blob: new Blob(["prepared"]), compressed: true, width: 1, height: 1 });
+    });
+    const retry = screen.getByRole("button", { name: /Upload 1 photo/i });
+    expect(retry).toBeEnabled();
+    expect(getSnapshot().remainingFiles[0].file).toBe(original);
+    expect(getSnapshot().remainingFiles[0].prepared).toBeUndefined();
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+    expect(mockedAxios.put).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    expect(await screen.findByText(/Successfully uploaded 1 photo/i)).toBeInTheDocument();
+    expect(clientImage.prepareUploadImage).toHaveBeenCalledTimes(2);
+    expect(getSnapshot().remainingFiles).toEqual([]);
+  });
 });

@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, isPaused as isUploadPaused, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, startSession as startUploadSession } from "../../utils/uploadSession";
+import { attach as attachUploadSession, cancelSession as cancelUploadSession, endSession as endUploadSession, getSnapshot as getUploadSnapshot, isPaused as isUploadPaused, pauseSession as pauseUploadSession, reportProgress as reportUploadProgress, resumeSession as resumeUploadSession, setRemainingFiles, startSession as startUploadSession, SelectedFile } from "../../utils/uploadSession";
 
 // ponytail: filename tiles avoid full-resolution <img> decodes; even a small
 // compressed photo can expand into hundreds of MB of pixels.
@@ -115,14 +115,6 @@ async function preparedFor(item: SelectedFile): Promise<{ blob: Blob; compressed
   return item.prepared;
 }
 
-export type SelectedFile = {
-  file: File;
-  id: string;
-  // ponytail: compressed blob memoized per file so retries reuse bytes;
-  // hash/stage/PUT all use the prepared bytes (server re-hashes actuals).
-  prepared?: { blob: Blob; compressed: boolean };
-};
-
 type Props = {
   event_id: string;
   d_ref?: () => void;
@@ -177,14 +169,16 @@ const PreviewTile = React.memo(function PreviewTile({ id, fileName, size, onRemo
 
 export default function Upload_Img({ event_id, d_ref, folder_name }: Props): React.JSX.Element {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const selectedFilesRef = useRef(selectedFiles);
+  selectedFilesRef.current = selectedFiles;
+  const eventIdRef = useRef(event_id);
+  eventIdRef.current = event_id;
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [progress, setProgress] = useState(0);
   const [batchInfo, setBatchInfo] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [paused, setPaused] = useState(false);
-
-  const lastProgressCommitRef = useRef(0);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const USER_ID = (user._id || null) as string | null;
@@ -203,10 +197,12 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     }
     const list = raw.filter((f) => f.size <= MAX_FILE_SIZE);
     if (list.length === 0) return;
-    setSelectedFiles((prev) => [...prev, ...list.map((file) => ({
+    const next = [...selectedFilesRef.current, ...list.map((file) => ({
       file,
       id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
-    }))]);
+    }))];
+    setSelectedFiles(next);
+    setRemainingFiles(event_id, next);
     setUploadStatus(null);
   };
 
@@ -218,46 +214,37 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
   };
 
   const removeFile = useCallback((id: string) => {
-    setSelectedFiles((prev) => prev.filter((file) => file.id !== id));
-  }, []);
+    const next = selectedFilesRef.current.filter(file => file.id !== id);
+    setSelectedFiles(next);
+    setRemainingFiles(event_id, next);
+  }, [event_id]);
 
   const clearAll = useCallback(() => {
     setSelectedFiles([]);
+    setRemainingFiles(event_id, []);
     setUploadStatus(null);
     setProgress(0);
     setBatchInfo(null);
-  }, []);
+  }, [event_id]);
 
-  // ponytail: uploads survive in-app navigation; remount for the same event
-  // re-attaches progress listeners without starting another queue.
-  // ponytail: adoptedRef latches once this mount observes the active session —
-  // terminal (inactive) emits then still land here to clear loading/show status,
-  // but a fresh mount never replays stale banners with an empty queue.
-  const adoptedRef = useRef(false);
+  // The session owns the retry queue; this view may change events or unmount.
   useEffect(() => {
-    adoptedRef.current = false;
-    const snapshot = getUploadSnapshot();
-    if (snapshot.active && snapshot.eventId === event_id) {
-      adoptedRef.current = true;
-      setLoading(true);
-      setProgress(snapshot.progress);
-      setBatchInfo(snapshot.batchTotal > 0 ? { current: snapshot.batchCurrent, total: snapshot.batchTotal } : null);
-      setUploadStatus(snapshot.status);
-      setPaused(snapshot.paused);
-    }
-    const detach = attachUploadSession((next) => {
+    setSelectedFiles([]);
+    setLoading(false);
+    setProgress(0);
+    setBatchInfo(null);
+    setUploadStatus(null);
+    setPaused(false);
+    setIsDragging(false);
+    return attachUploadSession((next) => {
       if (next.eventId !== event_id) return;
-      if (next.active) adoptedRef.current = true;
-      if (!next.active && !adoptedRef.current) return;
+      setSelectedFiles(next.remainingFiles);
       setLoading(next.active);
       setProgress(next.progress);
-      setBatchInfo(next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
+      setBatchInfo(next.active && next.batchTotal > 0 ? { current: next.batchCurrent, total: next.batchTotal } : null);
       setUploadStatus(next.status);
       setPaused(next.paused);
     });
-    return () => {
-      detach();
-    };
   }, [event_id]);
   // ponytail: in-app navigation is safe (session survives remount), so only
   // a full reload/close needs a warning — in-memory queue restarts there.
@@ -307,382 +294,17 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
     setPaused(false);
   };
 
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0 || !event_id || loading) return;
+  const handleUpload = () => {
+    if (selectedFilesRef.current.length === 0 || !event_id || loading) return;
     if (getUploadSnapshot().active) {
       setUploadStatus({ kind: "error", text: "An upload is already running. Return to that event to pause or cancel it." });
       return;
     }
 
-    setLoading(true);
-    setUploadStatus(null);
-    lastProgressCommitRef.current = 0;
-    setProgress(0);
-
-    const allFiles = [...selectedFiles];
-    const totalFilesCount = allFiles.length;
-    const batches = buildByteBudgetedBatches(allFiles);
-    const totalBatches = batches.length;
-    const abortController = startUploadSession(event_id, totalFilesCount, totalBatches);
-    let uploadedCount = 0;
-    // Caption only when every fallback file was compressed.
-    let hadFallback = false;
-    let allCompressed = true;
-
-    try {
-      // ponytail: aggregate progress via fractions so concurrent batches share one ref-throttled bar.
-      const batchFractions: number[] = batches.map(() => 0);
-      let nextBatchIdx = 0;
-      let completedBatches = 0;
-      let batchFailed = false;
-      // First worker error wins: without this, a sibling's failure throws a
-      // generic CanceledError that hides the real per-batch error below.
-      let firstError: unknown = null;
-
-      const commitAggregateProgress = () => {
-        const now = Date.now();
-        if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
-          lastProgressCommitRef.current = now;
-          const pct = overallUploadPct(batchFractions, totalFilesCount);
-          setProgress(pct);
-          reportUploadProgress({ progress: pct }, event_id);
-        }
-      };
-
-      // ponytail: pause gates scheduling, never bytes — in-flight PUT/POST run
-      // to completion; nothing new starts while paused. Abort wins immediately.
-      const waitWhilePaused = async () => {
-        if (abortController.signal.aborted) throw new Error("CanceledError");
-        while (isUploadPaused()) {
-          if (abortController.signal.aborted) throw new Error("CanceledError");
-          const signal = abortController.signal;
-          await new Promise<void>((resolve, reject) => {
-            if (signal.aborted) {
-              reject(new Error("CanceledError"));
-              return;
-            }
-            const onAbort = () => {
-              window.clearTimeout(timer);
-              reject(new Error("CanceledError"));
-            };
-            const timer = window.setTimeout(() => {
-              signal.removeEventListener("abort", onAbort);
-              resolve();
-            }, PROGRESS_COMMIT_INTERVAL_MS);
-            signal.addEventListener("abort", onAbort, { once: true });
-          });
-        }
-        if (abortController.signal.aborted) throw new Error("CanceledError");
-      };
-      const uploadBatch = async (batchIdx: number): Promise<void> => {
-        if (abortController.signal.aborted) {
-          throw new Error("CanceledError");
-        }
-        // ponytail: no start-of-batch counter — batchIdx order races under
-        // concurrency and a sibling failure could paint a count for a batch that never ran.
-
-        const currentBatch = batches[batchIdx];
-
-        // Direct browser-to-G3 per file; falls back to legacy multipart POST
-        // when the store is unconfigured, hashing is unavailable, or a stage
-        // call answers local. Same retry/cancel/progress scaffolding below.
-        const uploadOneDirect = async (item: SelectedFile, slot: number): Promise<boolean> => {
-          const { blob, compressed } = await preparedFor(item);
-          await waitWhilePaused();
-          const type = compressed ? "image/jpeg" : item.file.type;
-          const hash = await fileHasher.sha256Hex(blob);
-          if (!hash) return false;
-          await waitWhilePaused();
-          let stage: {
-            duplicate?: boolean; photo?: { _id?: string }; key?: string | null;
-            uploadUrl?: string | null; via?: string;
-          };
-          try {
-            const res = await axios.post(
-              `${API_URL}/photo/stage`,
-              {
-                event_id,
-                hash,
-                filename: item.file.name,
-                size: blob.size,
-                contentType: type,
-                folder_name,
-                upload_by: USER_ID ?? undefined,
-              },
-              { signal: abortController.signal, timeout: 0 }
-            );
-            stage = res.data;
-          } catch (stageErr: unknown) {
-            // ponytail: abort during stage must cancel now, not degrade to fallback.
-            if (
-              abortController.signal.aborted ||
-              (typeof axios.isCancel === "function" && axios.isCancel(stageErr)) ||
-              (stageErr instanceof Error && (stageErr.name === "CanceledError" || stageErr.message === "CanceledError"))
-            ) {
-              throw stageErr;
-            }
-            return false;
-          }
-          // ponytail: backend only reports duplicate when bytes are present
-          // (local or G3), so done here is real — no blind trust. Falsy stage
-          // (empty body) must fall back, never count as success.
-          if (stage && stage.duplicate) {
-            batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
-            commitAggregateProgress();
-            return true;
-          }
-          if (!stage || stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
-          const photoId = stage.photo && typeof stage.photo._id === "string" ? stage.photo._id : null;
-          if (!photoId) return false;
-          await waitWhilePaused();
-          await axios.put(stage.uploadUrl, blob, {
-            headers: { "Content-Type": type || "image/jpeg" },
-            signal: abortController.signal,
-            timeout: 0,
-            onUploadProgress: (progressEvent) => {
-              if (progressEvent.total) {
-                batchFractions[batchIdx] = Math.max(
-                  batchFractions[batchIdx],
-                  slot + progressEvent.loaded / progressEvent.total
-                );
-                commitAggregateProgress();
-              }
-            },
-          });
-          const done = await axios.post(
-            `${API_URL}/photo/complete`,
-            { photo_id: photoId, event_id },
-            { signal: abortController.signal, timeout: 0 }
-          );
-          if (!done.data || done.data.ok !== true) throw new Error("object-missing");
-          // ponytail: progress events never fire for tiny files/mocks — pin the slot done.
-          batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
-          commitAggregateProgress();
-          return true;
-        };
-
-        // ponytail: direct pass runs once per batch; retryable PUT/complete
-        // blips degrade to the multer fallback below (retried there), so one
-        // transient never fails the batch. Backend re-mints the same key on
-        // duplicate, so no orphan or double stub.
-        const directDone: boolean[] = [];
-        for (let slot = 0; slot < currentBatch.length; slot += 1) {
-          await waitWhilePaused();
-          const item = currentBatch[slot];
-          if (!item) continue;
-          try {
-            directDone.push(await uploadOneDirect(item, slot));
-          } catch (directErr: unknown) {
-            if (
-              abortController.signal.aborted ||
-              (typeof axios.isCancel === "function" && axios.isCancel(directErr)) ||
-              (directErr instanceof Error && (directErr.name === "CanceledError" || directErr.message === "CanceledError"))
-            ) {
-              throw directErr;
-            }
-            directDone.push(false);
-          }
-        }
-        const needFallback = currentBatch.filter((_, i) => directDone[i] !== true);
-        if (needFallback.length === 0) {
-          if (abortController.signal.aborted) throw new Error("CanceledError");
-          if (batchFailed) throw firstError ?? new Error("CanceledError");
-          setUploadStatus(null);
-          uploadedCount += currentBatch.length;
-          batchFractions[batchIdx] = currentBatch.length;
-          completedBatches += 1;
-          setBatchInfo({ current: Math.min(completedBatches, totalBatches), total: totalBatches });
-          currentBatch.forEach(item => { delete item.prepared; });
-          setSelectedFiles((prev) => prev.filter(item => !currentBatch.some(done => done.id === item.id)));
-          const overallPct = overallUploadPct(batchFractions, totalFilesCount);
-          lastProgressCommitRef.current = Date.now();
-          setProgress(overallPct);
-          reportUploadProgress({ progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
-          return;
-        }
-        let attempt = 0;
-        // ponytail: compress once per file (memoized); server originalname
-        // stays the photographer's filename, dedup hash is content-based.
-        await waitWhilePaused();
-        const preparedFallback = await Promise.all(needFallback.map((item) => preparedFor(item)));
-        if (preparedFallback.length > 0) {
-          hadFallback = true;
-          if (!preparedFallback.every((p) => p.compressed)) allCompressed = false;
-        }
-        for (;;) {
-          attempt += 1;
-          await waitWhilePaused();
-          try {
-            const formData = new FormData();
-            needFallback.forEach((item, i) => {
-              formData.append("name", preparedFallback[i]?.blob ?? item.file, item.file.name);
-            });
-            formData.append("event_id", event_id);
-            if (folder_name) formData.append("folder_name", folder_name);
-            if (USER_ID) {
-              formData.append("upload_by", USER_ID);
-              formData.append("user_id", USER_ID);
-            }
-            const fallbackBase = currentBatch.length - needFallback.length;
-            const currentBatchSize = needFallback.length;
-            const res = await axios.post(`${API_URL}/photo`, formData, {
-              headers: { "Content-Type": "multipart/form-data" },
-              signal: abortController.signal,
-              timeout: 0,
-              onUploadProgress: (progressEvent) => {
-                if (progressEvent.total) {
-                  batchFractions[batchIdx] =
-                    fallbackBase + (progressEvent.loaded / progressEvent.total) * currentBatchSize;
-                  commitAggregateProgress();
-                }
-              },
-            });
-
-            if (res.status === 207) {
-              throw new Error("Some photos in this batch failed to process.");
-            }
-            // ponytail: cancel won the race after post resolved — never report false success.
-            if (abortController.signal.aborted) {
-              throw new Error("CanceledError");
-            }
-            break;
-          } catch (attemptErr: unknown) {
-            if (
-              abortController.signal.aborted ||
-              (typeof axios.isCancel === "function" && axios.isCancel(attemptErr)) ||
-              (attemptErr instanceof Error && (attemptErr.name === "CanceledError" || attemptErr.message === "CanceledError"))
-            ) {
-              throw attemptErr;
-            }
-            if (!isRetryableUploadError(attemptErr) || attempt >= UPLOAD_MAX_ATTEMPTS) {
-              throw attemptErr;
-            }
-            setBatchInfo({ current: Math.min(completedBatches + 1, totalBatches), total: totalBatches });
-            setUploadStatus({
-              kind: "error",
-              text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
-            });
-            // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
-            const waitMs = uploadDelayMs(attempt);
-            // ponytail: pause freezes the retry countdown — sleep in capped slices so
-            // a mid-backoff pause parks instead of burning the delay. Abort wins.
-            let waitedMs = 0;
-            while (waitedMs < waitMs) {
-              await waitWhilePaused();
-              if (abortController.signal.aborted) throw new Error("CanceledError");
-              const signal = abortController.signal;
-              const sliceMs = Math.min(PROGRESS_COMMIT_INTERVAL_MS, waitMs - waitedMs);
-              await new Promise<void>((resolve, reject) => {
-                if (signal.aborted) {
-                  reject(new Error("CanceledError"));
-                  return;
-                }
-                const onAbort = () => {
-                  window.clearTimeout(timer);
-                  reject(new Error("CanceledError"));
-                };
-                const timer = window.setTimeout(() => {
-                  signal.removeEventListener("abort", onAbort);
-                  resolve();
-                }, sliceMs);
-                signal.addEventListener("abort", onAbort, { once: true });
-              });
-              waitedMs += sliceMs;
-            }
-          }
-        }
-        // ponytail: sibling failure must not masquerade as a user cancel —
-        // only an actual abort throws CanceledError; otherwise rethrow the real error.
-        if (abortController.signal.aborted) {
-          throw new Error("CanceledError");
-        }
-        if (batchFailed) {
-          throw firstError ?? new Error("CanceledError");
-        }
-        setUploadStatus(null);
-        uploadedCount += currentBatch.length;
-        batchFractions[batchIdx] = currentBatch.length;
-        completedBatches += 1;
-        setBatchInfo({ current: Math.min(completedBatches, totalBatches), total: totalBatches });
-        currentBatch.forEach(item => { delete item.prepared; });
-        setSelectedFiles((prev) => prev.filter(item => !currentBatch.some(done => done.id === item.id)));
-        const overallPct = overallUploadPct(batchFractions, totalFilesCount);
-        lastProgressCommitRef.current = Date.now();
-        setProgress(overallPct);
-        reportUploadProgress({ progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount }, event_id);
-      };
-
-      // A single worker keeps decoded images, hashes, and request bodies bounded.
-      const worker = async (): Promise<void> => {
-        for (;;) {
-          if (batchFailed || nextBatchIdx >= totalBatches) return;
-          await waitWhilePaused();
-          const batchIdx = nextBatchIdx;
-          nextBatchIdx += 1;
-          try {
-            await uploadBatch(batchIdx);
-          } catch (workerErr) {
-            if (firstError === null) firstError = workerErr;
-            batchFailed = true;
-            throw workerErr;
-          }
-        }
-      };
-
-      await Promise.all(Array.from({ length: Math.min(UPLOAD_BATCH_CONCURRENCY, totalBatches) }, () => worker()));
-
-      const successStatus = {
-        kind: "success" as const,
-        text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback && allCompressed ? " Optimized for fast upload, original quality." : ""}`,
-      };
-      setUploadStatus(successStatus);
-      setProgress(100);
-      reportUploadProgress({ progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus }, event_id);
-      endUploadSession(event_id);
-       setBatchInfo(null);
-       if (d_ref) {
-         setTimeout(() => d_ref(), 800);
-       }
-    } catch (err: unknown) {
-      if (
-        abortController.signal.aborted ||
-        (typeof axios.isCancel === "function" && axios.isCancel(err)) ||
-        (err instanceof Error && (err.name === "CanceledError" || err.message === "CanceledError"))
-      ) {
-        const cancelledStatus = {
-          kind: "error" as const,
-          text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
-        };
-        setUploadStatus(cancelledStatus);
-        reportUploadProgress({ uploadedCount, status: cancelledStatus }, event_id);
-      } else {
-        let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
-        if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
-          const responseData = err.response?.data;
-          // ponytail: 422-all-failed ships an ARRAY of per-file errors — surface the first, not axios's generic status text.
-          if (Array.isArray(responseData)) {
-            const first = responseData.find((r) => r && typeof r === "object" && "error" in r);
-            if (first) message = String(first.error);
-          } else if (responseData && typeof responseData === "object" && "message" in responseData) {
-            message = String(responseData.message);
-          } else if (responseData && typeof responseData === "object" && "error" in responseData) {
-            message = String(responseData.error);
-          }
-        }
-        const failedStatus = {
-          kind: "error" as const,
-          text: uploadedCount > 0
-            ? `Uploaded ${uploadedCount} of ${totalFilesCount} photos. Batch failed: ${message}. Click Upload to retry remaining photos.`
-            : `Upload failed: ${message}. Please try again.`,
-        };
-        setUploadStatus(failedStatus);
-        reportUploadProgress({ uploadedCount, status: failedStatus }, event_id);
-      }
-    } finally {
-      allFiles.forEach(item => { delete item.prepared; });
-      setLoading(false);
-      if (getUploadSnapshot().active) endUploadSession(event_id);
-    }
+    const totalFilesCount = selectedFilesRef.current.length;
+    const totalBatches = totalFilesCount;
+    const abortController = startUploadSession(event_id, selectedFilesRef.current, totalBatches);
+    void runUpload(event_id, folder_name, USER_ID, totalFilesCount, abortController, eventIdRef, d_ref);
   };
 
   const previewItems = selectedFiles.slice(0, MAX_PREVIEWS);
@@ -824,4 +446,364 @@ export default function Upload_Img({ event_id, d_ref, folder_name }: Props): Rea
       </CardContent>
     </Card>
   );
+}
+
+// Keep the worker outside React so it cannot retain an unmounted view's state.
+async function runUpload(
+  event_id: string,
+  folder_name: string | undefined,
+  USER_ID: string | null,
+  totalFilesCount: number,
+  abortController: AbortController,
+  eventIdRef: React.MutableRefObject<string>,
+  d_ref: Props["d_ref"],
+): Promise<void> {
+  const totalBatches = totalFilesCount;
+  const lastProgressCommitRef = { current: 0 };
+    let uploadedCount = 0;
+    // Caption only when every fallback file was compressed.
+    let hadFallback = false;
+    let allCompressed = true;
+
+    try {
+      // ponytail: aggregate progress via fractions so concurrent batches share one ref-throttled bar.
+      const batchFractions: number[] = Array(totalBatches).fill(0);
+      let nextBatchIdx = 0;
+      let completedBatches = 0;
+      let batchFailed = false;
+      // First worker error wins: without this, a sibling's failure throws a
+      // generic CanceledError that hides the real per-batch error below.
+      let firstError: unknown = null;
+
+      const commitAggregateProgress = () => {
+        const now = Date.now();
+        if (now - lastProgressCommitRef.current >= PROGRESS_COMMIT_INTERVAL_MS) {
+          lastProgressCommitRef.current = now;
+          const pct = overallUploadPct(batchFractions, totalFilesCount);
+          reportUploadProgress({ progress: pct }, event_id);
+        }
+      };
+
+      // ponytail: pause gates scheduling, never bytes — in-flight PUT/POST run
+      // to completion; nothing new starts while paused. Abort wins immediately.
+      const waitWhilePaused = async () => {
+        if (abortController.signal.aborted) throw new Error("CanceledError");
+        while (isUploadPaused()) {
+          if (abortController.signal.aborted) throw new Error("CanceledError");
+          const signal = abortController.signal;
+          await new Promise<void>((resolve, reject) => {
+            if (signal.aborted) {
+              reject(new Error("CanceledError"));
+              return;
+            }
+            const onAbort = () => {
+              window.clearTimeout(timer);
+              reject(new Error("CanceledError"));
+            };
+            const timer = window.setTimeout(() => {
+              signal.removeEventListener("abort", onAbort);
+              resolve();
+            }, PROGRESS_COMMIT_INTERVAL_MS);
+            signal.addEventListener("abort", onAbort, { once: true });
+          });
+        }
+        if (abortController.signal.aborted) throw new Error("CanceledError");
+      };
+      const uploadBatch = async (batchIdx: number): Promise<void> => {
+        if (abortController.signal.aborted) {
+          throw new Error("CanceledError");
+        }
+        // ponytail: no start-of-batch counter — batchIdx order races under
+        // concurrency and a sibling failure could paint a count for a batch that never ran.
+
+        const currentBatch = getUploadSnapshot().remainingFiles.slice(0, UPLOAD_BATCH_SIZE);
+
+        // Direct browser-to-G3 per file; falls back to legacy multipart POST
+        // when the store is unconfigured, hashing is unavailable, or a stage
+        // call answers local. Same retry/cancel/progress scaffolding below.
+        const uploadOneDirect = async (item: SelectedFile, slot: number): Promise<boolean> => {
+          const { blob, compressed } = await preparedFor(item);
+          await waitWhilePaused();
+          const type = compressed ? "image/jpeg" : item.file.type;
+          const hash = await fileHasher.sha256Hex(blob);
+          if (!hash) return false;
+          await waitWhilePaused();
+          let stage: {
+            duplicate?: boolean; photo?: { _id?: string }; key?: string | null;
+            uploadUrl?: string | null; via?: string;
+          };
+          try {
+            const res = await axios.post(
+              `${API_URL}/photo/stage`,
+              {
+                event_id,
+                hash,
+                filename: item.file.name,
+                size: blob.size,
+                contentType: type,
+                folder_name,
+                upload_by: USER_ID ?? undefined,
+              },
+              { signal: abortController.signal, timeout: 0 }
+            );
+            stage = res.data;
+          } catch (stageErr: unknown) {
+            // ponytail: abort during stage must cancel now, not degrade to fallback.
+            if (
+              abortController.signal.aborted ||
+              (typeof axios.isCancel === "function" && axios.isCancel(stageErr)) ||
+              (stageErr instanceof Error && (stageErr.name === "CanceledError" || stageErr.message === "CanceledError"))
+            ) {
+              throw stageErr;
+            }
+            return false;
+          }
+          // ponytail: backend only reports duplicate when bytes are present
+          // (local or G3), so done here is real — no blind trust. Falsy stage
+          // (empty body) must fall back, never count as success.
+          if (stage && stage.duplicate) {
+            batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
+            commitAggregateProgress();
+            return true;
+          }
+          if (!stage || stage.via === "local" || !stage.uploadUrl || !stage.key) return false;
+          const photoId = stage.photo && typeof stage.photo._id === "string" ? stage.photo._id : null;
+          if (!photoId) return false;
+          await waitWhilePaused();
+          await axios.put(stage.uploadUrl, blob, {
+            headers: { "Content-Type": type || "image/jpeg" },
+            signal: abortController.signal,
+            timeout: 0,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                batchFractions[batchIdx] = Math.max(
+                  batchFractions[batchIdx],
+                  slot + progressEvent.loaded / progressEvent.total
+                );
+                commitAggregateProgress();
+              }
+            },
+          });
+          const done = await axios.post(
+            `${API_URL}/photo/complete`,
+            { photo_id: photoId, event_id },
+            { signal: abortController.signal, timeout: 0 }
+          );
+          if (!done.data || done.data.ok !== true) throw new Error("object-missing");
+          // ponytail: progress events never fire for tiny files/mocks — pin the slot done.
+          batchFractions[batchIdx] = Math.max(batchFractions[batchIdx], slot + 1);
+          commitAggregateProgress();
+          return true;
+        };
+
+        // ponytail: direct pass runs once per batch; retryable PUT/complete
+        // blips degrade to the multer fallback below (retried there), so one
+        // transient never fails the batch. Backend re-mints the same key on
+        // duplicate, so no orphan or double stub.
+        const directDone: boolean[] = [];
+        for (let slot = 0; slot < currentBatch.length; slot += 1) {
+          await waitWhilePaused();
+          const item = currentBatch[slot];
+          if (!item) continue;
+          try {
+            directDone.push(await uploadOneDirect(item, slot));
+          } catch (directErr: unknown) {
+            if (
+              abortController.signal.aborted ||
+              (typeof axios.isCancel === "function" && axios.isCancel(directErr)) ||
+              (directErr instanceof Error && (directErr.name === "CanceledError" || directErr.message === "CanceledError"))
+            ) {
+              throw directErr;
+            }
+            directDone.push(false);
+          }
+        }
+        const needFallback = currentBatch.filter((_, i) => directDone[i] !== true);
+        if (needFallback.length === 0) {
+          if (abortController.signal.aborted) throw new Error("CanceledError");
+          if (batchFailed) throw firstError ?? new Error("CanceledError");
+          reportUploadProgress({ status: null }, event_id);
+          uploadedCount += currentBatch.length;
+          batchFractions[batchIdx] = currentBatch.length;
+          completedBatches += 1;
+          currentBatch.forEach(item => { delete item.prepared; });
+          const overallPct = overallUploadPct(batchFractions, totalFilesCount);
+          lastProgressCommitRef.current = Date.now();
+          reportUploadProgress({ progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, remainingFiles: getUploadSnapshot().remainingFiles.slice(currentBatch.length) }, event_id);
+          return;
+        }
+        let attempt = 0;
+        // ponytail: compress once per file (memoized); server originalname
+        // stays the photographer's filename, dedup hash is content-based.
+        await waitWhilePaused();
+        const preparedFallback = await Promise.all(needFallback.map((item) => preparedFor(item)));
+        if (preparedFallback.length > 0) {
+          hadFallback = true;
+          if (!preparedFallback.every((p) => p.compressed)) allCompressed = false;
+        }
+        for (;;) {
+          attempt += 1;
+          await waitWhilePaused();
+          try {
+            const formData = new FormData();
+            needFallback.forEach((item, i) => {
+              formData.append("name", preparedFallback[i]?.blob ?? item.file, item.file.name);
+            });
+            formData.append("event_id", event_id);
+            if (folder_name) formData.append("folder_name", folder_name);
+            if (USER_ID) {
+              formData.append("upload_by", USER_ID);
+              formData.append("user_id", USER_ID);
+            }
+            const fallbackBase = currentBatch.length - needFallback.length;
+            const currentBatchSize = needFallback.length;
+            const res = await axios.post(`${API_URL}/photo`, formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+              signal: abortController.signal,
+              timeout: 0,
+              onUploadProgress: (progressEvent) => {
+                if (progressEvent.total) {
+                  batchFractions[batchIdx] =
+                    fallbackBase + (progressEvent.loaded / progressEvent.total) * currentBatchSize;
+                  commitAggregateProgress();
+                }
+              },
+            });
+
+            if (res.status === 207) {
+              throw new Error("Some photos in this batch failed to process.");
+            }
+            // ponytail: cancel won the race after post resolved — never report false success.
+            if (abortController.signal.aborted) {
+              throw new Error("CanceledError");
+            }
+            break;
+          } catch (attemptErr: unknown) {
+            if (
+              abortController.signal.aborted ||
+              (typeof axios.isCancel === "function" && axios.isCancel(attemptErr)) ||
+              (attemptErr instanceof Error && (attemptErr.name === "CanceledError" || attemptErr.message === "CanceledError"))
+            ) {
+              throw attemptErr;
+            }
+            if (!isRetryableUploadError(attemptErr) || attempt >= UPLOAD_MAX_ATTEMPTS) {
+              throw attemptErr;
+            }
+            reportUploadProgress({
+              batchCurrent: Math.min(completedBatches + 1, totalBatches),
+              status: {
+                kind: "error",
+                text: `Batch ${batchIdx + 1} of ${totalBatches} hit a network blip — retrying (${attempt}/${UPLOAD_MAX_ATTEMPTS})…`,
+              },
+            }, event_id);
+            // ponytail: hoist waitMs out of the closure (no-loop-func) + skip timer for zero-delay first retry.
+            const waitMs = uploadDelayMs(attempt);
+            // ponytail: pause freezes the retry countdown — sleep in capped slices so
+            // a mid-backoff pause parks instead of burning the delay. Abort wins.
+            let waitedMs = 0;
+            while (waitedMs < waitMs) {
+              await waitWhilePaused();
+              if (abortController.signal.aborted) throw new Error("CanceledError");
+              const signal = abortController.signal;
+              const sliceMs = Math.min(PROGRESS_COMMIT_INTERVAL_MS, waitMs - waitedMs);
+              await new Promise<void>((resolve, reject) => {
+                if (signal.aborted) {
+                  reject(new Error("CanceledError"));
+                  return;
+                }
+                const onAbort = () => {
+                  window.clearTimeout(timer);
+                  reject(new Error("CanceledError"));
+                };
+                const timer = window.setTimeout(() => {
+                  signal.removeEventListener("abort", onAbort);
+                  resolve();
+                }, sliceMs);
+                signal.addEventListener("abort", onAbort, { once: true });
+              });
+              waitedMs += sliceMs;
+            }
+          }
+        }
+        // ponytail: sibling failure must not masquerade as a user cancel —
+        // only an actual abort throws CanceledError; otherwise rethrow the real error.
+        if (abortController.signal.aborted) {
+          throw new Error("CanceledError");
+        }
+        if (batchFailed) {
+          throw firstError ?? new Error("CanceledError");
+        }
+        reportUploadProgress({ status: null }, event_id);
+        uploadedCount += currentBatch.length;
+        batchFractions[batchIdx] = currentBatch.length;
+        completedBatches += 1;
+        currentBatch.forEach(item => { delete item.prepared; });
+        const overallPct = overallUploadPct(batchFractions, totalFilesCount);
+        lastProgressCommitRef.current = Date.now();
+        reportUploadProgress({ progress: overallPct, batchCurrent: Math.min(completedBatches, totalBatches), uploadedCount, remainingFiles: getUploadSnapshot().remainingFiles.slice(currentBatch.length) }, event_id);
+      };
+
+      // A single worker keeps decoded images, hashes, and request bodies bounded.
+      const worker = async (): Promise<void> => {
+        for (;;) {
+          if (batchFailed || nextBatchIdx >= totalBatches) return;
+          await waitWhilePaused();
+          const batchIdx = nextBatchIdx;
+          nextBatchIdx += 1;
+          try {
+            await uploadBatch(batchIdx);
+          } catch (workerErr) {
+            if (firstError === null) firstError = workerErr;
+            batchFailed = true;
+            throw workerErr;
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: Math.min(UPLOAD_BATCH_CONCURRENCY, totalBatches) }, () => worker()));
+
+      const successStatus = {
+        kind: "success" as const,
+        text: `Successfully uploaded ${uploadedCount} photo${uploadedCount > 1 ? "s" : ""}. AI indexing started!${hadFallback && allCompressed ? " Optimized for fast upload, original quality." : ""}`,
+      };
+      reportUploadProgress({ progress: 100, batchCurrent: totalBatches, uploadedCount, status: successStatus }, event_id);
+      if (d_ref) {
+        setTimeout(() => { if (eventIdRef.current === event_id) d_ref(); }, 800);
+      }
+    } catch (err: unknown) {
+      if (
+        abortController.signal.aborted ||
+        (typeof axios.isCancel === "function" && axios.isCancel(err)) ||
+        (err instanceof Error && (err.name === "CanceledError" || err.message === "CanceledError"))
+      ) {
+        const cancelledStatus = {
+          kind: "error" as const,
+          text: `Upload cancelled. ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"} uploaded before cancellation.`,
+        };
+        reportUploadProgress({ uploadedCount, status: cancelledStatus }, event_id);
+      } else {
+        let message = err instanceof Error && err.message ? err.message : "Upload failed. Please check network connection.";
+        if (typeof axios.isAxiosError === "function" && axios.isAxiosError(err)) {
+          const responseData = err.response?.data;
+          // ponytail: 422-all-failed ships an ARRAY of per-file errors — surface the first, not axios's generic status text.
+          if (Array.isArray(responseData)) {
+            const first = responseData.find((r) => r && typeof r === "object" && "error" in r);
+            if (first) message = String(first.error);
+          } else if (responseData && typeof responseData === "object" && "message" in responseData) {
+            message = String(responseData.message);
+          } else if (responseData && typeof responseData === "object" && "error" in responseData) {
+            message = String(responseData.error);
+          }
+        }
+        const failedStatus = {
+          kind: "error" as const,
+          text: uploadedCount > 0
+            ? `Uploaded ${uploadedCount} of ${totalFilesCount} photos. Batch failed: ${message}. Click Upload to retry remaining photos.`
+            : `Upload failed: ${message}. Please try again.`,
+        };
+        reportUploadProgress({ uploadedCount, status: failedStatus }, event_id);
+      }
+    } finally {
+      endUploadSession(event_id);
+    }
 }

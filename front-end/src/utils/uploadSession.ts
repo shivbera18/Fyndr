@@ -3,6 +3,13 @@
 // reload still restarts the queue (File objects aren't cheaply serializable).
 export type UploadSessionStatus = { kind: "success" | "error"; text: string } | null;
 
+export type SelectedFile = {
+  file: File;
+  id: string;
+  // Only the active photo may retain prepared bytes, until its attempt ends.
+  prepared?: { blob: Blob; compressed: boolean };
+};
+
 export type UploadSessionSnapshot = {
   eventId: string | null;
   active: boolean;
@@ -13,6 +20,7 @@ export type UploadSessionSnapshot = {
   uploadedCount: number;
   status: UploadSessionStatus;
   paused: boolean;
+  remainingFiles: SelectedFile[];
 };
 
 export type UploadSessionListener = (snapshot: UploadSessionSnapshot) => void;
@@ -27,6 +35,7 @@ type SessionState = {
   uploadedCount: number;
   status: UploadSessionStatus;
   paused: boolean;
+  remainingFiles: SelectedFile[];
 };
 
 const state: SessionState = {
@@ -39,6 +48,7 @@ const state: SessionState = {
   uploadedCount: 0,
   status: null,
   paused: false,
+  remainingFiles: [],
 };
 
 const listeners = new Set<UploadSessionListener>();
@@ -54,6 +64,7 @@ export function getSnapshot(): UploadSessionSnapshot {
     uploadedCount: state.uploadedCount,
     status: state.status,
     paused: state.paused,
+    remainingFiles: state.remainingFiles,
   };
 }
 
@@ -74,22 +85,22 @@ export function isPaused(): boolean {
   return state.paused;
 }
 
-export function startSession(eventId: string, totalFiles: number, batchTotal: number): AbortController {
-  // ponytail: session-id guard — StrictMode double-mount replays startSession
-  // with the same totals; only reset when the event or shape actually changes.
-  if (state.abort !== null && state.eventId === eventId && state.totalFiles === totalFiles) {
+export function startSession(eventId: string, files: SelectedFile[], batchTotal: number): AbortController {
+  // Reattaching the same queue must not create a second controller.
+  if (state.abort !== null && state.eventId === eventId && state.remainingFiles === files) {
     return state.abort;
   }
   if (state.abort !== null) throw new Error("An upload is already running.");
   state.eventId = eventId;
   state.abort = new AbortController();
-  state.totalFiles = totalFiles;
+  state.totalFiles = files.length;
   state.progress = 0;
   state.batchCurrent = 0;
   state.batchTotal = batchTotal;
   state.uploadedCount = 0;
   state.status = null;
   state.paused = false;
+  state.remainingFiles = files;
   emit();
   return state.abort;
 }
@@ -99,6 +110,7 @@ export function reportProgress(update: {
   batchCurrent?: number;
   uploadedCount?: number;
   status?: UploadSessionStatus;
+  remainingFiles?: SelectedFile[];
 }, eventId?: string): void {
   // ponytail: stale closures (prior event's orphaned upload) must not clobber
   // the current session — callers pass their event_id, mismatches are dropped.
@@ -107,6 +119,7 @@ export function reportProgress(update: {
   if (update.batchCurrent !== undefined) state.batchCurrent = update.batchCurrent;
   if (update.uploadedCount !== undefined) state.uploadedCount = update.uploadedCount;
   if (update.status !== undefined) state.status = update.status;
+  if (update.remainingFiles !== undefined) state.remainingFiles = update.remainingFiles;
   emit();
 }
 
@@ -119,15 +132,29 @@ export function cancelSession(): void {
 export function endSession(eventId?: string): void {
   if (eventId !== undefined && eventId !== state.eventId) return;
   state.abort = null;
+  state.remainingFiles.forEach(item => { delete item.prepared; });
   state.paused = false;
   emit();
 }
+
+export function setRemainingFiles(eventId: string, files: SelectedFile[]): void {
+  if (state.eventId !== eventId || state.abort !== null) return;
+  state.remainingFiles.forEach(item => { delete item.prepared; });
+  state.remainingFiles = files;
+  state.status = null;
+  state.progress = 0;
+  state.batchCurrent = 0;
+  state.batchTotal = 0;
+  emit();
+}
 export function pauseSession(): void {
+  if (state.abort === null || state.abort.signal.aborted) return;
   state.paused = true;
   emit();
 }
 
 export function resumeSession(): void {
+  if (state.abort === null || state.abort.signal.aborted) return;
   state.paused = false;
   emit();
 }
@@ -143,5 +170,6 @@ export function __resetUploadSessionForTests(): void {
   state.uploadedCount = 0;
   state.status = null;
   state.paused = false;
+  state.remainingFiles = [];
   listeners.clear();
 }

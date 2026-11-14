@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import axios from "axios";
 import { API_URL } from "../../../utils/api";
 import Upload_Img, { MAX_PREVIEWS, UPLOAD_BATCH_SIZE, UPLOAD_BATCH_BYTE_BUDGET, UPLOAD_MAX_ATTEMPTS, buildByteBudgetedBatches, overallUploadPct } from "../Upload_Img";
@@ -390,11 +390,115 @@ describe("Upload_Img component memory safety and batching", () => {
     await screen.findByRole("button", { name: /Uploading \(0%\)/i });
     first.unmount();
     render(<Upload_Img event_id="evt_test_1" />);
-    // Empty queue after navigation, but the adopted session still offers controls.
+    expect(screen.getByText(/4 photos queued/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Cancel upload/i })).toBeInTheDocument();
     resolvePost({ status: 200, data: [] });
     expect(await screen.findByText(/Successfully uploaded 4 photos/i)).toBeInTheDocument();
+  });
+
+  test("paused remount can cancel and retry its remaining files without reselection", async () => {
+    const first = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    first.unmount();
+    const second = render(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.getByText(/2 photos queued/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Cancel upload/i }));
+    const retry = await screen.findByRole("button", { name: /Upload 2 photos/i });
+    await waitFor(() => expect(retry).toBeEnabled());
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+    second.unmount();
+    render(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByText(/Upload cancelled/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    expect(getUploadSessionSnapshot().remainingFiles).toEqual([]);
+  });
+
+  test.each([false, true])("recovers a failure while away (return after failure: %s)", async returnAfterFailure => {
+    // TS 4.9/browser targets do not provide Promise.withResolvers.
+    let fail!: (reason: Error) => void;
+    const pending = new Promise((_, reject) => { fail = reject; });
+    mockedAxios.post.mockResolvedValueOnce({ status: 200, data: [] }).mockImplementationOnce(() => pending);
+    const first = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(3) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 3 photos/i }));
+    await waitFor(() => expect(mockedAxios.post).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(/2 photos queued/i)).toBeInTheDocument();
+    first.unmount();
+    if (!returnAfterFailure) render(<Upload_Img event_id="evt_A" />);
+    await act(async () => { fail(new Error("invalid photo")); });
+    if (returnAfterFailure) render(<Upload_Img event_id="evt_A" />);
+    expect(await screen.findByText(/Uploaded 1 of 3 photos\. Batch failed: invalid photo/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 2 photos/i })).toBeEnabled();
+    expect(getUploadSessionSnapshot().remainingFiles.every(item => item.prepared === undefined)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    const uploadedNames = mockedAxios.post.mock.calls.map(([, body]) => ((body as FormData).get("name") as File).name);
+    expect(uploadedNames).toEqual(["photo-1.jpg", "photo-2.jpg", "photo-2.jpg", "photo-3.jpg"]);
+  });
+
+  test("Clear all releases a recovered retry queue across remounts", async () => {
+    mockedAxios.post.mockRejectedValueOnce(new Error("invalid photo"));
+    const first = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(first.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await screen.findByText(/Upload failed: invalid photo/i);
+    first.unmount();
+    const second = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(getUploadSessionSnapshot().remainingFiles).toEqual([]);
+    second.unmount();
+    render(<Upload_Img event_id="evt_A" />);
+    expect(screen.queryByText(/invalid photo|photos queued/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 0 photos/i })).toBeDisabled();
+  });
+
+  test("same component event changes isolate draft, controls and old worker completion", async () => {
+    let finish!: (value: unknown) => void;
+    mockedAxios.post.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const view = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(view.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await waitFor(() => expect(mockedAxios.post).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    view.rerender(<Upload_Img event_id="evt_B" />);
+    expect(screen.queryByRole("button", { name: /Resume|Cancel upload/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 0 photos/i })).toBeDisabled();
+    fireEvent.change(view.container.querySelector("input[type='file']")!, {
+      target: { files: [new File(["other"], "other.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 1 photo/i }));
+    expect(screen.getByText(/An upload is already running/i)).toBeInTheDocument();
+    await act(async () => { finish({ status: 200, data: [] }); });
+    expect(screen.getByText("other.jpg")).toBeInTheDocument();
+    expect(screen.queryByText(/Successfully uploaded/i)).not.toBeInTheDocument();
+    expect(getUploadSessionSnapshot()).toMatchObject({ eventId: "evt_A", paused: true, uploadedCount: 1 });
+    view.rerender(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.getByText(/1 photo queued/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
+    expect(mockedAxios.post.mock.calls.every(([, body]) => (body as FormData).get("event_id") === "evt_A")).toBe(true);
+  });
+
+  test("same component restores a failed event queue without leaking it to another event", async () => {
+    mockedAxios.post.mockRejectedValueOnce(new Error("invalid photo"));
+    const view = render(<Upload_Img event_id="evt_A" />);
+    fireEvent.change(view.container.querySelector("input[type='file']")!, { target: { files: createDummyFiles(2) } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    await screen.findByText(/Upload failed: invalid photo/i);
+    view.rerender(<Upload_Img event_id="evt_B" />);
+    expect(screen.queryByText(/invalid photo|photos queued/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Upload 0 photos/i })).toBeDisabled();
+    view.rerender(<Upload_Img event_id="evt_A" />);
+    expect(screen.getByText(/Upload failed: invalid photo/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Upload 2 photos/i }));
+    expect(await screen.findByText(/Successfully uploaded 2 photos/i)).toBeInTheDocument();
   });
   test("beforeunload warns only while an upload is active", async () => {
     const addSpy = jest.spyOn(window, "addEventListener");
