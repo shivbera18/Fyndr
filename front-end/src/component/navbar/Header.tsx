@@ -39,9 +39,10 @@ function getNavItems(pathname: string, user: SessionUser | null): NavItem[] {
   if (pathname === "/") {
     return [
       { name: "Overview", link: "/" },
-      { name: "Features", link: "/#features" },
+      { name: "Features", link: "/#capabilities" },
       { name: "How it works", link: "/#how-it-works" },
-      { name: "Pricing", link: "/#pricing" },
+      { name: "Demo", link: "/#gallery-demo" },
+      { name: "FAQ", link: "/#faq" },
       { name: "Dashboard", link: "/dashboard" },
     ];
   }
